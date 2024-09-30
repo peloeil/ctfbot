@@ -3,22 +3,22 @@ from dotenv import load_dotenv
 import discord
 from discord.ext import commands
 
-load_dotenv()
+class DiscordBot(commands.Bot):
+    def __init__(self, prefix):
+        intents = discord.Intents.default()
+        intents.message_content = True
+        super().__init__(command_prefix=prefix, intents=intents)
 
-intents = discord.Intents.default()
-intents.message_content = True
+    async def setup_hook(self):
+        await self.load_extension("ctfbot.cogs.misc")
+        #await self.load_extension("ctfbot.cogs.ctf")
 
-bot = commands.Bot(command_prefix='!', intents=intents)
-
-@bot.event
-async def on_ready():
-    print(f'{bot.user} has connected to Discord!')
-
-@bot.command()
-async def ping(ctx):
-    await ctx.send('pong')
+    async def on_ready(self):
+        print(f"{self.user} has connected to Discord!")
 
 def main():
+    load_dotenv()
+    bot = DiscordBot(prefix="!")
     bot.run(os.getenv('DISCORD_TOKEN'))
 
 if __name__ == "__main__":
