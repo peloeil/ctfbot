@@ -1,7 +1,7 @@
 [project]
 name = "ctfbot"
 version = "0.1.0"
-description = "Add your description here"
+description = "discord bot for CTF"
 authors = [
     { name = "Shun Ota", email = "peloeil20@gmail.com" }
 ]
@@ -25,3 +25,7 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ctfbot"]
+
+[tool.rye.scripts]
+test = "python src/ctfbot/main.py"
+stop = "pkill --full --echo 'python src/ctfbot/main.py'"
