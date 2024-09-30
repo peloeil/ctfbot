@@ -16,6 +16,10 @@ class BasicCommands(commands.Cog):
         await ctx.send(f"Hello, {ctx.author.mention}!")
 
     @commands.command()
+    async def goodnight(self, ctx):
+        await ctx.send(f"Have a good night, {ctx.author.mention}!")
+
+    @commands.command()
     async def roll(self, ctx, dice: str = "1d100"):
         dice_pattern = re.compile(r"^(\d+)d(\d+)$")
         match = dice_pattern.match(dice)
