@@ -74,3 +74,10 @@ git fetch origin refs/pull/{num}/head:{test}
 git checkout {test}
 rye run test
 ```
+
+## 変更をリポジトリに反映させる
+main ブランチは PR 経由の merge でしか変更することができません。
+main ブランチに変更を加えたいときは、ブランチを作って PR を送りましょう。
+
+また、PR を merge するには1人以上の review を受けることが必須になっています。
+PR を作成したときは誰かしらを reviewer に指定すると良いでしょう。
