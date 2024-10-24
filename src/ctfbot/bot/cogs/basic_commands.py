@@ -15,11 +15,11 @@ class BasicCommands(commands.Cog):
     async def hello(self, ctx):
         await ctx.send(f"Hello, {ctx.author.mention}!")
 
-    @commands.command()
+    @commands.command(aliases=['gn', 'おやすみ'])
     async def goodnight(self, ctx):
         await ctx.send(f"Have a good night, {ctx.author.mention}!")
 
-    @commands.command()
+    @commands.command(aliases=['gm', 'おは', 'おはよ', 'おはよう'])
     async def goodmorning(self, ctx):
         await ctx.send(f"Good morning, {ctx.author.mention}!")
 
