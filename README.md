@@ -29,14 +29,18 @@ Scope は bot にしてください。
 
 生成されたリンクを用いて、用意した discord サーバーに bot を導入します。
 
-## rye のインストール
-公式サイト: https://rye.astral.sh/ を参考に導入してください。
+## uv のインストール
+[公式サイト](https://docs.astral.sh/uv/) を参考に導入してください。
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
 
 ## プログラムを実行して動作確認
 下のコマンドを順番に実行した後、コマンドを打ち動作していることを確認してください。
 ```
-rye sync
-rye run test
+uv sync
+source .venv/bin/activate
+python src/main.py
 ```
 正常に response があれば準備完了です。
 
@@ -46,33 +50,34 @@ rye run test
 .
 ├── README.md
 ├── pyproject.toml
-├── requirements-dev.lock
-├── requirements.lock
-└── src
-    └── ctfbot
-        ├── bot
-        │   ├── __init__.py
-        │   ├── cogs
-        │   │   ├── basic_commands.py
-        │   │   ├── manage_cogs.py
-        │   │   └── slash_commands.py
-        │   └── cogs_loader.py
-        └── main.py
+├── src
+│   ├── bot
+│   │   ├── __init__.py
+│   │   ├── cogs
+│   │   │   ├── basic_commands.py
+│   │   │   ├── manage_cogs.py
+│   │   │   ├── slash_commands.py
+│   │   │   └── tasks_loop.py
+│   │   └── cogs_loader.py
+│   └── main.py
+└── uv.lock
 ```
-機能追加は基本的に `./src/ctfbot/bot/cogs` 以下のみをいじることで可能です。
+機能追加は基本的に `./src/bot/cogs` 以下のみをいじることで可能です。
 
-新しい cogs を作る場合は、`./src/ctfbot/bot/cogs_loader.py` 内に cogs を登録する必要があります。
+新しい cogs を作る場合は、`./src/bot/cogs_loader.py` 内に cogs を登録する必要があります。
 
 ## 実装した機能のテスト
 - `source .venv/bin/activate` で python の仮想環境に入ることを忘れないでください。
-- `rye run test` で、プログラムを動かしている間は機能のテストができます。
+- `python src/main.py` で、プログラムを動かしている間は機能のテストができます。
 
 ## PR の来た機能のテスト
 `{num}` を PR 番号で、`{test}` を好きな文字列で置き換えてください。
 ```
 git fetch origin refs/pull/{num}/head:{test}
 git checkout {test}
-rye run test
+uv sync
+source .venv/bin/activate
+python src/main.py
 ```
 
 ## 変更をリポジトリに反映させる
