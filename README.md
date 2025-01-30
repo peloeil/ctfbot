@@ -36,11 +36,9 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 ## プログラムを実行して動作確認
-下のコマンドを順番に実行した後、コマンドを打ち動作していることを確認してください。
-```
-uv sync
-source .venv/bin/activate
-python src/main.py
+下のコマンドを実行した後、コマンドを打ち動作していることを確認してください。
+```bash
+uv run src/main.py
 ```
 正常に response があれば準備完了です。
 
@@ -67,17 +65,21 @@ python src/main.py
 新しい cogs を作る場合は、`./src/bot/cogs_loader.py` 内に cogs を登録する必要があります。
 
 ## 実装した機能のテスト
-- `source .venv/bin/activate` で python の仮想環境に入ることを忘れないでください。
-- `python src/main.py` で、プログラムを動かしている間は機能のテストができます。
+`uv run src/main.py` の実行中は機能のテストができます。
+
+明示的に仮想環境を有効化することもできます。
+```bash
+uv sync
+source .venv/bin/activate
+python src/main.py
+```
 
 ## PR の来た機能のテスト
 `{num}` を PR 番号で、`{test}` を好きな文字列で置き換えてください。
 ```
 git fetch origin refs/pull/{num}/head:{test}
 git checkout {test}
-uv sync
-source .venv/bin/activate
-python src/main.py
+uv run src/main.py
 ```
 
 ## 変更をリポジトリに反映させる
