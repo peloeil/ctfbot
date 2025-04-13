@@ -10,6 +10,7 @@ CTF 用の discord bot
 Install Link を None にする必要があるかもしれません(要出典)
 ### Bot
 `cp .env.example .env` とし、`.env` 内の `user_provided` を token の実際の文字列で置き換えてください。
+ついでに `BOT_CHANNEL_ID` を bot の自動メッセージを流すチャンネル ID にセットしておくと良いと思います。
 このファイルは絶対に commit に含めないでください。
 このリポジトリは現状 private ではあるし `.gitignore` にも含めていますが、個人でも気をつけてください。
 
