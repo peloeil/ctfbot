@@ -30,10 +30,10 @@ class Alpacahack(commands.Cog):
     def __init__(self, bot):
         load_dotenv()
         self.bot = bot
-        self.channel_id = int(os.getenv("BOT_CHANNLE_ID") or "0")
+        self.channel_id = int(os.getenv("BOT_CHANNEL_ID") or "0")
         self.alpacahack_solves.start()
 
-    @tasks.loop(time=[time(hour=22, minute=57, tzinfo=JST)])
+    @tasks.loop(time=[time(hour=23, minute=00, tzinfo=JST)])
     async def alpacahack_solves(self):
         channel = self.bot.get_channel(self.channel_id)
         if channel is not None:
