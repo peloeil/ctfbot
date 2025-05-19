@@ -12,13 +12,16 @@ def get_alpacahack_solves(user):
     response = requests.get(f"https://alpacahack.com/users/{user}")
     soup = BeautifulSoup(response.content, features="html.parser")
     tbody = soup.find("tbody",class_="MuiTableBody-root")
-    ret = f"{user}\n"
+    ret = f"```\n"
+    ret += f"{user}\n"
+    ret += f"{'CHALLENGE':20}{'SOLVES':20}{'SOLVED AT':20}\n"
     for i in tbody.find_all("tr"):
         data = i.find_all("td")
         challenge = data[0].find("a").text
         solves = data[1].find("p").text
         solve_at = data[2].find("p").text
-        ret += f"`{'CHALLENGE':10}: {challenge} {'SOLVED AT':10}: {solve_at}`\n"
+        ret += f"{challenge:20}{solves:20}{solve_at:20}\n"
+    ret += "```"
     return ret
 
 
@@ -31,7 +34,7 @@ class Alpacahack(commands.Cog):
         self.channel_id = int(os.getenv("BOT_CHANNLE_ID") or "0")
         self.alpacahack_solves.start()
 
-    @tasks.loop(time=[time(hour=20, minute=45, tzinfo=JST)])
+    @tasks.loop(time=[time(hour=22, minute=57, tzinfo=JST)])
     async def alpacahack_solves(self):
         channel = self.bot.get_channel(self.channel_id)
         if channel is not None:
