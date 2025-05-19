@@ -11,7 +11,7 @@ class TasksLoop(commands.Cog):
     def __init__(self, bot):
         load_dotenv()
         self.bot = bot
-        self.channel_id = int(os.getenv("BOT_CHANNEL_ID") or "")
+        self.channel_id = int(os.getenv("BOT_CHANNEL_ID") or "0")
         self.goodmorning.start()
 
     @tasks.loop(time=[time(hour=4, minute=47, tzinfo=JST)])
