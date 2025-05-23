@@ -23,6 +23,7 @@ Scope は bot にしてください。
 現状必要な BOT_PERMISSIONS は以下の通りです。余分な権限が含まれているのを見つけた場合は issue に報告をお願いします。
 - GENERAL PERMISSIONS
     - View Channels
+    - Manage Messages
 - TEXT PERMISSIONS
     - Send Messages
 - VOICE PERMISSIONS
