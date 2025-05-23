@@ -6,6 +6,9 @@ from datetime import time, timezone, timedelta
 import requests
 from bs4 import BeautifulSoup
 
+import sqlite3
+
+DATABASE_NAME = "alpaca.db"
 
 def get_alpacahack_solves(user):
     response = requests.get(f"https://alpacahack.com/users/{user}")
@@ -23,11 +26,51 @@ def get_alpacahack_solves(user):
     ret += "```"
     return ret
 
+# database 
+def create_lpacahack_user_table_if_not_exists(conn: sqlite3.Connection, cursor: sqlite3.Cursor):
+    cursor.execute('''
+CREATE TABLE IF NOT EXISTS alpacahack_user (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL
+)
+    ''')
+    conn.commit()
+
+def insert_alpacahack_user(conn: sqlite3.Connection, cursor: sqlite3.Cursor, name:str):
+
+    rstr = ""
+    try:
+        cursor.execute("INSERT INTO alpacahack_user (name) VALUES (?)", (name, ))
+        conn.commit()
+        rstr = f"User '{name}' added."
+    except sqlite3.IntegrityError as e:
+        rstr = f"Insert error: {e}"
+    return rstr
+
+
+def delete_alpacahack_user(conn: sqlite3.Connection, cursor: sqlite3.Cursor, name:str):
+    rstr = ""
+    cursor.execute('DELETE FROM alpacahack_user WHERE name=?', (name,))
+    if cursor.rowcount == 0:
+        rstr = f"No user : {name}"
+    else:
+        rstr = f"Deleted user: {name}"
+    conn.commit()
+    return rstr
+
+
+def get_all_alpacahack_users(conn: sqlite3.Connection, cursor: sqlite3.Cursor):
+    cursor.execute("SELECT name FROM alpacahack_user")
+    return cursor.fetchall()
+
 
 class Alpacahack(commands.Cog):
     JST = timezone(timedelta(hours=+9), "JST")
 
     def __init__(self, bot):
+        with sqlite3.connect(DATABASE_NAME) as conn:
+            cursor = conn.cursor()
+            create_lpacahack_user_table_if_not_exists(conn, cursor) # もしなければ作成する
         load_dotenv()
         self.bot = bot
         self.channel_id = int(os.getenv("BOT_CHANNEL_ID") or "0")
@@ -38,11 +81,53 @@ class Alpacahack(commands.Cog):
         channel = self.bot.get_channel(self.channel_id)
         if channel is not None:
             try:
-                await channel.send(get_alpacahack_solves("tor-ato"))
+                with sqlite3.connect(DATABASE_NAME) as conn:
+                    for i in get_all_alpacahack_users(conn, cursor):
+                        await channel.send(get_alpacahack_solves(i[0]))
             except discord.DiscordException as e:
                 print(f"Failed to send message: {e}")
         else:
             print("Channel not found. Check the channel ID.")
+
+    @commands.command()
+    async def add_alpaca(self, ctx, name:str):
+        rstr = ""
+        with sqlite3.connect(DATABASE_NAME) as conn:
+            cursor = conn.cursor()
+            rstr += insert_alpacahack_user(conn, cursor, name) 
+        await ctx.send(rstr)
+
+    @commands.command()
+    async def del_alpaca(self, ctx, name:str):
+        rstr = ""
+        with sqlite3.connect(DATABASE_NAME) as conn:
+            cursor = conn.cursor()
+            rstr += delete_alpacahack_user(conn, cursor, name)
+        await ctx.send(rstr)
+
+    @commands.command()
+    async def show_alpaca(self, ctx):
+        with sqlite3.connect(DATABASE_NAME) as conn:
+            cursor = conn.cursor()
+            fetched_alpaca_user_list = get_all_alpacahack_users(conn, cursor)
+            if len(fetched_alpaca_user_list) == 0:
+                await ctx.send("誰も登録されていません")
+            else:
+                rstr = "```"
+                for i in fetched_alpaca_user_list:
+                    rstr += i[0] + "\n"
+                rstr += "```"
+                await ctx.send(rstr)
+
+    @commands.command()
+    async def show_alpaca_score(self, ctx):
+        try:
+            with sqlite3.connect(DATABASE_NAME) as conn:
+                cursor = conn.cursor()
+                for i in get_all_alpacahack_users(conn, cursor):
+                    await ctx.send(get_alpacahack_solves(i[0]))
+        except discord.DiscordException as e:
+            print(f"Failed to send message: {e}")
 
 
 async def setup(bot):
