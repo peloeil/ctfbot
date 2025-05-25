@@ -88,6 +88,7 @@ class Alpacahack(commands.Cog):
                 with sqlite3.connect(DATABASE_NAME) as conn:
                     for i in get_all_alpacahack_users(conn):
                         await channel.send(get_alpacahack_solves(i[0]))
+                        await asyncio.sleep(1)
             except discord.DiscordException as e:
                 print(f"Failed to send message: {e}")
         else:
@@ -119,7 +120,7 @@ class Alpacahack(commands.Cog):
                     rstr += i[0] + "\n"
                 rstr += "```"
                 await ctx.send(rstr)
-
+ 
     @commands.command()
     async def show_alpaca_score(self, ctx):
         try:
