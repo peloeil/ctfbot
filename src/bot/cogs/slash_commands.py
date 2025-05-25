@@ -5,6 +5,8 @@ import re
 
 
 class SlashCommands(commands.Cog):
+    MESSAGE_LINK_REGEX = re.compile(r"^https://discord\.com/channels/(\d+)/(\d+)/(\d+)$")
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -13,7 +15,7 @@ class SlashCommands(commands.Cog):
         await interaction.response.send_message(f"{message}")
 
     async def _get_message_from_link(self, interaction, link: str):
-        match = re.match(r"https://discord.com/channels/(\d+)/(\d+)/(\d+)", link)
+        match = self.MESSAGE_LINK_REGEX.match(link)
         if not match:
             await interaction.response.send_message("無効なメッセージリンクです。", ephemeral=True)
             return None
@@ -23,6 +25,9 @@ class SlashCommands(commands.Cog):
             return None
 
         channel = interaction.guild.get_channel(channel_id)
+        if channel is None:
+            await interaction.response.send_message("指定されたチャンネルが見つかりません。", ephemeral=True)
+            return None
         if not isinstance(channel, discord.TextChannel):
             await interaction.response.send_message("指定されたチャンネルはテキストチャンネルではありません。", ephemeral=True)
             return None
