@@ -7,6 +7,7 @@ import requests
 from bs4 import BeautifulSoup
 
 import sqlite3
+import asyncio
 
 DATABASE_NAME = "alpaca.db"
 
@@ -125,6 +126,7 @@ class Alpacahack(commands.Cog):
             with sqlite3.connect(DATABASE_NAME) as conn:
                 for i in get_all_alpacahack_users(conn):
                     await ctx.send(get_alpacahack_solves(i[0]))
+                    await asyncio.sleep(1)
         except discord.DiscordException as e:
             print(f"Failed to send message: {e}")
 
