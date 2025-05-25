@@ -27,7 +27,8 @@ def get_alpacahack_solves(user):
     return ret
 
 # database 
-def create_lpacahack_user_table_if_not_exists(conn: sqlite3.Connection, cursor: sqlite3.Cursor):
+def create_alpacahack_user_table_if_not_exists(conn: sqlite3.Connection):
+    cursor = conn.cursor()
     cursor.execute('''
 CREATE TABLE IF NOT EXISTS alpacahack_user (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,9 +37,10 @@ CREATE TABLE IF NOT EXISTS alpacahack_user (
     ''')
     conn.commit()
 
-def insert_alpacahack_user(conn: sqlite3.Connection, cursor: sqlite3.Cursor, name:str):
+def insert_alpacahack_user(conn: sqlite3.Connection, name:str):
 
     rstr = ""
+    cursor = conn.cursor()
     try:
         cursor.execute("INSERT INTO alpacahack_user (name) VALUES (?)", (name, ))
         conn.commit()
@@ -48,8 +50,9 @@ def insert_alpacahack_user(conn: sqlite3.Connection, cursor: sqlite3.Cursor, nam
     return rstr
 
 
-def delete_alpacahack_user(conn: sqlite3.Connection, cursor: sqlite3.Cursor, name:str):
+def delete_alpacahack_user(conn: sqlite3.Connection, name:str):
     rstr = ""
+    cursor = conn.cursor()
     cursor.execute('DELETE FROM alpacahack_user WHERE name=?', (name,))
     if cursor.rowcount == 0:
         rstr = f"No user : {name}"
@@ -59,7 +62,8 @@ def delete_alpacahack_user(conn: sqlite3.Connection, cursor: sqlite3.Cursor, nam
     return rstr
 
 
-def get_all_alpacahack_users(conn: sqlite3.Connection, cursor: sqlite3.Cursor):
+def get_all_alpacahack_users(conn: sqlite3.Connection):
+    cursor = conn.cursor()
     cursor.execute("SELECT name FROM alpacahack_user")
     return cursor.fetchall()
 
@@ -69,8 +73,7 @@ class Alpacahack(commands.Cog):
 
     def __init__(self, bot):
         with sqlite3.connect(DATABASE_NAME) as conn:
-            cursor = conn.cursor()
-            create_lpacahack_user_table_if_not_exists(conn, cursor) # もしなければ作成する
+            create_alpacahack_user_table_if_not_exists(conn) # もしなければ作成する
         load_dotenv()
         self.bot = bot
         self.channel_id = int(os.getenv("BOT_CHANNEL_ID") or "0")
@@ -82,7 +85,7 @@ class Alpacahack(commands.Cog):
         if channel is not None:
             try:
                 with sqlite3.connect(DATABASE_NAME) as conn:
-                    for i in get_all_alpacahack_users(conn, cursor):
+                    for i in get_all_alpacahack_users(conn):
                         await channel.send(get_alpacahack_solves(i[0]))
             except discord.DiscordException as e:
                 print(f"Failed to send message: {e}")
@@ -93,23 +96,20 @@ class Alpacahack(commands.Cog):
     async def add_alpaca(self, ctx, name:str):
         rstr = ""
         with sqlite3.connect(DATABASE_NAME) as conn:
-            cursor = conn.cursor()
-            rstr += insert_alpacahack_user(conn, cursor, name) 
+            rstr += insert_alpacahack_user(conn, name) 
         await ctx.send(rstr)
 
     @commands.command()
     async def del_alpaca(self, ctx, name:str):
         rstr = ""
         with sqlite3.connect(DATABASE_NAME) as conn:
-            cursor = conn.cursor()
-            rstr += delete_alpacahack_user(conn, cursor, name)
+            rstr += delete_alpacahack_user(conn, name)
         await ctx.send(rstr)
 
     @commands.command()
     async def show_alpaca(self, ctx):
         with sqlite3.connect(DATABASE_NAME) as conn:
-            cursor = conn.cursor()
-            fetched_alpaca_user_list = get_all_alpacahack_users(conn, cursor)
+            fetched_alpaca_user_list = get_all_alpacahack_users(conn)
             if len(fetched_alpaca_user_list) == 0:
                 await ctx.send("誰も登録されていません")
             else:
@@ -123,8 +123,7 @@ class Alpacahack(commands.Cog):
     async def show_alpaca_score(self, ctx):
         try:
             with sqlite3.connect(DATABASE_NAME) as conn:
-                cursor = conn.cursor()
-                for i in get_all_alpacahack_users(conn, cursor):
+                for i in get_all_alpacahack_users(conn):
                     await ctx.send(get_alpacahack_solves(i[0]))
         except discord.DiscordException as e:
             print(f"Failed to send message: {e}")
