@@ -115,9 +115,10 @@ class Alpacahack(commands.Cog):
             if len(fetched_alpaca_user_list) == 0:
                 await ctx.send("誰も登録されていません")
             else:
-                rstr = "```"
+                rstr = "```\n"
                 for i in fetched_alpaca_user_list:
                     rstr += i[0] + "\n"
+                    print(rstr)
                 rstr += "```"
                 await ctx.send(rstr)
  
