@@ -25,6 +25,7 @@ Scope は bot にしてください。
     - View Channels
 - TEXT PERMISSIONS
     - Send Messages
+    - Manage Messages
 - VOICE PERMISSIONS
     - なし
 
