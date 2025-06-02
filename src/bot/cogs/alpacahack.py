@@ -48,9 +48,9 @@ class Alpacahack(commands.Cog):
                         await send_message_safely(channel, format_code_block(info))
                     await asyncio.sleep(1)  # Rate limiting
             except Exception as e:
-                print(f"Failed to fetch AlpacaHack data: {e}")
+                logger.error(f"Failed to fetch AlpacaHack data: {e}")
         else:
-            print("Channel not found. Check the channel ID.")
+            logger.error("Channel not found. Check the channel ID.")
 
     @commands.command()
     async def add_alpaca(self, ctx, name: str):
