@@ -33,13 +33,12 @@ class Alpacahack(commands.Cog):
         create_alpacahack_user_table_if_not_exists()
 
         self.bot = bot
-        self.channel_id = BOT_CHANNEL_ID
         self.alpacahack_solves.start()
 
     @tasks.loop(time=[time(hour=23, minute=0, tzinfo=JST)])
     async def alpacahack_solves(self):
         """Task to fetch and post AlpacaHack solve information at 11:00 PM JST."""
-        channel = self.bot.get_channel(self.channel_id)
+        channel = self.bot.get_channel(BOT_CHANNEL_ID)
         if channel is not None:
             try:
                 users = get_all_alpacahack_users()

@@ -7,11 +7,11 @@ from datetime import time
 
 from discord.ext import commands, tasks
 
-from ..config import BOT_CHANNEL_ID, JST
-from ..utils.helpers import send_message_safely
+from ...config import BOT_CHANNEL_ID, JST
+from ...utils.helpers import send_message_safely
 
 
-class TasksLoop(commands.Cog):
+class TasksLoopExample(commands.Cog):
     """Cog for scheduled tasks that run at specific times."""
 
     def __init__(self, bot):
@@ -45,4 +45,4 @@ async def setup(bot):
     Args:
         bot: The bot instance
     """
-    await bot.add_cog(TasksLoop(bot))
+    await bot.add_cog(TasksLoopExample(bot))

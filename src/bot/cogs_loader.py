@@ -12,10 +12,9 @@ async def load_cogs(bot) -> None:
         bot: The bot instance to load cogs for
     """
     extensions = [
+        "bot.cogs.examples.basic_commands",
         "bot.cogs.manage_cogs",
-        "bot.cogs.basic_commands",
         "bot.cogs.slash_commands",
-        "bot.cogs.tasks_loop",
         "bot.cogs.alpacahack",
     ]
 

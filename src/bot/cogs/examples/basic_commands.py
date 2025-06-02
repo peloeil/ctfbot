@@ -8,10 +8,10 @@ import re
 
 from discord.ext import commands
 
-from ..utils.helpers import handle_error
+from ...utils.helpers import handle_error
 
 
-class BasicCommands(commands.Cog):
+class BasicCommandsExample(commands.Cog):
     """Cog for basic bot commands like ping, greetings, and dice rolling."""
 
     def __init__(self, bot):
@@ -87,4 +87,4 @@ async def setup(bot):
     Args:
         bot: The bot instance
     """
-    await bot.add_cog(BasicCommands(bot))
+    await bot.add_cog(BasicCommandsExample(bot))
