@@ -1,184 +1,126 @@
-import os
-import discord
-from discord.ext import commands, tasks
-from dotenv import load_dotenv
-from datetime import time, timezone, timedelta
-import requests
-from bs4 import BeautifulSoup,element
-
-import sqlite3
+"""
+AlpacaHack cog for the CTF Discord bot.
+Handles commands and tasks related to AlpacaHack CTF platform.
+"""
 import asyncio
+import sqlite3
+from datetime import time
+from discord.ext import commands, tasks
 
-DATABASE_NAME = "alpaca.db"
-
-def get_alpacahack_solves(user):
-    response = requests.get(f"https://alpacahack.com/users/{user}")
-    soup = BeautifulSoup(response.content, features="html.parser")
-    tbody = soup.find("tbody", class_="MuiTableBody-root")
-    ret = "```\n"
-    ret += f"{user}\n"
-    ret += f"{'CHALLENGE':20}{'SOLVES':20}{'SOLVED AT':20}\n"
-    for i in tbody.find_all("tr"):
-        data = i.find_all("td")
-        challenge = data[0].find("a").text
-        solves = data[1].find("p").text
-        solve_at = data[2].find("p").text
-        ret += f"{challenge:20}{solves:20}{solve_at:20}\n"
-    ret += "```"
-    return ret
-
-
-def is_leaf(tag:element.Tag) -> bool:
-    """子タグを持たないタグを葉とみなす"""
-    return all(not isinstance(child, element.Tag) for child in tag.children)
-
-
-def get_alpacahack_info(user:str):
-    response = requests.get(f"https://alpacahack.com/users/{user}")
-    soup = BeautifulSoup(response.content, features="html.parser")
-    root_container = soup.find("div", class_ = "MuiContainer-root")
-
-    for i in root_container.contents[1:]:
-        ret = ""
-        tbody = i.find("tbody", class_="MuiTableBody-root")
-        if tbody is None:
-            continue
-        thead = i.find("thead").find("tr").find_all("th")
-        if thead is None:
-            continue
-        header_title = i.find("p", class_="MuiTypography-root")
-        if header_title is None:
-            continue
-        ret += f"{header_title.text.center(50, '-')}\n"
-        ret += "".join(j.text.ljust(20) for j in thead)
-        ret += "\n"
-        for i in tbody.find_all("tr"):
-            data = i.find_all("td")
-            for j in data:
-                leaf_texts = " ".join(
-                        [tag.get_text(strip=True)
-                         for tag in j.find_all() if is_leaf(tag) and tag.name != "style"])
-                ret += leaf_texts.ljust(20)
-            ret += "\n"
-
-        yield ret
-    #return ret
-
-
-# database 
-def create_alpacahack_user_table_if_not_exists(conn: sqlite3.Connection):
-    cursor = conn.cursor()
-    cursor.execute('''
-CREATE TABLE IF NOT EXISTS alpacahack_user (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL
+from ..config import BOT_CHANNEL_ID, JST
+from ..db.database import (
+    create_alpacahack_user_table_if_not_exists,
+    insert_alpacahack_user,
+    delete_alpacahack_user,
+    get_all_alpacahack_users,
 )
-    ''')
-    conn.commit()
-
-
-def insert_alpacahack_user(conn: sqlite3.Connection, name:str):
-    rstr = ""
-    cursor = conn.cursor()
-    try:
-        cursor.execute("INSERT INTO alpacahack_user (name) VALUES (?)", (name, ))
-        conn.commit()
-        rstr = f"User '{name}' added."
-    except sqlite3.IntegrityError as e:
-        rstr = f"Insert error: {e}"
-    return rstr
-
-
-def delete_alpacahack_user(conn: sqlite3.Connection, name:str):
-    rstr = ""
-    cursor = conn.cursor()
-    cursor.execute('DELETE FROM alpacahack_user WHERE name=?', (name,))
-    if cursor.rowcount == 0:
-        rstr = f"No user : {name}"
-    else:
-        rstr = f"Deleted user: {name}"
-    conn.commit()
-    return rstr
-
-
-def get_all_alpacahack_users(conn: sqlite3.Connection):
-    cursor = conn.cursor()
-    cursor.execute("SELECT name FROM alpacahack_user")
-    return cursor.fetchall()
+from ..services.alpacahack_service import get_alpacahack_info
+from ..utils.helpers import send_message_safely, format_code_block
 
 
 class Alpacahack(commands.Cog):
-    JST = timezone(timedelta(hours=+9), "JST")
+    """Cog for AlpacaHack CTF platform integration."""
 
     def __init__(self, bot):
-        with sqlite3.connect(DATABASE_NAME) as conn:
-            create_alpacahack_user_table_if_not_exists(conn) # もしなければ作成する
-        load_dotenv()
+        """
+        Initialize the Alpacahack cog.
+
+        Args:
+            bot: The bot instance
+        """
+        # Initialize database if needed
+        create_alpacahack_user_table_if_not_exists()
+
         self.bot = bot
-        self.channel_id = int(os.getenv("BOT_CHANNEL_ID") or "0")
+        self.channel_id = BOT_CHANNEL_ID
         self.alpacahack_solves.start()
 
-    @tasks.loop(time=[time(hour=23, minute=00, tzinfo=JST)])
+    @tasks.loop(time=[time(hour=23, minute=0, tzinfo=JST)])
     async def alpacahack_solves(self):
+        """Task to fetch and post AlpacaHack solve information at 11:00 PM JST."""
         channel = self.bot.get_channel(self.channel_id)
         if channel is not None:
             try:
-                with sqlite3.connect(DATABASE_NAME) as conn:
-                    for i in get_all_alpacahack_users(conn):
-                        await channel.send(f"## {i[0]}")
-                        for j in get_alpacahack_info(i[0]):
-                            ret = "```\n"
-                            ret += j
-                            ret += "```"
-                            await channel.send(ret)
-                        await asyncio.sleep(1)
-            except discord.DiscordException as e:
-                print(f"Failed to send message: {e}")
+                users = get_all_alpacahack_users()
+                for user in users:
+                    await send_message_safely(channel, f"## {user[0]}")
+                    for info in get_alpacahack_info(user[0]):
+                        await send_message_safely(
+                            channel, format_code_block(info)
+                        )
+                    await asyncio.sleep(1)  # Rate limiting
+            except Exception as e:
+                print(f"Failed to fetch AlpacaHack data: {e}")
         else:
             print("Channel not found. Check the channel ID.")
 
     @commands.command()
-    async def add_alpaca(self, ctx, name:str):
-        rstr = ""
-        with sqlite3.connect(DATABASE_NAME) as conn:
-            rstr += insert_alpacahack_user(conn, name) 
-        await ctx.send(rstr)
+    async def add_alpaca(self, ctx, name: str):
+        """
+        Add a user to the AlpacaHack tracking database.
+
+        Args:
+            ctx: Command context
+            name: Username to add
+        """
+        result = insert_alpacahack_user(name)
+        await ctx.send(result)
 
     @commands.command()
-    async def del_alpaca(self, ctx, name:str):
-        rstr = ""
-        with sqlite3.connect(DATABASE_NAME) as conn:
-            rstr += delete_alpacahack_user(conn, name)
-        await ctx.send(rstr)
+    async def del_alpaca(self, ctx, name: str):
+        """
+        Remove a user from the AlpacaHack tracking database.
+
+        Args:
+            ctx: Command context
+            name: Username to remove
+        """
+        result = delete_alpacahack_user(name)
+        await ctx.send(result)
 
     @commands.command()
     async def show_alpaca(self, ctx):
-        with sqlite3.connect(DATABASE_NAME) as conn:
-            fetched_alpaca_user_list = get_all_alpacahack_users(conn)
-            if len(fetched_alpaca_user_list) == 0:
-                await ctx.send("誰も登録されていません")
-            else:
-                rstr = "```\n"
-                for i in fetched_alpaca_user_list:
-                    rstr += i[0] + "\n"
-                rstr += "```"
-                await ctx.send(rstr)
+        """
+        Show all users in the AlpacaHack tracking database.
+
+        Args:
+            ctx: Command context
+        """
+        users = get_all_alpacahack_users()
+        if not users:
+            await ctx.send("誰も登録されていません")
+        else:
+            user_list = "\n".join(user[0] for user in users)
+            await ctx.send(format_code_block(user_list))
 
     @commands.command()
     async def show_alpaca_score(self, ctx):
+        """
+        Show scores for all tracked AlpacaHack users.
+
+        Args:
+            ctx: Command context
+        """
         try:
-            with sqlite3.connect(DATABASE_NAME) as conn:
-                for i in get_all_alpacahack_users(conn):
-                    await ctx.send(f"## {i[0]}")
-                    for j in get_alpacahack_info(i[0]):
-                        retstr = "```\n"
-                        retstr += j
-                        retstr += "```"
-                        await ctx.send(retstr)
-                    await asyncio.sleep(1)
-        except discord.DiscordException as e:
-            print(f"Failed to send message: {e}")
+            users = get_all_alpacahack_users()
+            for user in users:
+                await ctx.send(f"## {user[0]}")
+                for info in get_alpacahack_info(user[0]):
+                    await ctx.send(format_code_block(info))
+                await asyncio.sleep(1)  # Rate limiting
+        except Exception as e:
+            await ctx.send(f"Failed to fetch AlpacaHack data: {e}")
+
+    def cog_unload(self):
+        """Clean up when the cog is unloaded."""
+        self.alpacahack_solves.cancel()
 
 
 async def setup(bot):
+    """
+    Add the Alpacahack cog to the bot.
+
+    Args:
+        bot: The bot instance
+    """
     await bot.add_cog(Alpacahack(bot))
