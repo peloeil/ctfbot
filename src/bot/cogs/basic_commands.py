@@ -2,8 +2,10 @@
 Basic commands cog for the CTF Discord bot.
 Contains simple text commands and dice rolling functionality.
 """
-import re
+
 import random
+import re
+
 from discord.ext import commands
 
 from ..utils.helpers import handle_error
@@ -15,7 +17,7 @@ class BasicCommands(commands.Cog):
     def __init__(self, bot):
         """
         Initialize the BasicCommands cog.
-        
+
         Args:
             bot: The bot instance
         """
@@ -45,7 +47,7 @@ class BasicCommands(commands.Cog):
     async def roll(self, ctx, dice: str = "1d100"):
         """
         Roll dice in NdM format.
-        
+
         Args:
             ctx: Command context
             dice: Dice notation in NdM format (N dice with M sides)
@@ -59,7 +61,7 @@ class BasicCommands(commands.Cog):
 
             rolls, limit = map(int, match.groups())
 
-            if rolls <= 0 or 100 < rolls or limit <= 0 or 100 < limit:
+            if rolls <= 0 or rolls > 100 or limit <= 0 or limit > 100:
                 await ctx.send(
                     "Constraints violation: Must use 1-100 dice with 1-100 sides"
                 )
@@ -81,7 +83,7 @@ class BasicCommands(commands.Cog):
 async def setup(bot):
     """
     Add the BasicCommands cog to the bot.
-    
+
     Args:
         bot: The bot instance
     """

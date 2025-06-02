@@ -2,7 +2,9 @@
 Tasks loop cog for the CTF Discord bot.
 Contains scheduled tasks that run at specific times.
 """
+
 from datetime import time
+
 from discord.ext import commands, tasks
 
 from ..config import BOT_CHANNEL_ID, JST

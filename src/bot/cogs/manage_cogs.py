@@ -2,6 +2,7 @@
 Manage cogs commands for the CTF Discord bot.
 Provides commands for loading, unloading, and reloading cogs.
 """
+
 from discord import app_commands
 from discord.ext import commands
 
@@ -14,7 +15,7 @@ class ManageCogs(commands.Cog):
     def __init__(self, bot):
         """
         Initialize the ManageCogs cog.
-        
+
         Args:
             bot: The bot instance
         """
@@ -41,7 +42,7 @@ class ManageCogs(commands.Cog):
         """
         Load a cog.
         Requires moderate_members permission.
-        
+
         Args:
             interaction: Command interaction
             name: Name of the cog to load
@@ -61,7 +62,7 @@ class ManageCogs(commands.Cog):
         """
         Unload a cog.
         Requires moderate_members permission.
-        
+
         Args:
             interaction: Command interaction
             name: Name of the cog to unload
@@ -81,7 +82,7 @@ class ManageCogs(commands.Cog):
         """
         Reload a cog.
         Requires moderate_members permission.
-        
+
         Args:
             interaction: Command interaction
             name: Name of the cog to reload
@@ -99,7 +100,7 @@ class ManageCogs(commands.Cog):
 async def setup(bot):
     """
     Add the ManageCogs cog to the bot.
-    
+
     Args:
         bot: The bot instance
     """

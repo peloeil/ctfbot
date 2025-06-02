@@ -2,8 +2,8 @@
 Database utilities for the CTF Discord bot.
 Handles database connections and operations.
 """
+
 import sqlite3
-from typing import List, Tuple, Optional
 from contextlib import contextmanager
 
 from ..config import DATABASE_NAME
@@ -14,7 +14,7 @@ def get_db_connection():
     """
     Context manager for database connections.
     Ensures connections are properly closed after use.
-    
+
     Yields:
         sqlite3.Connection: Database connection object
     """
@@ -28,7 +28,7 @@ def get_db_connection():
 def execute_query(query: str, params: tuple = ()) -> None:
     """
     Execute a database query with no return value.
-    
+
     Args:
         query: SQL query string
         params: Query parameters
@@ -39,14 +39,14 @@ def execute_query(query: str, params: tuple = ()) -> None:
         conn.commit()
 
 
-def fetch_all(query: str, params: tuple = ()) -> List[Tuple]:
+def fetch_all(query: str, params: tuple = ()) -> list[tuple]:
     """
     Execute a query and fetch all results.
-    
+
     Args:
         query: SQL query string
         params: Query parameters
-        
+
     Returns:
         List of query results
     """
@@ -56,14 +56,14 @@ def fetch_all(query: str, params: tuple = ()) -> List[Tuple]:
         return cursor.fetchall()
 
 
-def fetch_one(query: str, params: tuple = ()) -> Optional[Tuple]:
+def fetch_one(query: str, params: tuple = ()) -> tuple | None:
     """
     Execute a query and fetch one result.
-    
+
     Args:
         query: SQL query string
         params: Query parameters
-        
+
     Returns:
         Single query result or None
     """
@@ -76,22 +76,22 @@ def fetch_one(query: str, params: tuple = ()) -> Optional[Tuple]:
 # AlpacaHack specific database functions
 def create_alpacahack_user_table_if_not_exists() -> None:
     """Create the alpacahack_user table if it doesn't exist."""
-    query = '''
+    query = """
     CREATE TABLE IF NOT EXISTS alpacahack_user (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL UNIQUE
     )
-    '''
+    """
     execute_query(query)
 
 
 def insert_alpacahack_user(name: str) -> str:
     """
     Insert a new user into the alpacahack_user table.
-    
+
     Args:
         name: Username to insert
-        
+
     Returns:
         Result message
     """
@@ -105,26 +105,26 @@ def insert_alpacahack_user(name: str) -> str:
 def delete_alpacahack_user(name: str) -> str:
     """
     Delete a user from the alpacahack_user table.
-    
+
     Args:
         name: Username to delete
-        
+
     Returns:
         Result message
     """
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute('DELETE FROM alpacahack_user WHERE name=?', (name,))
+        cursor.execute("DELETE FROM alpacahack_user WHERE name=?", (name,))
         if cursor.rowcount == 0:
             return f"No user: {name}"
         else:
             return f"Deleted user: {name}"
 
 
-def get_all_alpacahack_users() -> List[Tuple[str]]:
+def get_all_alpacahack_users() -> list[tuple[str]]:
     """
     Get all users from the alpacahack_user table.
-    
+
     Returns:
         List of usernames
     """

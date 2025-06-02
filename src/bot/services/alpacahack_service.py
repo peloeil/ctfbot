@@ -2,6 +2,7 @@
 AlpacaHack service module for the CTF Discord bot.
 Handles web scraping and data retrieval from AlpacaHack website.
 """
+
 from collections.abc import Generator
 
 import requests
@@ -102,8 +103,12 @@ def get_alpacahack_info(user: str) -> Generator[str, None, None]:
                 row_text = []
                 for cell in data:
                     leaf_texts = " ".join(
-                        [tag.get_text(strip=True) for tag in cell.find_all()
-                         if is_leaf(tag) and tag.name != "style"])
+                        [
+                            tag.get_text(strip=True)
+                            for tag in cell.find_all()
+                            if is_leaf(tag) and tag.name != "style"
+                        ]
+                    )
                     row_text.append(leaf_texts.ljust(20))
                 result.append("".join(row_text))
             yield "\n".join(result)

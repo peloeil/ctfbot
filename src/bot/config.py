@@ -2,8 +2,10 @@
 Configuration module for the CTF Discord bot.
 Centralizes all configuration settings and constants.
 """
+
 import os
-from datetime import timezone, timedelta
+from datetime import timedelta, timezone
+
 from dotenv import load_dotenv
 
 # Load environment variables once

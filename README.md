@@ -69,9 +69,9 @@ CTF 用の Discord bot
    curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
 
-2. 仮想環境を作成し、依存関係をインストールします：
+2. 依存関係をインストールします：
    ```
-   uv sync
+   uv sync --extra dev
    source .venv/bin/activate
    ```
 
@@ -80,7 +80,7 @@ CTF 用の Discord bot
    python src/main.py
    ```
 
-または、直接実行することもできます：
+または、仮想環境を明示的に起動せずに直接実行することもできます：
    ```
    uv run src/main.py
    ```
@@ -124,10 +124,8 @@ ruff check --fix src/ tests/
 ```
 git fetch origin refs/pull/{num}/head:{test}
 git checkout {test}
-uv venv
+uv sync
 source .venv/bin/activate
-uv add .
-uv add ruff --dev
 python src/main.py
 ```
 

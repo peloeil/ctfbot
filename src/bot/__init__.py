@@ -1,16 +1,18 @@
 """
 Initialize package and provide bot creation and running functions.
 """
+
 import discord
 from discord.ext import commands
-from .config import DISCORD_TOKEN, COMMAND_PREFIX
+
 from .cogs_loader import load_cogs
+from .config import COMMAND_PREFIX, DISCORD_TOKEN
 
 
 def create_bot() -> commands.Bot:
     """
     Create and configure the Discord bot instance.
-    
+
     Returns:
         Configured Bot instance
     """
@@ -32,7 +34,7 @@ def create_bot() -> commands.Bot:
 async def run_bot(bot: commands.Bot) -> None:
     """
     Load cogs and start the bot.
-    
+
     Args:
         bot: The bot instance to run
     """

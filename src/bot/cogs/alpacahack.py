@@ -2,20 +2,21 @@
 AlpacaHack cog for the CTF Discord bot.
 Handles commands and tasks related to AlpacaHack CTF platform.
 """
+
 import asyncio
-import sqlite3
 from datetime import time
+
 from discord.ext import commands, tasks
 
 from ..config import BOT_CHANNEL_ID, JST
 from ..db.database import (
     create_alpacahack_user_table_if_not_exists,
-    insert_alpacahack_user,
     delete_alpacahack_user,
     get_all_alpacahack_users,
+    insert_alpacahack_user,
 )
 from ..services.alpacahack_service import get_alpacahack_info
-from ..utils.helpers import send_message_safely, format_code_block
+from ..utils.helpers import format_code_block, send_message_safely
 
 
 class Alpacahack(commands.Cog):
@@ -45,9 +46,7 @@ class Alpacahack(commands.Cog):
                 for user in users:
                     await send_message_safely(channel, f"## {user[0]}")
                     for info in get_alpacahack_info(user[0]):
-                        await send_message_safely(
-                            channel, format_code_block(info)
-                        )
+                        await send_message_safely(channel, format_code_block(info))
                     await asyncio.sleep(1)  # Rate limiting
             except Exception as e:
                 print(f"Failed to fetch AlpacaHack data: {e}")

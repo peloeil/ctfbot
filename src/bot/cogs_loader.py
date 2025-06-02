@@ -7,7 +7,7 @@ Handles loading and management of bot cogs.
 async def load_cogs(bot) -> None:
     """
     Load all cogs for the bot.
-    
+
     Args:
         bot: The bot instance to load cogs for
     """
