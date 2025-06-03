@@ -24,10 +24,12 @@ CTF 用の Discord bot
 │   │   ├── cogs_loader.py            # Cogsローダー
 │   │   ├── cogs                      # コマンドモジュール
 │   │   │   ├── alpacahack.py         # AlpacaHack関連コマンド
-│   │   │   ├── basic_commands.py     # 基本コマンド
+│   │   │   ├── examples              # example
+│   │   │   │   ├── basic_commands.py # !command
+│   │   │   │   ├── slash_commands.py # /command
+│   │   │   │   └── tasks_loop.py     # 定期実行タスク
 │   │   │   ├── manage_cogs.py        # Cog管理コマンド
-│   │   │   ├── slash_commands.py     # スラッシュコマンド
-│   │   │   └── tasks_loop.py         # 定期実行タスク
+│   │   │   └── slash_commands.py     # スラッシュコマンド
 │   │   ├── db                        # データベース関連
 │   │   │   └── database.py           # DB操作ユーティリティ
 │   │   ├── services                  # 外部サービス連携
@@ -124,9 +126,7 @@ ruff check --fix src/ tests/
 ```
 git fetch origin refs/pull/{num}/head:{test}
 git checkout {test}
-uv sync
-source .venv/bin/activate
-python src/main.py
+uv run src/main.py
 ```
 
 ## 開発ガイドライン
