@@ -16,7 +16,7 @@ from ..db.database import (
     insert_alpacahack_user,
 )
 from ..services.alpacahack_service import get_alpacahack_info
-from ..utils.helpers import format_code_block, send_message_safely
+from ..utils.helpers import format_code_block, logger, send_message_safely
 
 
 class Alpacahack(commands.Cog):

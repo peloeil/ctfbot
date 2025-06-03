@@ -17,9 +17,9 @@ logger = logging.getLogger("ctfbot")
 
 
 async def send_message_safely(
-    channel: discord.abc.Messageable, 
-    content: str = None, 
-    embed: discord.Embed = None
+    channel: discord.abc.Messageable,
+    content: str | None = None,
+    embed: discord.Embed = None,
 ) -> discord.Message | None:
     """
     Safely send a message to a channel with error handling.

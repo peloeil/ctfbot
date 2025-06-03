@@ -3,11 +3,11 @@ CTFtime notifications cog for the CTF Discord bot.
 Fetches upcoming CTF events from CTFtime and sends weekly notifications.
 """
 
-from datetime import datetime, timedelta, time
+from datetime import datetime, time, timedelta
 
 import discord
-from discord.ext import commands, tasks
 from ctftime_api import CTFTimeClient
+from discord.ext import commands, tasks
 
 from ..config import BOT_CHANNEL_ID, JST
 from ..utils.helpers import send_message_safely
@@ -48,7 +48,7 @@ class CTFTimeNotifications(commands.Cog):
             events = await self.ctftime_client.get_events_information(
                 start=start_date,
                 end=end_date,
-                limit=20  # Limit to 20 events to avoid spam
+                limit=20,  # Limit to 20 events to avoid spam
             )
 
             if not events:
@@ -65,8 +65,8 @@ class CTFTimeNotifications(commands.Cog):
             embed = discord.Embed(
                 title="📅 今後2週間のCTF予定",
                 description=f"CTFtimeから取得した{len(events)}件のCTF情報",
-                color=0x00ff00,
-                timestamp=datetime.now(JST)
+                color=0x00FF00,
+                timestamp=datetime.now(JST),
             )
 
             # Add events to embed (max 25 fields per embed)
@@ -84,9 +84,7 @@ class CTFTimeNotifications(commands.Cog):
                 )
 
                 embed.add_field(
-                    name=f"{i+1}. {event.title}",
-                    value=field_value,
-                    inline=False
+                    name=f"{i + 1}. {event.title}", value=field_value, inline=False
                 )
 
             # Add footer
@@ -128,4 +126,3 @@ async def setup(bot):
         bot: The bot instance
     """
     await bot.add_cog(CTFTimeNotifications(bot))
-
