@@ -44,7 +44,7 @@ async def send_message_safely(
             kwargs["embed"] = embed
 
         return await channel.send(**kwargs)
-    except discord.DiscordException as e:
+    except Exception as e:
         logger.error(f"Failed to send message: {e}")
         return None
 

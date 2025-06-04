@@ -4,13 +4,15 @@ Handles database connections and operations.
 """
 
 import sqlite3
+from collections.abc import Generator
 from contextlib import contextmanager
+from typing import Any
 
 from ..config import DATABASE_NAME
 
 
 @contextmanager
-def get_db_connection():
+def get_db_connection() -> Generator[sqlite3.Connection, Any, None]:
     """
     Context manager for database connections.
     Ensures connections are properly closed after use.
@@ -25,7 +27,7 @@ def get_db_connection():
         conn.close()
 
 
-def execute_query(query: str, params: tuple[str, ...] = ()) -> None:
+def execute_query(query: str, params: tuple = ()) -> None:
     """
     Execute a database query with no return value.
 
@@ -39,7 +41,7 @@ def execute_query(query: str, params: tuple[str, ...] = ()) -> None:
         conn.commit()
 
 
-def fetch_all(query: str, params: tuple[str, ...] = ()) -> list[tuple[str, ...]]:
+def fetch_all(query: str, params: tuple = ()) -> list[tuple]:
     """
     Execute a query and fetch all results.
 
@@ -56,7 +58,7 @@ def fetch_all(query: str, params: tuple[str, ...] = ()) -> list[tuple[str, ...]]
         return cursor.fetchall()
 
 
-def fetch_one(query: str, params: tuple[str, ...] = ()) -> tuple[str, ...] | None:
+def fetch_one(query: str, params: tuple = ()) -> tuple | None:
     """
     Execute a query and fetch one result.
 
@@ -121,7 +123,7 @@ def delete_alpacahack_user(name: str) -> str:
             return f"Deleted user: {name}"
 
 
-def get_all_alpacahack_users() -> list[tuple[str, ...]]:
+def get_all_alpacahack_users() -> list[tuple]:
     """
     Get all users from the alpacahack_user table.
 
