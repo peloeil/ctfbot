@@ -73,7 +73,7 @@ CTF 用の Discord bot
 
 2. 依存関係をインストールします：
    ```
-   uv sync --extra dev
+   uv sync --group dev
    source .venv/bin/activate
    ```
 
@@ -89,14 +89,14 @@ CTF 用の Discord bot
 
 ## コード品質管理
 
-このプロジェクトでは、コード品質を維持するために ruff を使用しています。
+このプロジェクトでは、コード品質を維持するために ruff と ty を使用しています。
 
 ### コードフォーマット
 
 コードのフォーマットには ruff format を使用します：
 
 ```
-ruff format src/ tests/
+uv run ruff format src/ tests/
 ```
 
 ### リンティング
@@ -104,13 +104,21 @@ ruff format src/ tests/
 コードのリンティングには ruff check を使用します：
 
 ```
-ruff check src/ tests/
+uv run ruff check src/ tests/
 ```
 
 自動修正可能な問題を修正するには：
 
 ```
-ruff check --fix src/ tests/
+uv run ruff check --fix src/ tests/
+```
+
+### 型チェック
+
+型チェックには ty を使用します：
+
+```
+uv run ty check
 ```
 
 ## 機能追加方法
@@ -136,4 +144,4 @@ uv run src/main.py
 - コードスタイルは ruff を使用して一貫性を保ち、型ヒントを使用してください
 - エラーハンドリングを適切に行い、ログを活用してください
 - 設定は config.py で一元管理してください
-- PR を提出する前に必ず `ruff format` と `ruff check` を実行してください
+- PR を提出する前に必ず `uv run ruff format`、`uv run ruff check`、`uv run ty check` を実行してください

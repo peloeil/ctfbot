@@ -3,6 +3,7 @@ Slash commands cog for the CTF Discord bot.
 Contains slash commands for message management.
 """
 
+import discord
 from discord import app_commands
 from discord.ext import commands
 
@@ -10,7 +11,7 @@ from discord.ext import commands
 class SlashCommandsExample(commands.Cog):
     """Cog for slash commands like echo"""
 
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot) -> None:
         """
         Initialize the SlashCommands cog.
 
@@ -20,7 +21,7 @@ class SlashCommandsExample(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="echo")
-    async def echo(self, interaction, message: str):
+    async def echo(self, interaction: discord.Interaction, message: str) -> None:
         """
         Echo back a message.
 
@@ -31,7 +32,7 @@ class SlashCommandsExample(commands.Cog):
         await interaction.response.send_message(message)
 
 
-async def setup(bot):
+async def setup(bot: commands.Bot) -> None:
     """
     Add the SlashCommands cog to the bot.
 

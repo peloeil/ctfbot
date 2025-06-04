@@ -12,7 +12,7 @@ from ..utils.helpers import handle_error
 class ManageCogs(commands.Cog):
     """Cog for managing other cogs (loading, unloading, reloading)."""
 
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         """
         Initialize the ManageCogs cog.
 
@@ -97,7 +97,7 @@ class ManageCogs(commands.Cog):
             )
 
 
-async def setup(bot):
+async def setup(bot: commands.Bot):
     """
     Add the ManageCogs cog to the bot.
 

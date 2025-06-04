@@ -25,7 +25,7 @@ def get_db_connection():
         conn.close()
 
 
-def execute_query(query: str, params: tuple = ()) -> None:
+def execute_query(query: str, params: tuple[str, ...] = ()) -> None:
     """
     Execute a database query with no return value.
 
@@ -39,7 +39,7 @@ def execute_query(query: str, params: tuple = ()) -> None:
         conn.commit()
 
 
-def fetch_all(query: str, params: tuple = ()) -> list[tuple]:
+def fetch_all(query: str, params: tuple[str, ...] = ()) -> list[tuple[str, ...]]:
     """
     Execute a query and fetch all results.
 
@@ -56,7 +56,7 @@ def fetch_all(query: str, params: tuple = ()) -> list[tuple]:
         return cursor.fetchall()
 
 
-def fetch_one(query: str, params: tuple = ()) -> tuple | None:
+def fetch_one(query: str, params: tuple[str, ...] = ()) -> tuple[str, ...] | None:
     """
     Execute a query and fetch one result.
 
@@ -121,7 +121,7 @@ def delete_alpacahack_user(name: str) -> str:
             return f"Deleted user: {name}"
 
 
-def get_all_alpacahack_users() -> list[tuple[str]]:
+def get_all_alpacahack_users() -> list[tuple[str, ...]]:
     """
     Get all users from the alpacahack_user table.
 

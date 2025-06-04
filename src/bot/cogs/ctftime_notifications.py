@@ -16,7 +16,7 @@ from ..utils.helpers import logger, send_message_safely
 class CTFTimeNotifications(commands.Cog):
     """Cog for CTFtime notifications that run weekly."""
 
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot) -> None:
         """
         Initialize the CTFTimeNotifications cog.
 
@@ -28,7 +28,7 @@ class CTFTimeNotifications(commands.Cog):
         self.weekly_ctf_notification.start()
 
     @tasks.loop(time=[time(hour=9, minute=0, tzinfo=JST)])
-    async def weekly_ctf_notification(self):
+    async def weekly_ctf_notification(self) -> None:
         """
         Scheduled task to send weekly CTF notifications every Monday at 9:00 AM JST.
         """
@@ -36,8 +36,15 @@ class CTFTimeNotifications(commands.Cog):
         if datetime.now(JST).weekday() == 0:
             await self.send_upcoming_ctfs()
 
-    async def send_upcoming_ctfs(self):
+    async def send_upcoming_ctfs(self) -> None:
         """Fetch and send upcoming CTF events for the next 2 weeks."""
+        channel = self.bot.get_channel(BOT_CHANNEL_ID)
+        if channel is None:
+            logger.error("Channel not found. Check the BOT_CHANNEL_ID.")
+            return
+        if not isinstance(channel, discord.abc.Messageable):
+            logger.error("Channel is not messageable. Check the channel ID.")
+            return
         try:
             # Calculate date range for next 2 weeks
             now = datetime.now(JST)
@@ -52,13 +59,10 @@ class CTFTimeNotifications(commands.Cog):
             )
 
             if not events:
-                channel = self.bot.get_channel(BOT_CHANNEL_ID)
-                if channel:
-                    message = (
-                        "📅 **今後2週間のCTF予定**\n\n"
-                        "現在予定されているCTFはありません。"
-                    )
-                    await send_message_safely(channel, content=message)
+                message = (
+                    "📅 **今後2週間のCTF予定**\n\n現在予定されているCTFはありません。"
+                )
+                await send_message_safely(channel, content=message)
                 return
 
             # Create embed message
@@ -91,34 +95,28 @@ class CTFTimeNotifications(commands.Cog):
             embed.set_footer(text="CTFtime API経由で取得 | 毎週月曜日9:00に更新")
 
             # Send message
-            channel = self.bot.get_channel(BOT_CHANNEL_ID)
-            if channel:
-                await send_message_safely(channel, embed=embed)
-            else:
-                logger.error("Channel not found. Check the channel ID.")
+            await send_message_safely(channel, embed=embed)
 
         except Exception as e:
             logger.error(f"Error fetching CTF events: {e}")
-            channel = self.bot.get_channel(BOT_CHANNEL_ID)
-            if channel:
-                error_message = (
-                    "❌ CTF情報の取得中にエラーが発生しました。"
-                    "しばらく後に再試行してください。"
-                )
-                await send_message_safely(channel, content=error_message)
+            error_message = (
+                "❌ CTF情報の取得中にエラーが発生しました。"
+                "しばらく後に再試行してください。"
+            )
+            await send_message_safely(channel, content=error_message)
 
     @commands.command(name="ctf")
-    async def manual_ctf_check(self, ctx):
+    async def manual_ctf_check(self, ctx: commands.Context) -> None:
         """Manual command to check upcoming CTFs."""
         await send_message_safely(ctx.channel, content="🔄 CTF情報を取得中...")
         await self.send_upcoming_ctfs()
 
-    def cog_unload(self):
+    def cog_unload(self) -> None:
         """Clean up when the cog is unloaded."""
         self.weekly_ctf_notification.cancel()
 
 
-async def setup(bot):
+async def setup(bot: commands.Bot) -> None:
     """
     Add the CTFTimeNotifications cog to the bot.
 

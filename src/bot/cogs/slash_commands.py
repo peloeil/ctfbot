@@ -20,7 +20,7 @@ class SlashCommands(commands.Cog):
         r"^https://discord\.com/channels/(\d+)/(\d+)/(\d+)$"
     )
 
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         """
         Initialize the SlashCommands cog.
 
@@ -30,7 +30,7 @@ class SlashCommands(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="echo")
-    async def echo(self, interaction, message: str):
+    async def echo(self, interaction: discord.Interaction, message: str):
         """
         Echo back a message.
 
@@ -41,7 +41,7 @@ class SlashCommands(commands.Cog):
         await interaction.response.send_message(message)
 
     async def _get_message_from_link(
-        self, interaction, link: str
+        self, interaction: discord.Interaction, link: str
     ) -> discord.Message | None:
         """
         Get a Discord message from a message link.
@@ -59,14 +59,17 @@ class SlashCommands(commands.Cog):
                 "無効なメッセージリンクです。", ephemeral=True
             )
             return None
-
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "このコマンドはサーバー内でのみ使用できます。", ephemeral=True
+            )
+            return None
         guild_id, channel_id, message_id = map(int, match.groups())
         if guild_id != interaction.guild.id:
             await interaction.response.send_message(
                 "このサーバーのメッセージリンクではありません。", ephemeral=True
             )
             return None
-
         channel = interaction.guild.get_channel(channel_id)
         if channel is None:
             await interaction.response.send_message(
@@ -103,7 +106,7 @@ class SlashCommands(commands.Cog):
         name="pin", description="指定されたメッセージをピン留めします。"
     )
     @app_commands.describe(link="Discord message link")
-    async def pin(self, interaction, link: str):
+    async def pin(self, interaction: discord.Interaction, link: str):
         """
         Pin a message.
 
@@ -133,7 +136,7 @@ class SlashCommands(commands.Cog):
         name="unpin", description="指定されたメッセージのピン留めを解除します。"
     )
     @app_commands.describe(link="Discord message link")
-    async def unpin(self, interaction, link: str):
+    async def unpin(self, interaction: discord.Interaction, link: str):
         """
         Unpin a message.
 
@@ -161,7 +164,7 @@ class SlashCommands(commands.Cog):
             )
 
 
-async def setup(bot):
+async def setup(bot: commands.Bot):
     """
     Add the SlashCommands cog to the bot.
 

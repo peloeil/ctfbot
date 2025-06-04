@@ -12,9 +12,10 @@ dependencies = [
     "requests>=2.32.3",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "ruff>=0.11.0",
+    "ty>=0.0.1a8",
 ]
 
 [tool.ruff]
@@ -71,3 +72,13 @@ skip-magic-trailing-comma = false
 
 # Like Black, automatically detect the appropriate line ending.
 line-ending = "auto"
+
+[tool.ty]
+# Source root configuration
+[tool.ty.src]
+root = "./src"
+
+# Environment configuration
+[tool.ty.environment]
+python = "./.venv"
+python-version = "3.12"

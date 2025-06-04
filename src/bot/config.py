@@ -13,8 +13,10 @@ load_dotenv()
 
 # Bot configuration
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+if DISCORD_TOKEN is None:
+    raise ValueError("DISCORD_TOKEN environment variable is required")
 COMMAND_PREFIX = "!"
-BOT_CHANNEL_ID = int(os.getenv("BOT_CHANNEL_ID") or "0")
+BOT_CHANNEL_ID = int(os.getenv("BOT_CHANNEL_ID", "0"))
 
 # Database configuration
 DATABASE_NAME = "alpaca.db"

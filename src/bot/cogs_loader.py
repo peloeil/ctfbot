@@ -3,8 +3,10 @@ Cogs loader module for the CTF Discord bot.
 Handles loading and management of bot cogs.
 """
 
+from discord.ext import commands
 
-async def load_cogs(bot) -> None:
+
+async def load_cogs(bot: commands.Bot) -> None:
     """
     Load all cogs for the bot.
 
