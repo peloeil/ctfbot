@@ -23,7 +23,8 @@ async def test_ctftime_api():
         end_date = now + timedelta(weeks=2)
 
         print(
-            f"Fetching events from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
+            "Fetching events from "
+            f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
         )
 
         # Fetch events

@@ -110,7 +110,7 @@ class CTFTimeNotifications(commands.Cog):
     @commands.command(name="ctf")
     async def manual_ctf_check(self, ctx):
         """Manual command to check upcoming CTFs."""
-        await ctx.send("🔄 CTF情報を取得中...")
+        await send_message_safely(ctx.channel, content="🔄 CTF情報を取得中...")
         await self.send_upcoming_ctfs()
 
     def cog_unload(self):
