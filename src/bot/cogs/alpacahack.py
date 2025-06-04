@@ -16,7 +16,7 @@ from ..db.database import (
     insert_alpacahack_user,
 )
 from ..services.alpacahack_service import get_alpacahack_info
-from ..utils.helpers import format_code_block, send_message_safely
+from ..utils.helpers import format_code_block, logger, send_message_safely
 
 
 class Alpacahack(commands.Cog):
@@ -62,7 +62,7 @@ class Alpacahack(commands.Cog):
             name: Username to add
         """
         result = insert_alpacahack_user(name)
-        await ctx.send(result)
+        await send_message_safely(ctx.channel, content=result)
 
     @commands.command()
     async def del_alpaca(self, ctx, name: str):
@@ -74,7 +74,7 @@ class Alpacahack(commands.Cog):
             name: Username to remove
         """
         result = delete_alpacahack_user(name)
-        await ctx.send(result)
+        await send_message_safely(ctx.channel, content=result)
 
     @commands.command()
     async def show_alpaca(self, ctx):
@@ -86,10 +86,10 @@ class Alpacahack(commands.Cog):
         """
         users = get_all_alpacahack_users()
         if not users:
-            await ctx.send("誰も登録されていません")
+            await send_message_safely(ctx.channel, content="誰も登録されていません")
         else:
             user_list = "\n".join(user[0] for user in users)
-            await ctx.send(format_code_block(user_list))
+            await send_message_safely(ctx.channel, content=format_code_block(user_list))
 
     @commands.command()
     async def show_alpaca_score(self, ctx):
@@ -102,12 +102,16 @@ class Alpacahack(commands.Cog):
         try:
             users = get_all_alpacahack_users()
             for user in users:
-                await ctx.send(f"## {user[0]}")
+                await send_message_safely(ctx.channel, content=f"## {user[0]}")
                 for info in get_alpacahack_info(user[0]):
-                    await ctx.send(format_code_block(info))
+                    await send_message_safely(
+                        ctx.channel, content=format_code_block(info)
+                    )
                 await asyncio.sleep(1)  # Rate limiting
         except Exception as e:
-            await ctx.send(f"Failed to fetch AlpacaHack data: {e}")
+            await send_message_safely(
+                ctx.channel, content=f"Failed to fetch AlpacaHack data: {e}"
+            )
 
     def cog_unload(self):
         """Clean up when the cog is unloaded."""
