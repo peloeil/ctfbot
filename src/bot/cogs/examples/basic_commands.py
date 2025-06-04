@@ -14,7 +14,7 @@ from ...utils.helpers import handle_error, send_message_safely
 class BasicCommandsExample(commands.Cog):
     """Cog for basic bot commands like ping, greetings, and dice rolling."""
 
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot) -> None:
         """
         Initialize the BasicCommands cog.
 
@@ -24,31 +24,31 @@ class BasicCommandsExample(commands.Cog):
         self.bot = bot
 
     @commands.command()
-    async def ping(self, ctx):
+    async def ping(self, ctx: commands.Context) -> None:
         """Simple command to check if the bot is responsive."""
         await send_message_safely(ctx.channel, content="pong!")
 
     @commands.command()
-    async def hello(self, ctx):
+    async def hello(self, ctx: commands.Context) -> None:
         """Greet the user who invoked the command."""
         await send_message_safely(ctx.channel, content=f"Hello, {ctx.author.mention}!")
 
     @commands.command(aliases=["gn", "おやすみ"])
-    async def goodnight(self, ctx):
+    async def goodnight(self, ctx: commands.Context) -> None:
         """Wish the user goodnight."""
         await send_message_safely(
             ctx.channel, content=f"Have a good night, {ctx.author.mention}!"
         )
 
     @commands.command(aliases=["gm", "おは", "おはよ", "おはよう"])
-    async def goodmorning(self, ctx):
+    async def goodmorning(self, ctx: commands.Context) -> None:
         """Wish the user good morning."""
         await send_message_safely(
             ctx.channel, content=f"Good morning, {ctx.author.mention}!"
         )
 
     @commands.command()
-    async def roll(self, ctx, dice: str = "1d100"):
+    async def roll(self, ctx: commands.Context, dice: str = "1d100") -> None:
         """
         Roll dice in NdM format.
 
@@ -93,7 +93,7 @@ class BasicCommandsExample(commands.Cog):
             )
 
 
-async def setup(bot):
+async def setup(bot: commands.Bot) -> None:
     """
     Add the BasicCommands cog to the bot.
 

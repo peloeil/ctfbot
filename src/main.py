@@ -3,7 +3,7 @@ import asyncio
 from bot import create_bot, run_bot
 
 
-async def main():
+async def main() -> None:
     bot = create_bot()
     await run_bot(bot)
 

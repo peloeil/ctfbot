@@ -19,7 +19,7 @@ logger = logging.getLogger("ctfbot")
 async def send_message_safely(
     channel: discord.abc.Messageable,
     content: str | None = None,
-    embed: discord.Embed = None,
+    embed: discord.Embed | None = None,
 ) -> discord.Message | None:
     """
     Safely send a message to a channel with error handling.
@@ -33,8 +33,18 @@ async def send_message_safely(
         The sent message or None if sending failed
     """
     try:
-        return await channel.send(content=content, embed=embed)
-    except discord.DiscordException as e:
+        if content is None and embed is None:
+            raise ValueError("Either content or embed must be provided")
+
+        # Build kwargs to avoid overload issues
+        kwargs = {}
+        if content is not None:
+            kwargs["content"] = content
+        if embed is not None:
+            kwargs["embed"] = embed
+
+        return await channel.send(**kwargs)
+    except Exception as e:
         logger.error(f"Failed to send message: {e}")
         return None
 

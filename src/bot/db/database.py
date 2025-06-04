@@ -4,13 +4,15 @@ Handles database connections and operations.
 """
 
 import sqlite3
+from collections.abc import Generator
 from contextlib import contextmanager
+from typing import Any
 
 from ..config import DATABASE_NAME
 
 
 @contextmanager
-def get_db_connection():
+def get_db_connection() -> Generator[sqlite3.Connection, Any, None]:
     """
     Context manager for database connections.
     Ensures connections are properly closed after use.

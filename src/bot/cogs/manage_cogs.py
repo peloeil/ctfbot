@@ -3,6 +3,7 @@ Manage cogs commands for the CTF Discord bot.
 Provides commands for loading, unloading, and reloading cogs.
 """
 
+import discord
 from discord import app_commands
 from discord.ext import commands
 
@@ -12,7 +13,7 @@ from ..utils.helpers import handle_error
 class ManageCogs(commands.Cog):
     """Cog for managing other cogs (loading, unloading, reloading)."""
 
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         """
         Initialize the ManageCogs cog.
 
@@ -23,7 +24,7 @@ class ManageCogs(commands.Cog):
 
     @app_commands.command(name="sync")
     @app_commands.checks.has_permissions(moderate_members=True)
-    async def sync(self, interaction):
+    async def sync(self, interaction: discord.Interaction):
         """
         Sync slash commands with Discord.
         Requires moderate_members permission.
@@ -38,7 +39,7 @@ class ManageCogs(commands.Cog):
 
     @app_commands.command(name="load")
     @app_commands.checks.has_permissions(moderate_members=True)
-    async def load(self, interaction, name: str):
+    async def load(self, interaction: discord.Interaction, name: str):
         """
         Load a cog.
         Requires moderate_members permission.
@@ -58,7 +59,7 @@ class ManageCogs(commands.Cog):
 
     @app_commands.command(name="unload")
     @app_commands.checks.has_permissions(moderate_members=True)
-    async def unload(self, interaction, name: str):
+    async def unload(self, interaction: discord.Interaction, name: str):
         """
         Unload a cog.
         Requires moderate_members permission.
@@ -78,7 +79,7 @@ class ManageCogs(commands.Cog):
 
     @app_commands.command(name="reload")
     @app_commands.checks.has_permissions(moderate_members=True)
-    async def reload(self, interaction, name: str):
+    async def reload(self, interaction: discord.Interaction, name: str):
         """
         Reload a cog.
         Requires moderate_members permission.
@@ -97,7 +98,7 @@ class ManageCogs(commands.Cog):
             )
 
 
-async def setup(bot):
+async def setup(bot: commands.Bot):
     """
     Add the ManageCogs cog to the bot.
 

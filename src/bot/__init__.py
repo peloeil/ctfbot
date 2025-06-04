@@ -22,7 +22,7 @@ def create_bot() -> commands.Bot:
     bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=intents)
 
     @bot.event
-    async def on_ready():
+    async def on_ready() -> None:
         """Event handler for when the bot is ready and connected."""
         print(f"{bot.user} has connected to Discord!")
         synced = await bot.tree.sync()
