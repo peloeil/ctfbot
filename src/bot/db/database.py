@@ -123,7 +123,7 @@ def delete_alpacahack_user(name: str) -> str:
             return f"Deleted user: {name}"
 
 
-def get_all_alpacahack_users() -> list[tuple]:
+def get_all_alpacahack_users() -> list[tuple[str]]:
     """
     Get all users from the alpacahack_user table.
 
