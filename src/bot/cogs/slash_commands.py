@@ -121,7 +121,7 @@ class SlashCommands(commands.Cog):
         try:
             await message.pin()
             await interaction.response.send_message(
-                "メッセージをピン留めしました。", ephemeral=True
+                f"{interaction.user}がメッセージをピン留めしました。"
             )
         except discord.Forbidden:
             await interaction.response.send_message(
@@ -151,7 +151,7 @@ class SlashCommands(commands.Cog):
         try:
             await message.unpin()
             await interaction.response.send_message(
-                "メッセージのピン留めを解除しました。", ephemeral=True
+                f"{interaction.user}がメッセージのピン留めを解除しました。"
             )
         except discord.Forbidden:
             await interaction.response.send_message(
