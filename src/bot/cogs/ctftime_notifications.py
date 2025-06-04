@@ -10,7 +10,7 @@ from ctftime_api import CTFTimeClient
 from discord.ext import commands, tasks
 
 from ..config import BOT_CHANNEL_ID, JST
-from ..utils.helpers import send_message_safely
+from ..utils.helpers import logger, send_message_safely
 
 
 class CTFTimeNotifications(commands.Cog):
@@ -95,10 +95,10 @@ class CTFTimeNotifications(commands.Cog):
             if channel:
                 await send_message_safely(channel, embed=embed)
             else:
-                print("Channel not found. Check the channel ID.")
+                logger.error("Channel not found. Check the channel ID.")
 
         except Exception as e:
-            print(f"Error fetching CTF events: {e}")
+            logger.error(f"Error fetching CTF events: {e}")
             channel = self.bot.get_channel(BOT_CHANNEL_ID)
             if channel:
                 error_message = (

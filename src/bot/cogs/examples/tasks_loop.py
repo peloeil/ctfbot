@@ -8,7 +8,7 @@ from datetime import time
 from discord.ext import commands, tasks
 
 from ...config import BOT_CHANNEL_ID, JST
-from ...utils.helpers import send_message_safely
+from ...utils.helpers import logger, send_message_safely
 
 
 class TasksLoopExample(commands.Cog):
@@ -31,7 +31,7 @@ class TasksLoopExample(commands.Cog):
         if channel is not None:
             await send_message_safely(channel, "おはよう! 朝4時に何してるんだい?")
         else:
-            print("Channel not found. Check the channel ID.")
+            logger.error("Channel not found. Check the channel ID.")
 
     def cog_unload(self):
         """Clean up when the cog is unloaded."""
