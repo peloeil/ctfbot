@@ -19,6 +19,7 @@ async def load_cogs(bot: commands.Bot) -> None:
         "bot.cogs.slash_commands",
         "bot.cogs.alpacahack",
         "bot.cogs.ctftime_notifications",
+        "bot.cogs.sleep_commands",
     ]
 
     for cog in extensions:
