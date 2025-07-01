@@ -4,7 +4,7 @@ use serenity::builder::{CreateEmbed, CreateEmbedFooter, CreateMessage};
 use serenity::prelude::*;
 use tokio::time::{sleep, Duration};
 use crate::services::ctftime_service::get_ctftime_events;
-use crate::services::alpacahack_service::{get_all_alpacahack_users, get_alpacahack_info};
+use crate::services::alpacahack_service::{get_all_alpacahack_users, get_alpacahack_solves_scraped};
 
 pub fn spawn_ctftime_task(ctx: Context) {
     tokio::spawn(async move {
@@ -48,7 +48,7 @@ pub fn spawn_ctftime_task(ctx: Context) {
     });
 }
 
-pub fn spawn_alpacahack_task(_ctx: Context) {
+pub fn spawn_alpacahack_task(ctx: Context) {
     tokio::spawn(async move {
         loop {
             let now = Utc::now();
@@ -58,11 +58,15 @@ pub fn spawn_alpacahack_task(_ctx: Context) {
                     .expect("Expected BOT_CHANNEL_ID in environment")
                     .parse::<u64>()
                     .unwrap();
-                let _channel = serenity::model::id::ChannelId::new(channel_id);
+                let channel = serenity::model::id::ChannelId::new(channel_id);
 
                 for user in users {
-                    let _info = get_alpacahack_info(&user).await.unwrap();
-                    // Format and send the info to the channel
+                    let info = get_alpacahack_solves_scraped(&user).await.unwrap();
+                    let builder = CreateMessage::new().content(format!("## {}\n```\n{}\n```", user, info));
+                    if let Err(why) = channel.send_message(&ctx.http, builder).await {
+                        println!("Error sending message: {:?}", why);
+                    }
+                    tokio::time::sleep(Duration::from_secs(1)).await; // Rate limiting
                 }
             }
             sleep(Duration::from_secs(60)).await;

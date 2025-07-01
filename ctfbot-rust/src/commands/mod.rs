@@ -24,6 +24,12 @@ pub async fn handle_command(command: &CommandInteraction, ctx: &Context) {
         "show_alpaca" => {
             alpacahack::show_alpaca_command(command, ctx).await;
         }
+        "show_alpaca_score" => {
+            alpacahack::show_alpaca_score_command(command, ctx).await;
+        }
+        "ctf" => {
+            ctftime::ctf_command(command, ctx).await;
+        }
         _ => {
             let data = serenity::builder::CreateInteractionResponseMessage::new()
                 .content("not implemented");
@@ -39,6 +45,6 @@ pub fn register_all_commands() -> Vec<CreateCommand> {
     let mut commands = Vec::new();
     general::register_general_commands(&mut commands);
     alpacahack::register_alpacahack_commands(&mut commands);
-    // ctftime::register_ctftime_commands(&mut commands);
+    ctftime::register_ctftime_commands(&mut commands);
     commands
 }
