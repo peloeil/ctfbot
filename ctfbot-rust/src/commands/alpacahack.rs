@@ -1,8 +1,14 @@
-use serenity::builder::{CreateCommand, CreateCommandOption, CreateInteractionResponseMessage, CreateInteractionResponse, EditInteractionResponse};
-use serenity::model::application::{CommandOptionType, CommandInteraction};
+use crate::services::alpacahack_service::{
+    delete_alpacahack_user, get_all_alpacahack_users, get_alpacahack_solves_scraped,
+    insert_alpacahack_user,
+};
+use serenity::builder::{
+    CreateCommand, CreateCommandOption, CreateInteractionResponse,
+    CreateInteractionResponseMessage, EditInteractionResponse,
+};
+use serenity::model::application::{CommandInteraction, CommandOptionType};
 use serenity::prelude::*;
-use crate::services::alpacahack_service::{insert_alpacahack_user, delete_alpacahack_user, get_all_alpacahack_users, get_alpacahack_solves_scraped};
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
 pub async fn add_alpaca_command(command: &CommandInteraction, ctx: &Context) {
     let name_option = command
@@ -11,7 +17,10 @@ pub async fn add_alpaca_command(command: &CommandInteraction, ctx: &Context) {
         .iter()
         .find(|opt| opt.name == "name")
         .expect("Expected name option");
-    let name = name_option.value.as_str().expect("Expected string value for name option");
+    let name = name_option
+        .value
+        .as_str()
+        .expect("Expected string value for name option");
     let result = insert_alpacahack_user(&name).unwrap();
     let data = CreateInteractionResponseMessage::new().content(result);
     let builder = CreateInteractionResponse::Message(data);
@@ -27,7 +36,10 @@ pub async fn del_alpaca_command(command: &CommandInteraction, ctx: &Context) {
         .iter()
         .find(|opt| opt.name == "name")
         .expect("Expected name option");
-    let name = name_option.value.as_str().expect("Expected string value for name option");
+    let name = name_option
+        .value
+        .as_str()
+        .expect("Expected string value for name option");
     let result = delete_alpacahack_user(&name).unwrap();
     let data = CreateInteractionResponseMessage::new().content(result);
     let builder = CreateInteractionResponse::Message(data);
@@ -85,12 +97,8 @@ pub fn register_alpacahack_commands(commands: &mut Vec<CreateCommand>) {
         CreateCommand::new("add_alpaca")
             .description("Add an AlpacaHack user")
             .add_option(
-                CreateCommandOption::new(
-                    CommandOptionType::String,
-                    "name",
-                    "The username to add",
-                )
-                .required(true),
+                CreateCommandOption::new(CommandOptionType::String, "name", "The username to add")
+                    .required(true),
             ),
     );
     commands.push(
@@ -105,10 +113,9 @@ pub fn register_alpacahack_commands(commands: &mut Vec<CreateCommand>) {
                 .required(true),
             ),
     );
+    commands.push(CreateCommand::new("show_alpaca").description("Show all AlpacaHack users"));
     commands.push(
-        CreateCommand::new("show_alpaca").description("Show all AlpacaHack users"),
-    );
-    commands.push(
-        CreateCommand::new("show_alpaca_score").description("Show scores for all tracked AlpacaHack users"),
+        CreateCommand::new("show_alpaca_score")
+            .description("Show scores for all tracked AlpacaHack users"),
     );
 }

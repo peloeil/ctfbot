@@ -1,31 +1,39 @@
-use rusqlite::{Connection, Result};
 use crate::models::AlpacaHackInfo;
-use scraper::{Html, Selector, ElementRef, Node};
+use rusqlite::{Connection, Result};
+use scraper::{ElementRef, Html, Node, Selector};
 
 // Helper function to extract text, excluding style tags
 fn extract_text_excluding_style(element: &ElementRef) -> String {
-    element.children().filter_map(|node| {
-        if let Some(element) = ElementRef::wrap(node) {
-            if element.value().name() == "style" {
-                None
+    element
+        .children()
+        .filter_map(|node| {
+            if let Some(element) = ElementRef::wrap(node) {
+                if element.value().name() == "style" {
+                    None
+                } else {
+                    Some(element.text().collect::<String>())
+                }
+            } else if let Node::Text(text_node) = node.value() {
+                Some(text_node.text.to_string())
             } else {
-                Some(element.text().collect::<String>())
+                None
             }
-        } else if let Node::Text(text_node) = node.value() {
-            Some(text_node.text.to_string())
-        } else {
-            None
-        }
-    }).collect::<String>()
+        })
+        .collect::<String>()
 }
 
 pub async fn get_alpacahack_info(user: &str) -> Result<Vec<AlpacaHackInfo>, reqwest::Error> {
     let url = format!("https://alpacahack.com/api/user/{}/solves", user);
-    let info = reqwest::get(&url).await?.json::<Vec<AlpacaHackInfo>>().await?;
+    let info = reqwest::get(&url)
+        .await?
+        .json::<Vec<AlpacaHackInfo>>()
+        .await?;
     Ok(info)
 }
 
-pub async fn get_alpacahack_solves_scraped(user: &str) -> Result<String, Box<dyn std::error::Error>> {
+pub async fn get_alpacahack_solves_scraped(
+    user: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
     let url = format!("https://alpacahack.com/users/{}", user);
     let response = reqwest::get(&url).await?.text().await?;
     let document = Html::parse_document(&response);
@@ -38,15 +46,27 @@ pub async fn get_alpacahack_solves_scraped(user: &str) -> Result<String, Box<dyn
 
     let mut result = Vec::new();
     result.push(user.to_string());
-    result.push(format!("{:20}{:20}{:20}", "CHALLENGE", "SOLVES", "SOLVED AT"));
+    result.push(format!(
+        "{:20}{:20}{:20}",
+        "CHALLENGE", "SOLVES", "SOLVED AT"
+    ));
 
     if let Some(tbody) = document.select(&tbody_selector).next() {
         for row in tbody.select(&tr_selector) {
             let data: Vec<_> = row.select(&td_selector).collect();
             if data.len() >= 3 {
-                let challenge = data[0].select(&a_selector).next().map_or("N/A".to_string(), |n| n.text().collect::<String>());
-                let solves = data[1].select(&p_selector).next().map_or("N/A".to_string(), |n| extract_text_excluding_style(&n));
-                let solve_at = data[2].select(&p_selector).next().map_or("N/A".to_string(), |n| extract_text_excluding_style(&n));
+                let challenge = data[0]
+                    .select(&a_selector)
+                    .next()
+                    .map_or("N/A".to_string(), |n| n.text().collect::<String>());
+                let solves = data[1]
+                    .select(&p_selector)
+                    .next()
+                    .map_or("N/A".to_string(), |n| extract_text_excluding_style(&n));
+                let solve_at = data[2]
+                    .select(&p_selector)
+                    .next()
+                    .map_or("N/A".to_string(), |n| extract_text_excluding_style(&n));
                 result.push(format!("{:20}{:20}{:20}", challenge, solves, solve_at));
             }
         }

@@ -2,9 +2,9 @@ use serenity::builder::CreateCommand;
 
 use serenity::prelude::*;
 
-pub mod general;
 pub mod alpacahack;
 pub mod ctftime;
+pub mod general;
 pub mod help;
 
 use serenity::model::application::CommandInteraction;

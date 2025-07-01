@@ -2,10 +2,10 @@ use std::env;
 
 use serenity::prelude::*;
 
+mod commands;
 mod handler;
 mod models;
 mod services;
-mod commands;
 mod tasks;
 
 #[tokio::main]

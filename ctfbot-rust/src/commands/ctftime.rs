@@ -1,7 +1,10 @@
-use serenity::builder::{CreateCommand, CreateEmbed, CreateEmbedFooter, CreateInteractionResponseMessage, CreateInteractionResponse, EditInteractionResponse};
+use crate::services::ctftime_service::get_ctftime_events;
+use serenity::builder::{
+    CreateCommand, CreateEmbed, CreateEmbedFooter, CreateInteractionResponse,
+    CreateInteractionResponseMessage, EditInteractionResponse,
+};
 use serenity::model::application::CommandInteraction;
 use serenity::prelude::*;
-use crate::services::ctftime_service::get_ctftime_events;
 
 pub async fn ctf_command(command: &CommandInteraction, ctx: &Context) {
     let data = CreateInteractionResponseMessage::new().content("🔄 CTF情報を取得中...");
@@ -28,9 +31,7 @@ pub async fn ctf_command(command: &CommandInteraction, ctx: &Context) {
 
             let field_value = format!(
                 "🕐 **開始**: {}\n🏁 **終了**: {}\n🔗 [CTFtime]({})",
-                start_time,
-                end_time,
-                event.ctftime_url
+                start_time, end_time, event.ctftime_url
             );
 
             embed = embed.field(&event.title, field_value, false);
@@ -46,8 +47,5 @@ pub async fn ctf_command(command: &CommandInteraction, ctx: &Context) {
 }
 
 pub fn register_ctftime_commands(commands: &mut Vec<CreateCommand>) {
-    commands.push(
-        CreateCommand::new("ctf")
-            .description("Show upcoming CTFs"),
-    );
+    commands.push(CreateCommand::new("ctf").description("Show upcoming CTFs"));
 }

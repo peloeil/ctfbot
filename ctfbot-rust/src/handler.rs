@@ -1,8 +1,8 @@
-use std::env;
 use serenity::async_trait;
 use serenity::model::application::Interaction;
 use serenity::model::gateway::Ready;
 use serenity::prelude::*;
+use std::env;
 
 use crate::commands;
 use crate::services::alpacahack_service::create_alpacahack_user_table_if_not_exists;
@@ -31,10 +31,7 @@ impl EventHandler for Handler {
         );
 
         let commands = guild_id
-            .set_commands(
-                &ctx.http,
-                commands::register_all_commands(),
-            )
+            .set_commands(&ctx.http, commands::register_all_commands())
             .await;
 
         if let Err(why) = commands {

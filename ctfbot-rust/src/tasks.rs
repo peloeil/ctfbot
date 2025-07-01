@@ -1,10 +1,12 @@
-use std::env;
+use crate::services::alpacahack_service::{
+    get_all_alpacahack_users, get_alpacahack_solves_scraped,
+};
+use crate::services::ctftime_service::get_ctftime_events;
 use chrono::{Datelike, Timelike, Utc};
 use serenity::builder::{CreateEmbed, CreateEmbedFooter, CreateMessage};
 use serenity::prelude::*;
-use tokio::time::{sleep, Duration};
-use crate::services::ctftime_service::get_ctftime_events;
-use crate::services::alpacahack_service::{get_all_alpacahack_users, get_alpacahack_solves_scraped};
+use std::env;
+use tokio::time::{Duration, sleep};
 
 pub fn spawn_ctftime_task(ctx: Context) {
     tokio::spawn(async move {
@@ -29,9 +31,7 @@ pub fn spawn_ctftime_task(ctx: Context) {
 
                     let field_value = format!(
                         "**Start**: {}\n**End**: {}\n**Link**: [CTFtime]({})",
-                        start_time,
-                        end_time,
-                        event.ctftime_url
+                        start_time, end_time, event.ctftime_url
                     );
 
                     embed = embed.field(event.title, field_value, false);
@@ -62,7 +62,8 @@ pub fn spawn_alpacahack_task(ctx: Context) {
 
                 for user in users {
                     let info = get_alpacahack_solves_scraped(&user).await.unwrap();
-                    let builder = CreateMessage::new().content(format!("## {}\n```\n{}\n```", user, info));
+                    let builder =
+                        CreateMessage::new().content(format!("## {}\n```\n{}\n```", user, info));
                     if let Err(why) = channel.send_message(&ctx.http, builder).await {
                         println!("Error sending message: {:?}", why);
                     }
