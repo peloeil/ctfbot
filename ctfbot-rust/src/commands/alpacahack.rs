@@ -21,7 +21,7 @@ pub async fn add_alpaca_command(command: &CommandInteraction, ctx: &Context) {
         .value
         .as_str()
         .expect("Expected string value for name option");
-    let result = insert_alpacahack_user(&name).unwrap();
+    let result = insert_alpacahack_user(name).unwrap();
     let data = CreateInteractionResponseMessage::new().content(result);
     let builder = CreateInteractionResponse::Message(data);
     if let Err(why) = command.create_response(&ctx.http, builder).await {
@@ -40,7 +40,7 @@ pub async fn del_alpaca_command(command: &CommandInteraction, ctx: &Context) {
         .value
         .as_str()
         .expect("Expected string value for name option");
-    let result = delete_alpacahack_user(&name).unwrap();
+    let result = delete_alpacahack_user(name).unwrap();
     let data = CreateInteractionResponseMessage::new().content(result);
     let builder = CreateInteractionResponse::Message(data);
     if let Err(why) = command.create_response(&ctx.http, builder).await {

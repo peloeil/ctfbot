@@ -35,7 +35,7 @@ pub async fn pin_unpin_command(command: &CommandInteraction, ctx: &Context) {
         .as_str()
         .expect("Expected string value for link option");
     let re = Regex::new(r"^https://discord.com/channels/(\d+)/(\d+)/(\d+)$").unwrap();
-    let caps = re.captures(&link).unwrap();
+    let caps = re.captures(link).unwrap();
 
     let channel_id = caps.get(2).unwrap().as_str().parse::<u64>().unwrap();
     let message_id = caps.get(3).unwrap().as_str().parse::<u64>().unwrap();
