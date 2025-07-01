@@ -3,6 +3,7 @@ use crate::services::alpacahack_service::{
 };
 use crate::services::ctftime_service::get_ctftime_events;
 use chrono::{Datelike, Timelike, Utc};
+use chrono_tz::Tz;
 use serenity::builder::{CreateEmbed, CreateEmbedFooter, CreateMessage};
 use serenity::prelude::*;
 use std::env;
@@ -11,7 +12,7 @@ use tokio::time::{Duration, sleep};
 pub fn spawn_ctftime_task(ctx: Context) {
     tokio::spawn(async move {
         loop {
-            let now = Utc::now();
+            let now = Utc::now().with_timezone(&Tz::Asia__Tokyo);
             if now.weekday() == chrono::Weekday::Mon && now.hour() == 9 && now.minute() == 0 {
                 let events = get_ctftime_events().await.unwrap();
                 let channel_id = env::var("BOT_CHANNEL_ID")
@@ -51,7 +52,7 @@ pub fn spawn_ctftime_task(ctx: Context) {
 pub fn spawn_alpacahack_task(ctx: Context) {
     tokio::spawn(async move {
         loop {
-            let now = Utc::now();
+            let now = Utc::now().with_timezone(&Tz::Asia__Tokyo);
             if now.hour() == 23 && now.minute() == 0 {
                 let users = get_all_alpacahack_users().unwrap();
                 let channel_id = env::var("BOT_CHANNEL_ID")
