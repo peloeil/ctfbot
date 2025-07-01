@@ -5,6 +5,7 @@ use serenity::prelude::*;
 pub mod general;
 pub mod alpacahack;
 pub mod ctftime;
+pub mod help;
 
 use serenity::model::application::CommandInteraction;
 pub async fn handle_command(command: &CommandInteraction, ctx: &Context) {
@@ -30,6 +31,9 @@ pub async fn handle_command(command: &CommandInteraction, ctx: &Context) {
         "ctf" => {
             ctftime::ctf_command(command, ctx).await;
         }
+        "help" => {
+            help::help_command(command, ctx).await;
+        }
         _ => {
             let data = serenity::builder::CreateInteractionResponseMessage::new()
                 .content("not implemented");
@@ -46,5 +50,6 @@ pub fn register_all_commands() -> Vec<CreateCommand> {
     general::register_general_commands(&mut commands);
     alpacahack::register_alpacahack_commands(&mut commands);
     ctftime::register_ctftime_commands(&mut commands);
+    help::register_help_command(&mut commands);
     commands
 }
