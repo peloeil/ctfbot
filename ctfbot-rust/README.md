@@ -49,5 +49,5 @@ cargo run
 `.env`ファイルに以下の環境変数を設定してください。
 
 *   `DISCORD_TOKEN`: Discord Botのトークン
-*   `CTFTIME_API_KEY`: CTFtime APIのキー (必要な場合)
-*   `ALPACAHACK_API_KEY`: AlpacaHack APIのキー (必要な場合)
+*   `BOT_CHANNEL_ID`:定時タスクの出力先となるチャンネル
+*   `GUILD_ID`: サーバーID
