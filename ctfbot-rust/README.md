@@ -19,7 +19,7 @@
 
 ### CTFtime Commands
 
-*   `/ctf`: 今後2週間のCTFtimeイベントを表示します。
+*   `/ctf`: 今後2週間のCTFtimeイベントを表示します。(ctfコマンドはRustで専用のapiがないため未実装)
 
 ### Other Commands
 
