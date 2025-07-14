@@ -6,7 +6,6 @@ use serenity::prelude::*;
 use std::env;
 
 use crate::commands;
-use crate::services::alpacahack_service::create_alpacahack_user_table_if_not_exists;
 use crate::tasks::{spawn_alpacahack_task, spawn_ctftime_task};
 use crate::models::DatabaseConnection;
 use crate::database;
@@ -56,7 +55,7 @@ impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, ready: Ready) {
         println!("{} is connected!", ready.user.name);
 
-        create_alpacahack_user_table_if_not_exists().unwrap();
+        
 
         let guild_id = GuildId::new(
             env::var("GUILD_ID")

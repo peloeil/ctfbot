@@ -1,16 +1,16 @@
-use crate::services::alpacahack_service::{
-    delete_alpacahack_user, get_all_alpacahack_users, get_alpacahack_solves_scraped,
-    insert_alpacahack_user,
-};
-use serenity::builder::{
-    CreateCommand, CreateCommandOption, CreateInteractionResponse,
-    CreateInteractionResponseMessage, EditInteractionResponse,
-};
+use serenity::builder::{CreateCommand, CreateCommandOption, CreateInteractionResponse, CreateInteractionResponseMessage, EditInteractionResponse,};
 use serenity::model::application::{CommandInteraction, CommandOptionType};
 use serenity::prelude::*;
 use tokio::time::{Duration, sleep};
 
+use crate::database;
+use crate::models::DatabaseConnection;
+
 pub async fn add_alpaca_command(command: &CommandInteraction, ctx: &Context) {
+    let data = ctx.data.read().await;
+    let db_conn = data.get::<DatabaseConnection>().unwrap();
+    let conn = db_conn.lock().await;
+
     let name_option = command
         .data
         .options
@@ -21,7 +21,7 @@ pub async fn add_alpaca_command(command: &CommandInteraction, ctx: &Context) {
         .value
         .as_str()
         .expect("Expected string value for name option");
-    let result = insert_alpacahack_user(name).unwrap();
+    let result = database::insert_alpacahack_user(&conn, name).unwrap();
     let data = CreateInteractionResponseMessage::new().content(result);
     let builder = CreateInteractionResponse::Message(data);
     if let Err(why) = command.create_response(&ctx.http, builder).await {
@@ -30,6 +30,10 @@ pub async fn add_alpaca_command(command: &CommandInteraction, ctx: &Context) {
 }
 
 pub async fn del_alpaca_command(command: &CommandInteraction, ctx: &Context) {
+    let data = ctx.data.read().await;
+    let db_conn = data.get::<DatabaseConnection>().unwrap();
+    let conn = db_conn.lock().await;
+
     let name_option = command
         .data
         .options
@@ -40,7 +44,7 @@ pub async fn del_alpaca_command(command: &CommandInteraction, ctx: &Context) {
         .value
         .as_str()
         .expect("Expected string value for name option");
-    let result = delete_alpacahack_user(name).unwrap();
+    let result = database::delete_alpacahack_user(&conn, name).unwrap();
     let data = CreateInteractionResponseMessage::new().content(result);
     let builder = CreateInteractionResponse::Message(data);
     if let Err(why) = command.create_response(&ctx.http, builder).await {
@@ -49,7 +53,11 @@ pub async fn del_alpaca_command(command: &CommandInteraction, ctx: &Context) {
 }
 
 pub async fn show_alpaca_command(command: &CommandInteraction, ctx: &Context) {
-    let users = get_all_alpacahack_users().unwrap();
+    let data = ctx.data.read().await;
+    let db_conn = data.get::<DatabaseConnection>().unwrap();
+    let conn = db_conn.lock().await;
+
+    let users = database::get_all_alpacahack_users(&conn).unwrap();
     let content = if users.is_empty() {
         "No users registered".to_string()
     } else {
@@ -70,7 +78,11 @@ pub async fn show_alpaca_score_command(command: &CommandInteraction, ctx: &Conte
         return;
     }
 
-    let users = get_all_alpacahack_users().unwrap();
+    let data = ctx.data.read().await;
+    let db_conn = data.get::<DatabaseConnection>().unwrap();
+    let conn = db_conn.lock().await;
+
+    let users = database::get_all_alpacahack_users(&conn).unwrap();
     if users.is_empty() {
         let _data = CreateInteractionResponseMessage::new().content("誰も登録されていません");
         let builder = EditInteractionResponse::new().content("誰も登録されていません");
@@ -81,7 +93,7 @@ pub async fn show_alpaca_score_command(command: &CommandInteraction, ctx: &Conte
     }
 
     for user in users {
-        let info = get_alpacahack_solves_scraped(&user).await.unwrap();
+        let info = crate::services::alpacahack_service::get_alpacahack_solves_scraped(&user).await.unwrap();
         let content = format!("## {}\n```\n{}\n```", user, info);
         let _data = CreateInteractionResponseMessage::new().content(content.clone());
         let builder = EditInteractionResponse::new().content(content);

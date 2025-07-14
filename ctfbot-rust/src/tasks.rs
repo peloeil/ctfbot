@@ -1,6 +1,3 @@
-use crate::services::alpacahack_service::{
-    get_all_alpacahack_users, get_alpacahack_solves_scraped,
-};
 use crate::services::ctftime_service::get_ctftime_events;
 use chrono::{Datelike, Timelike, Utc};
 use chrono_tz::Tz;
@@ -8,6 +5,9 @@ use serenity::builder::{CreateEmbed, CreateEmbedFooter, CreateMessage};
 use serenity::prelude::*;
 use std::env;
 use tokio::time::{Duration, sleep};
+
+use crate::database;
+use crate::models::DatabaseConnection;
 
 pub fn spawn_ctftime_task(ctx: Context) {
     tokio::spawn(async move {
@@ -54,7 +54,11 @@ pub fn spawn_alpacahack_task(ctx: Context) {
         loop {
             let now = Utc::now().with_timezone(&Tz::Asia__Tokyo);
             if now.hour() == 23 && now.minute() == 0 {
-                let users = get_all_alpacahack_users().unwrap();
+                let data = ctx.data.read().await;
+                let db_conn = data.get::<DatabaseConnection>().unwrap();
+                let conn = db_conn.lock().await;
+
+                let users = database::get_all_alpacahack_users(&conn).unwrap();
                 let channel_id = env::var("BOT_CHANNEL_ID")
                     .expect("Expected BOT_CHANNEL_ID in environment")
                     .parse::<u64>()
@@ -62,7 +66,7 @@ pub fn spawn_alpacahack_task(ctx: Context) {
                 let channel = serenity::model::id::ChannelId::new(channel_id);
 
                 for user in users {
-                    let info = get_alpacahack_solves_scraped(&user).await.unwrap();
+                    let info = crate::services::alpacahack_service::get_alpacahack_solves_scraped(&user).await.unwrap();
                     let builder =
                         CreateMessage::new().content(format!("## {}\n```\n{}\n```", user, info));
                     if let Err(why) = channel.send_message(&ctx.http, builder).await {
@@ -75,3 +79,4 @@ pub fn spawn_alpacahack_task(ctx: Context) {
         }
     });
 }
+
