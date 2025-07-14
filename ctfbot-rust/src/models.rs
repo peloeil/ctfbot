@@ -1,4 +1,15 @@
 use serde::Deserialize;
+use serenity::prelude::TypeMapKey;
+use rusqlite::Connection;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
+
+pub struct DatabaseConnection;
+
+impl TypeMapKey for DatabaseConnection {
+    type Value = Arc<Mutex<Connection>>;
+}
 
 #[derive(Deserialize, Debug)]
 pub struct CtfEvent {

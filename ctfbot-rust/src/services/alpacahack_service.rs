@@ -1,4 +1,4 @@
-use crate::models::AlpacaHackInfo;
+
 use rusqlite::{Connection, Result};
 use scraper::{ElementRef, Html, Node, Selector};
 
@@ -22,14 +22,14 @@ fn extract_text_excluding_style(element: &ElementRef) -> String {
         .collect::<String>()
 }
 
-pub async fn get_alpacahack_info(user: &str) -> Result<Vec<AlpacaHackInfo>, reqwest::Error> {
-    let url = format!("https://alpacahack.com/api/user/{}/solves", user);
-    let info = reqwest::get(&url)
-        .await?
-        .json::<Vec<AlpacaHackInfo>>()
-        .await?;
-    Ok(info)
-}
+// pub async fn get_alpacahack_info(user: &str) -> Result<Vec<AlpacaHackInfo>, reqwest::Error> {
+//     let url = format!("https://alpacahack.com/api/user/{}/solves", user);
+//     let info = reqwest::get(&url)
+//         .await?
+//         .json::<Vec<AlpacaHackInfo>>()
+//         .await?;
+//     Ok(info)
+// }
 
 pub async fn get_alpacahack_solves_scraped(
     user: &str,

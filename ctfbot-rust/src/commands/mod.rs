@@ -6,6 +6,7 @@ pub mod alpacahack;
 pub mod ctftime;
 pub mod general;
 pub mod help;
+pub mod role; // Add role module
 
 use serenity::model::application::CommandInteraction;
 pub async fn handle_command(command: &CommandInteraction, ctx: &Context) {
@@ -34,6 +35,9 @@ pub async fn handle_command(command: &CommandInteraction, ctx: &Context) {
         "help" => {
             help::help_command(command, ctx).await;
         }
+        "role" => { // Add role command handler
+            role::handle_role_command(command, ctx).await;
+        }
         _ => {
             let data = serenity::builder::CreateInteractionResponseMessage::new()
                 .content("not implemented");
@@ -51,5 +55,6 @@ pub fn register_all_commands() -> Vec<CreateCommand> {
     alpacahack::register_alpacahack_commands(&mut commands);
     ctftime::register_ctftime_commands(&mut commands);
     help::register_help_command(&mut commands);
+    role::register_role_commands(&mut commands); // Add role command registration
     commands
 }
