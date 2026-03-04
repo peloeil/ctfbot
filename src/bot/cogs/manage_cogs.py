@@ -24,6 +24,19 @@ class ManageCogs(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+    async def _defer_ephemeral(self, interaction: discord.Interaction) -> None:
+        if interaction.response.is_done():
+            return
+        try:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+        except discord.InteractionResponded:
+            return
+        except (discord.NotFound, discord.HTTPException):
+            logger.warning(
+                "Failed to defer interaction in manage_cogs: id=%s",
+                interaction.id,
+            )
+
     def _normalize_extension(self, name: str) -> str:
         normalized = name.strip().removesuffix(".py")
         normalized = self.LEGACY_CORE_ALIASES.get(normalized, normalized)
@@ -43,6 +56,7 @@ class ManageCogs(commands.Cog):
     @app_commands.command(name="sync")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def sync(self, interaction: discord.Interaction) -> None:
+        await self._defer_ephemeral(interaction)
         try:
             if interaction.guild is not None:
                 guild_synced = await self.bot.tree.sync(guild=interaction.guild)
@@ -71,6 +85,7 @@ class ManageCogs(commands.Cog):
     @app_commands.command(name="load")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def load(self, interaction: discord.Interaction, name: str) -> None:
+        await self._defer_ephemeral(interaction)
         extension = self._normalize_extension(name)
         try:
             await self.bot.load_extension(extension)
@@ -85,6 +100,7 @@ class ManageCogs(commands.Cog):
     @app_commands.command(name="unload")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def unload(self, interaction: discord.Interaction, name: str) -> None:
+        await self._defer_ephemeral(interaction)
         extension = self._normalize_extension(name)
         if extension == "bot.cogs.manage_cogs":
             await send_interaction_message(
@@ -106,6 +122,7 @@ class ManageCogs(commands.Cog):
     @app_commands.command(name="reload")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def reload(self, interaction: discord.Interaction, name: str) -> None:
+        await self._defer_ephemeral(interaction)
         extension = self._normalize_extension(name)
         try:
             await self.bot.reload_extension(extension)
