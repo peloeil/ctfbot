@@ -11,7 +11,8 @@ class MessageTools(commands.Cog):
     """Slash commands for echo/pin/unpin utilities."""
 
     MESSAGE_LINK_REGEX = re.compile(
-        r"^https://discord\.com/channels/(\d+)/(\d+)/(\d+)$"
+        r"^https://(?:www\.)?discord(?:app)?\.com/channels/"
+        r"(\d+)/(\d+)/(\d+)$"
     )
 
     def __init__(self, bot: commands.Bot):
@@ -33,8 +34,12 @@ class MessageTools(commands.Cog):
     async def _get_message_from_link(
         self, interaction: discord.Interaction, link: str
     ) -> discord.Message | None:
-        match = self.MESSAGE_LINK_REGEX.match(link)
-        if not match:
+        normalized_link = link.strip()
+        if normalized_link.startswith("<") and normalized_link.endswith(">"):
+            normalized_link = normalized_link[1:-1].strip()
+
+        match = self.MESSAGE_LINK_REGEX.match(normalized_link)
+        if match is None:
             await send_interaction_message(
                 interaction,
                 "無効なメッセージリンクです。",
