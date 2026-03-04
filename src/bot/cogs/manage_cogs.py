@@ -57,21 +57,19 @@ class ManageCogs(commands.Cog):
     @app_commands.checks.has_permissions(manage_guild=True)
     async def sync(self, interaction: discord.Interaction) -> None:
         await self._defer_ephemeral(interaction)
-        try:
-            if interaction.guild is not None:
-                guild_synced = await self.bot.tree.sync(guild=interaction.guild)
-            else:
-                guild_synced = []
-            global_synced = await self.bot.tree.sync()
-            summary_lines = []
-            if interaction.guild is not None:
-                summary_lines.append(
-                    f"Guild sync: {len(guild_synced)} command(s)"
-                )
-            summary_lines.append(f"Global sync: {len(global_synced)} command(s)")
+        if interaction.guild is None:
             await send_interaction_message(
                 interaction,
-                "\n".join(summary_lines),
+                "このコマンドはサーバー内でのみ使用できます。",
+                ephemeral=True,
+            )
+            return
+
+        try:
+            guild_synced = await self.bot.tree.sync(guild=interaction.guild)
+            await send_interaction_message(
+                interaction,
+                f"Guild sync: {len(guild_synced)} command(s)",
                 ephemeral=True,
             )
         except Exception as error:
