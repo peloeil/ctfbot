@@ -6,6 +6,7 @@ CTF サーバー向け Discord bot です。
 ## 主な機能
 
 - CTFtime の定期通知（週次）と手動通知コマンド `!ctf`
+- CTF ロール募集管理（`/ctf-role create|list|close`、リアクションで自動付与）
 - AlpacaHack の週次 solve サマリ通知（登録ユーザー対象、毎週日曜）
 - AlpacaHack ユーザー管理 (`!add_alpaca`, `!del_alpaca`, `!show_alpaca`)
 - AlpacaHack スコア表示 (`!show_alpaca_score`)
@@ -32,6 +33,11 @@ src/
     cogs_loader.py           # 本番 cogs のロード
     features/                # 機能単位（縦割り）
       alpacahack/
+        cog.py
+        usecase.py
+        service.py
+        repository.py
+      ctf_roles/
         cog.py
         usecase.py
         service.py
