@@ -44,10 +44,20 @@ class ManageCogs(commands.Cog):
     @app_commands.checks.has_permissions(manage_guild=True)
     async def sync(self, interaction: discord.Interaction) -> None:
         try:
-            synced = await self.bot.tree.sync()
+            if interaction.guild is not None:
+                guild_synced = await self.bot.tree.sync(guild=interaction.guild)
+            else:
+                guild_synced = []
+            global_synced = await self.bot.tree.sync()
+            summary_lines = []
+            if interaction.guild is not None:
+                summary_lines.append(
+                    f"Guild sync: {len(guild_synced)} command(s)"
+                )
+            summary_lines.append(f"Global sync: {len(global_synced)} command(s)")
             await send_interaction_message(
                 interaction,
-                f"Synced {len(synced)} command(s)",
+                "\n".join(summary_lines),
                 ephemeral=True,
             )
         except Exception as error:
