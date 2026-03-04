@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .models import (
+    CampaignCloseResult,
     CampaignDraft,
     CampaignDraftValidation,
     CampaignStatus,
@@ -11,6 +12,7 @@ from .service import CTFRoleService
 
 DEFAULT_MAX_ACTIVE_CAMPAIGNS_PER_USER = 3
 DEFAULT_MAX_CTF_NAME_LENGTH = 60
+DEFAULT_ARCHIVE_DELAY_DAYS = 30
 
 
 class CTFRoleUseCase:
@@ -21,11 +23,13 @@ class CTFRoleUseCase:
         *,
         max_active_campaigns_per_user: int = DEFAULT_MAX_ACTIVE_CAMPAIGNS_PER_USER,
         max_ctf_name_length: int = DEFAULT_MAX_CTF_NAME_LENGTH,
+        archive_delay_days: int = DEFAULT_ARCHIVE_DELAY_DAYS,
     ) -> None:
         self._repository = repository
         self._service = service
         self._max_active_campaigns_per_user = max(1, max_active_campaigns_per_user)
         self._max_ctf_name_length = max(8, max_ctf_name_length)
+        self._archive_delay_seconds = max(1, archive_delay_days) * 24 * 60 * 60
 
     def validate_campaign_draft(
         self,
@@ -165,16 +169,38 @@ class CTFRoleUseCase:
             limit=limit,
         )
 
-    def close_campaign(self, *, campaign_id: int) -> bool:
-        return self._repository.close_campaign(
+    def close_campaign(self, *, campaign_id: int) -> CampaignCloseResult:
+        closed_at_unix = self._service.now_unix()
+        archive_at_unix = closed_at_unix + self._archive_delay_seconds
+        closed = self._repository.close_campaign(
             campaign_id=campaign_id,
-            closed_at_unix=self._service.now_unix(),
+            closed_at_unix=closed_at_unix,
+            archive_at_unix=archive_at_unix,
+        )
+        if not closed:
+            return CampaignCloseResult(was_closed=False)
+        return CampaignCloseResult(
+            was_closed=True,
+            closed_at_unix=closed_at_unix,
+            archive_at_unix=archive_at_unix,
         )
 
     def is_campaign_expired(self, campaign: CTFRoleCampaign) -> bool:
         if campaign.end_at_unix is None:
             return False
         return campaign.end_at_unix <= self._service.now_unix()
+
+    def list_due_archives(self, *, limit: int = 20) -> list[CTFRoleCampaign]:
+        return self._repository.list_due_archives(
+            now_unix=self._service.now_unix(),
+            limit=limit,
+        )
+
+    def mark_campaign_archived(self, *, campaign_id: int) -> bool:
+        return self._repository.mark_campaign_archived(
+            campaign_id=campaign_id,
+            archived_at_unix=self._service.now_unix(),
+        )
 
     def list_campaigns(
         self,
