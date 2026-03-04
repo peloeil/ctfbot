@@ -1,6 +1,6 @@
 import asyncio
 
-from bot import create_bot, run_bot
+from bot.app import create_bot, run_bot
 
 
 async def main() -> None:
