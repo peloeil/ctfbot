@@ -498,7 +498,11 @@ class CTFRoleCampaigns(
             await discussion_channel.set_permissions(
                 guild.default_role,
                 view_channel=True,
-                send_messages=True,
+                send_messages=False,
+                add_reactions=False,
+                create_public_threads=False,
+                create_private_threads=False,
+                send_messages_in_threads=False,
                 read_message_history=True,
                 reason=reason,
             )
@@ -512,7 +516,8 @@ class CTFRoleCampaigns(
                 discussion_channel,
                 content=(
                     "📦 このCTFは終了しました。"
-                    "チャンネルを archive に移動し、全体公開に切り替えました。"
+                    "チャンネルを archive に移動し、"
+                    "全体公開(read-only)に切り替えました。"
                 ),
             )
             return True
