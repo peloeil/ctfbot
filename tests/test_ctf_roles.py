@@ -5,6 +5,8 @@ import unittest
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import discord
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
@@ -175,6 +177,27 @@ class CTFRoleCogHelperTests(unittest.TestCase):
         choices = CTFRoleCampaigns._build_role_color_suggestions("22c55e")
         self.assertEqual(len(choices), 1)
         self.assertEqual(choices[0].value, "#22c55e")
+
+    def test_build_discussion_overwrites_include_bot_member(self) -> None:
+        default_role = discord.Object(id=1)
+        role = discord.Object(id=2)
+        creator = discord.Object(id=3)
+        bot_member = discord.Object(id=4)
+
+        overwrites = CTFRoleCampaigns._build_discussion_channel_overwrites(
+            default_role=default_role,
+            role=role,
+            creator=creator,
+            bot_member=bot_member,
+        )
+
+        self.assertIn(default_role, overwrites)
+        self.assertEqual(overwrites[default_role].view_channel, False)
+        self.assertIn(role, overwrites)
+        self.assertIn(creator, overwrites)
+        self.assertIn(bot_member, overwrites)
+        self.assertEqual(overwrites[bot_member].view_channel, True)
+        self.assertEqual(overwrites[bot_member].send_messages, True)
 
 
 if __name__ == "__main__":
