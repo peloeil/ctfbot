@@ -207,6 +207,15 @@ class CTFRoleCampaigns(
         return f"{trimmed}{suffix_text}"
 
     @staticmethod
+    def _build_voice_channel_base_name(base_name: str) -> str:
+        suffix_text = "-voice"
+        max_base_length = MAX_CHANNEL_NAME_LENGTH - len(suffix_text)
+        trimmed = base_name[:max_base_length].strip("-")
+        if not trimmed:
+            trimmed = FALLBACK_CHANNEL_NAME
+        return f"{trimmed}{suffix_text}"
+
+    @staticmethod
     def _build_discussion_channel_overwrites(
         *,
         default_role: discord.Role | discord.Object,
@@ -306,9 +315,7 @@ class CTFRoleCampaigns(
         category: discord.CategoryChannel,
         base_name: str,
     ) -> str:
-        existing_names = {
-            text_channel.name for text_channel in category.text_channels
-        }
+        existing_names = {channel.name for channel in category.channels}
         if base_name not in existing_names:
             return base_name
 
@@ -373,6 +380,61 @@ class CTFRoleCampaigns(
             topic=topic,
             overwrites=overwrites,
             reason=f"Create CTF discussion channel by {creator_id}",
+        )
+
+    async def _create_ctf_voice_channel(
+        self,
+        *,
+        guild: discord.Guild,
+        draft: CampaignDraft,
+        role: discord.Role,
+        creator: discord.Member | None,
+        creator_id: int,
+    ) -> discord.VoiceChannel:
+        category = await self._ensure_ctf_category(guild)
+        base_name = self._build_channel_base_name(draft.ctf_name)
+        voice_base_name = self._build_voice_channel_base_name(base_name)
+        channel_name = self._pick_unique_channel_name(
+            category=category,
+            base_name=voice_base_name,
+        )
+
+        bot_member = self._resolve_bot_member(guild)
+        overwrites: dict[
+            discord.Role | discord.Member | discord.Object,
+            discord.PermissionOverwrite,
+        ] = {
+            guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            role: discord.PermissionOverwrite(
+                view_channel=True,
+                connect=True,
+                speak=True,
+                stream=True,
+                use_voice_activation=True,
+            ),
+        }
+        if creator is not None:
+            overwrites[creator] = discord.PermissionOverwrite(
+                view_channel=True,
+                connect=True,
+                speak=True,
+                stream=True,
+                use_voice_activation=True,
+            )
+        if bot_member is not None:
+            overwrites[bot_member] = discord.PermissionOverwrite(
+                view_channel=True,
+                connect=True,
+                speak=True,
+                use_voice_activation=True,
+                manage_channels=True,
+            )
+
+        return await guild.create_voice_channel(
+            name=channel_name,
+            category=category,
+            overwrites=overwrites,
+            reason=f"Create CTF voice channel by {creator_id}",
         )
 
     async def _archive_discussion_channel(
@@ -625,6 +687,7 @@ class CTFRoleCampaigns(
         self,
         *,
         discussion_channel: discord.TextChannel | None,
+        voice_channel: discord.VoiceChannel | None,
         role: discord.Role | None,
         message: discord.Message | None,
     ) -> None:
@@ -647,6 +710,16 @@ class CTFRoleCampaigns(
                 logger.warning(
                     "Failed to clean up discussion channel: %s",
                     discussion_channel.id,
+                )
+        if voice_channel is not None:
+            try:
+                await voice_channel.delete(
+                    reason="Cleanup after failed campaign creation"
+                )
+            except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+                logger.warning(
+                    "Failed to clean up voice channel: %s",
+                    voice_channel.id,
                 )
 
     async def _mark_campaign_message_closed(
@@ -961,6 +1034,7 @@ class CTFRoleCampaigns(
             return
 
         discussion_channel: discord.TextChannel | None = None
+        voice_channel: discord.VoiceChannel | None = None
         role: discord.Role | None = None
         message: discord.Message | None = None
         campaign: CTFRoleCampaign | None = None
@@ -990,6 +1064,13 @@ class CTFRoleCampaigns(
                 creator=creator_member,
                 creator_id=interaction.user.id,
             )
+            voice_channel = await self._create_ctf_voice_channel(
+                guild=guild,
+                draft=draft,
+                role=role,
+                creator=creator_member,
+                creator_id=interaction.user.id,
+            )
             content = self._build_recruitment_message(
                 draft=draft,
                 role=role,
@@ -1007,6 +1088,9 @@ class CTFRoleCampaigns(
                 message_id=message.id,
                 role_id=role.id,
                 discussion_channel_id=discussion_channel.id,
+                voice_channel_id=(
+                    voice_channel.id if voice_channel is not None else None
+                ),
                 created_by=interaction.user.id,
                 draft=draft,
             )
@@ -1017,6 +1101,7 @@ class CTFRoleCampaigns(
         except discord.Forbidden:
             await self._cleanup_created_resources(
                 discussion_channel=discussion_channel,
+                voice_channel=voice_channel,
                 role=role,
                 message=message,
             )
@@ -1031,6 +1116,7 @@ class CTFRoleCampaigns(
             logger.exception("Discord API error while creating CTF role campaign")
             await self._cleanup_created_resources(
                 discussion_channel=discussion_channel,
+                voice_channel=voice_channel,
                 role=role,
                 message=message,
             )
@@ -1043,6 +1129,7 @@ class CTFRoleCampaigns(
             logger.exception("Unexpected error while creating CTF role campaign")
             await self._cleanup_created_resources(
                 discussion_channel=discussion_channel,
+                voice_channel=voice_channel,
                 role=role,
                 message=message,
             )
@@ -1054,11 +1141,13 @@ class CTFRoleCampaigns(
 
         assert message is not None
         assert discussion_channel is not None
+        assert voice_channel is not None
         summary = (
             "募集を作成しました: "
             f"{message.jump_url}\n"
             f"募集投稿先: {announce_channel.mention}\n"
-            f"CTFチャンネル: {discussion_channel.mention}"
+            f"CTFチャンネル: {discussion_channel.mention}\n"
+            f"Voiceチャンネル: {voice_channel.mention}"
         )
         if create_warnings:
             summary += (
