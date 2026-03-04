@@ -6,7 +6,7 @@ CTF サーバー向け Discord bot です。
 ## 主な機能
 
 - CTFtime の定期通知（週次）と手動通知コマンド `!ctf`
-- AlpacaHack の週次 solve サマリ通知（登録ユーザー対象）
+- AlpacaHack の週次 solve サマリ通知（登録ユーザー対象、毎週日曜）
 - AlpacaHack ユーザー管理 (`!add_alpaca`, `!del_alpaca`, `!show_alpaca`)
 - AlpacaHack スコア表示 (`!show_alpaca_score`)
 - Slash コマンド管理 (`/sync`, `/load`, `/unload`, `/reload`, `/pin`, `/unpin`)

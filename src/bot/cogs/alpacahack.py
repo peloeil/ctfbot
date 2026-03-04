@@ -33,6 +33,7 @@ def _parse_daily_time(raw_value: str) -> datetime.time:
 
 
 ALPACAHACK_SOLVE_TIME = _parse_daily_time(settings.alpacahack_solve_time)
+WEEKLY_NOTIFICATION_WEEKDAY = 6  # 0=Mon ... 6=Sun
 
 
 class Alpacahack(commands.Cog):
@@ -88,7 +89,7 @@ class Alpacahack(commands.Cog):
         self,
         weekly_solves: dict[str, list[str]],
         week_start: datetime.date,
-        today: datetime.date,
+        week_end: datetime.date,
         total_users: int,
     ) -> discord.Embed:
         total_solves = sum(len(items) for items in weekly_solves.values())
@@ -97,7 +98,7 @@ class Alpacahack(commands.Cog):
         embed = discord.Embed(
             title="🦙 AlpacaHack 今週の solve",
             description=(
-                f"{week_start:%Y-%m-%d} 〜 {today:%Y-%m-%d}\n"
+                f"{week_start:%Y-%m-%d} 〜 {week_end:%Y-%m-%d}\n"
                 f"{solved_users}/{total_users} 人, {total_solves} solves"
             ),
             color=discord.Color.orange(),
@@ -137,6 +138,10 @@ class Alpacahack(commands.Cog):
     @tasks.loop(time=[ALPACAHACK_SOLVE_TIME])
     async def alpacahack_solves(self) -> None:
         """Post weekly AlpacaHack solve summary for tracked users."""
+        today = datetime.datetime.now(settings.tzinfo).date()
+        if today.weekday() != WEEKLY_NOTIFICATION_WEEKDAY:
+            return
+
         channel = await self._resolve_target_channel()
         if channel is None:
             return
@@ -145,8 +150,7 @@ class Alpacahack(commands.Cog):
         if not users:
             return
 
-        today = datetime.datetime.now(settings.tzinfo).date()
-        week_start, _ = get_week_range(today)
+        week_start, week_end = get_week_range(today)
         weekly_solves: dict[str, list[str]] = {}
 
         for user_row in users:
@@ -161,7 +165,7 @@ class Alpacahack(commands.Cog):
         embed = self._build_weekly_summary_embed(
             weekly_solves=weekly_solves,
             week_start=week_start,
-            today=today,
+            week_end=week_end,
             total_users=len(users),
         )
         await send_message_safely(channel, embed=embed)
