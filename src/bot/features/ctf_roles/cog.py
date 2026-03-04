@@ -545,6 +545,27 @@ class CTFRoleCampaigns(
 
         return len(members), True
 
+    async def _announce_member_join(
+        self,
+        *,
+        guild: discord.Guild,
+        campaign: CTFRoleCampaign,
+        member: discord.Member,
+    ) -> None:
+        if campaign.discussion_channel_id is None:
+            return
+
+        discussion_channel = await self._resolve_text_channel(
+            guild, campaign.discussion_channel_id
+        )
+        if discussion_channel is None:
+            return
+
+        await send_message_safely(
+            discussion_channel,
+            content=f"🙋 {member.mention} が **{campaign.ctf_name}** に参加しました。",
+        )
+
     @staticmethod
     def _resolve_role_announce_channel(
         guild: discord.Guild,
@@ -834,6 +855,11 @@ class CTFRoleCampaigns(
                 await member.add_roles(
                     role,
                     reason=f"Joined CTF role: {campaign.ctf_name}",
+                )
+                await self._announce_member_join(
+                    guild=guild,
+                    campaign=campaign,
+                    member=member,
                 )
         except discord.Forbidden:
             logger.warning(
