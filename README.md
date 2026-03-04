@@ -1,147 +1,116 @@
 # CTFBot
 
-CTF 用の Discord bot
+CTF サーバー向け Discord bot です。  
+公開運用を前提に、設定の fail-fast、ログ統一、非同期タスクの安定運用を重視した構成に再設計しています。
 
-## 概要
+## 主な機能
 
-このボットは、CTF（Capture The Flag）イベント向けのDiscord botです。主な機能として：
+- CTFtime の定期通知（週次）と手動通知コマンド `!ctf`
+- AlpacaHack ユーザー管理 (`!add_alpaca`, `!del_alpaca`, `!show_alpaca`)
+- AlpacaHack スコア表示 (`!show_alpaca_score`)
+- Slash コマンド管理 (`/sync`, `/load`, `/unload`, `/reload`, `/pin`, `/unpin`)
+- Bot の接続状態通知（任意）
 
-- 基本的なコマンド（ping、挨拶など）
-- スラッシュコマンド（メッセージのピン留めなど）
-- AlpacaHack CTFプラットフォームとの連携
-- 定期的なタスク実行
+## ディレクトリ構成
 
-## プロジェクト構造
-
-```
-.
-├── README.md
-├── pyproject.toml
-├── src
-│   ├── bot
-│   │   ├── __init__.py               # ボット作成と実行関数
-│   │   ├── config.py                 # 設定管理
-│   │   ├── cogs_loader.py            # Cogsローダー
-│   │   ├── cogs                      # コマンドモジュール
-│   │   │   ├── alpacahack.py         # AlpacaHack関連コマンド
-│   │   │   ├── examples              # example
-│   │   │   │   ├── basic_commands.py # !command
-│   │   │   │   ├── slash_commands.py # /command
-│   │   │   │   └── tasks_loop.py     # 定期実行タスク
-│   │   │   ├── manage_cogs.py        # Cog管理コマンド
-│   │   │   └── slash_commands.py     # スラッシュコマンド
-│   │   ├── db                        # データベース関連
-│   │   │   └── database.py           # DB操作ユーティリティ
-│   │   ├── services                  # 外部サービス連携
-│   │   │   └── alpacahack_service.py # AlpacaHackスクレイピング
-│   │   └── utils                     # ユーティリティ
-│   │       └── helpers.py            # ヘルパー関数
-│   └── main.py                       # エントリーポイント
-└── uv.lock
+```text
+src/
+  bot/
+    __init__.py              # Bot 生成と起動
+    config.py                # 環境変数の読み込みとバリデーション
+    cogs_loader.py           # 本番 cogs のロード
+    cogs/
+      alpacahack.py
+      ctftime_notifications.py
+      manage_cogs.py
+      slash_commands.py
+    db/
+      database.py
+    services/
+      alpacahack_service.py
+      ctftime_service.py
+    utils/
+      helpers.py
+  main.py                    # エントリポイント
 ```
 
-## 開発準備
+## セットアップ
 
-### Discord Bot の設定
+### Discord Bot の設定（従来手順）
 
-1. 自分が管理者で他の人に迷惑のかからない discord サーバー(自分のみがメンバーのサーバーなど)を用意してください。
-2. Discord Developers Portal で discord bot を作成し、好きな名前をつけます。
-3. `cp .env.example .env` とし、`.env` 内の `DISCORD_TOKEN` を実際のトークン文字列で置き換えてください。
-4. `BOT_CHANNEL_ID` を bot の自動メッセージを流すチャンネル ID にセットしてください。
-5. このファイルは絶対に commit に含めないでください。
+1. 自分が管理者で、他の人に迷惑のかからない Discord サーバー（自分のみがメンバーのサーバーなど）を用意します。
+2. Discord Developers Portal で Discord bot を作成し、名前を設定します。
+3. `cp .env.example .env` を実行し、`.env` 内の `DISCORD_TOKEN` を実際のトークンに置き換えます。
+4. `BOT_CHANNEL_ID` を bot の定期メッセージ送信先チャンネル ID に設定します。
+5. `.env` は commit に含めないでください。
 
-### Discord Bot の権限設定
+### Discord Bot の権限設定（従来手順）
 
-1. PUBLIC BOT を uncheck してください。
-2. Privileged Gateway Intents は、MESSAGE CONTENT INTENT を有効にしてください。
-3. Scope は bot にしてください。
-4. 必要な BOT_PERMISSIONS は以下の通りです：
-   * GENERAL PERMISSIONS
-     * View Channels
-   * TEXT PERMISSIONS
-     * Send Messages
-     * Manage Messages
-   * VOICE PERMISSIONS
-     * なし
+1. Bot 公開設定（Public Bot）は運用方針に応じて設定します。
+2. Privileged Gateway Intents は `MESSAGE CONTENT INTENT` を有効にします。
+3. OAuth2 の Scope は `bot`（必要なら `applications.commands` も）を選択します。
+4. bot アカウントに付与する権限の目安:
+   - `View Channels`
+   - `Send Messages`
+   - `Manage Messages`（`/pin` `/unpin` の実行に必要）
 
-### 環境セットップ
+### ローカル実行手順
 
-1. UV パッケージマネージャをインストールします：
-   ```
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   ```
+1. 依存をインストール
 
-2. 依存関係をインストールします：
-   ```
-   uv sync --group dev
-   source .venv/bin/activate
-   ```
-
-3. ボットを実行します：
-   ```
-   python src/main.py
-   ```
-
-または、仮想環境を明示的に起動せずに直接実行することもできます：
-   ```
-   uv run src/main.py
-   ```
-
-## コード品質管理
-
-このプロジェクトでは、コード品質を維持するために ruff と ty を使用しています。
-
-### コードフォーマット
-
-コードのフォーマットには ruff format を使用します：
-
-```
-uv run ruff format src/ tests/
+```bash
+uv sync --group dev
 ```
 
-### リンティング
+2. 環境変数を設定
 
-コードのリンティングには ruff check を使用します：
-
-```
-uv run ruff check src/ tests/
+```bash
+cp .env.example .env
 ```
 
-自動修正可能な問題を修正するには：
+必須:
 
+- `DISCORD_TOKEN`
+
+主要オプション:
+
+- `BOT_CHANNEL_ID`: 定期通知先チャンネル
+- `BOT_STATUS_CHANNEL_ID`: 起動/再接続/終了通知先チャンネル（任意）
+- `TIMEZONE`: 例 `Asia/Tokyo`
+- `DATABASE_PATH`: SQLite ファイルパス
+
+3. 実行
+
+```bash
+uv run python src/main.py
 ```
-uv run ruff check --fix src/ tests/
-```
 
-### 型チェック
+## 開発コマンド
 
-型チェックには ty を使用します：
-
-```
+```bash
+uv run ruff format --check src tests
+uv run ruff check src tests
 uv run ty check
+uv run python -m unittest discover -s tests -v
 ```
 
-## 機能追加方法
+## 開発時の反映手順（bot を止めない運用）
 
-機能追加は基本的に `./src/bot/cogs` 以下のファイルを編集するか、新しいcogを作成することで可能です。
+1. Cog ファイルを変更したら `/reload name:<cog名>` を実行する
+2. Slash コマンド定義を変更したら `/reload` の後に `/sync` を実行する
+3. `config.py`、`.env`、共通モジュールの変更時は bot を再起動する
 
-新しい cogs を作る場合は、`./src/bot/cogs_loader.py` 内の extensions リストに追加する必要があります。
+## 権限モデルのメモ（このサーバー向け）
 
-## PR のテスト方法
+1. `/pin` と `/unpin` は、実行ユーザーに `Manage Messages` は不要  
+実行対象チャンネルを「閲覧 + 投稿」できれば実行可能です。
+2. `!ctf` も同様に、実行チャンネルを「閲覧 + 投稿」できれば実行可能です。
+3. `/sync`, `/load`, `/unload`, `/reload` は `Manage Server` 権限が必要です。
+4. bot アカウント側には、`/pin` `/unpin` を動かすために `Manage Messages` 権限が必要です。
 
-`{num}` を PR 番号で、`{test}` を好きな文字列で置き換えてください。
+## 新しい機能を足すとき
 
-```
-git fetch origin refs/pull/{num}/head:{test}
-git checkout {test}
-uv run src/main.py
-```
-
-## 開発ガイドライン
-
-- main ブランチは PR 経由の merge でしか変更できません
-- PR を merge するには1人以上の review が必須です
-- コードスタイルは ruff を使用して一貫性を保ち、型ヒントを使用してください
-- エラーハンドリングを適切に行い、ログを活用してください
-- 設定は config.py で一元管理してください
-- PR を提出する前に必ず `uv run ruff format`、`uv run ruff check`、`uv run ty check` を実行してください
+1. `src/bot/cogs/` に新しい cog を追加する。
+2. 起動時に自動ロードしたい場合は `src/bot/cogs_loader.py` の `DEFAULT_EXTENSIONS` に追加する。
+3. Slash コマンドを追加した場合は `/sync` で反映する。
+4. 追加した機能に対応するテストを `tests/` に追加する。
