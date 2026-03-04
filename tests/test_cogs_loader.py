@@ -16,7 +16,7 @@ class CogsLoaderTests(unittest.IsolatedAsyncioTestCase):
         bot = AsyncMock()
         extensions = (
             "bot.cogs.manage_cogs",
-            "bot.cogs.slash_commands",
+            "bot.cogs.message_tools",
             "bot.features.ctftime.cog",
         )
 
