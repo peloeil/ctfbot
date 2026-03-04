@@ -1,13 +1,60 @@
+import datetime
 from collections.abc import Generator
+from dataclasses import dataclass
+from zoneinfo import ZoneInfo
 
 import requests
 from bs4 import BeautifulSoup, element
 from requests import RequestException
 
+from ..config import settings
 from ..utils.helpers import format_code_block, handle_error, logger
 
 ALPACAHACK_BASE_URL = "https://alpacahack.com/users/"
 REQUEST_TIMEOUT_SECONDS = 10
+UTC = ZoneInfo("UTC")
+
+
+@dataclass(frozen=True, slots=True)
+class SolveRecord:
+    challenge: str
+    solved_at: datetime.datetime
+
+
+def get_week_range(
+    reference_date: datetime.date | None = None,
+) -> tuple[datetime.date, datetime.date]:
+    """Return Monday-Sunday range for the given local date."""
+    today = reference_date or datetime.datetime.now(settings.tzinfo).date()
+    week_start = today - datetime.timedelta(days=today.weekday())
+    week_end = week_start + datetime.timedelta(days=6)
+    return week_start, week_end
+
+
+def get_weekly_solve_challenges(
+    user: str, reference_date: datetime.date | None = None
+) -> list[str]:
+    """
+    Get challenge names solved by `user` during the current week in local timezone.
+    """
+    today = reference_date or datetime.datetime.now(settings.tzinfo).date()
+    week_start, _ = get_week_range(today)
+
+    records = _get_solve_records(user)
+    if not records:
+        return []
+
+    challenges: list[str] = []
+    seen: set[str] = set()
+    for record in records:
+        solved_date = record.solved_at.date()
+        if solved_date < week_start or solved_date > today:
+            continue
+        if record.challenge in seen:
+            continue
+        seen.add(record.challenge)
+        challenges.append(record.challenge)
+    return challenges
 
 
 def is_leaf(tag: element.Tag) -> bool:
@@ -19,7 +66,7 @@ def get_alpacahack_solves(user: str) -> str:
     try:
         logger.info("Fetching solve information for user: %s", user)
         soup = _fetch_user_page(user)
-        tbody = soup.find("tbody", class_="MuiTableBody-root")
+        tbody = _extract_solved_challenges_tbody(soup)
         if not isinstance(tbody, element.Tag):
             logger.warning("No data found for user: %s", user)
             return format_code_block(f"No data found for user: {user}")
@@ -109,6 +156,81 @@ def get_alpacahack_info(user: str) -> Generator[str, None, None]:
     except Exception as error:
         logger.error("Error fetching detailed information for user %s: %s", user, error)
         yield handle_error(error, f"Failed to get info for {user}")
+
+
+def _get_solve_records(user: str) -> list[SolveRecord]:
+    try:
+        logger.info("Fetching weekly solve records for user: %s", user)
+        soup = _fetch_user_page(user)
+        tbody = _extract_solved_challenges_tbody(soup)
+        if not isinstance(tbody, element.Tag):
+            return []
+
+        records: list[SolveRecord] = []
+        for row in tbody.find_all("tr"):
+            if not isinstance(row, element.Tag):
+                continue
+            columns = row.find_all("td")
+            if len(columns) < 3:
+                continue
+
+            challenge_cell = columns[0]
+            solved_at_cell = columns[2]
+            if not isinstance(challenge_cell, element.Tag):
+                continue
+            if not isinstance(solved_at_cell, element.Tag):
+                continue
+
+            challenge_tag = challenge_cell.find("a")
+            solved_at_tag = solved_at_cell.find("span")
+            if not isinstance(challenge_tag, element.Tag):
+                continue
+            if not isinstance(solved_at_tag, element.Tag):
+                continue
+
+            solved_at = _parse_aria_label_to_local_datetime(
+                solved_at_tag.get("aria-label")
+            )
+            if solved_at is None:
+                continue
+
+            challenge = challenge_tag.get_text(strip=True)
+            if not challenge:
+                continue
+            records.append(SolveRecord(challenge=challenge, solved_at=solved_at))
+
+        return records
+    except Exception:
+        logger.exception("Failed to fetch weekly solve records for user: %s", user)
+        return []
+
+
+def _extract_solved_challenges_tbody(soup: BeautifulSoup) -> element.Tag | None:
+    for paragraph in soup.find_all("p"):
+        if paragraph.get_text(strip=True) == "SOLVED CHALLENGES":
+            sibling = paragraph.find_next_sibling("div")
+            if isinstance(sibling, element.Tag):
+                tbody = sibling.find("tbody")
+                if isinstance(tbody, element.Tag):
+                    return tbody
+
+    fallback = soup.find("tbody", class_="MuiTableBody-root")
+    if isinstance(fallback, element.Tag):
+        return fallback
+    return None
+
+
+def _parse_aria_label_to_local_datetime(raw_value: object) -> datetime.datetime | None:
+    if not isinstance(raw_value, str) or not raw_value:
+        return None
+
+    normalized = raw_value.strip().removesuffix(" UTC")
+    try:
+        naive = datetime.datetime.strptime(normalized, "%Y-%m-%d %H:%M")
+    except ValueError:
+        return None
+
+    return naive.replace(tzinfo=UTC).astimezone(settings.tzinfo)
 
 
 def _fetch_user_page(user: str) -> BeautifulSoup:

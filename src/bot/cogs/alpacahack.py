@@ -11,7 +11,11 @@ from ..db.database import (
     get_all_alpacahack_users,
     insert_alpacahack_user,
 )
-from ..services.alpacahack_service import get_alpacahack_info
+from ..services.alpacahack_service import (
+    get_alpacahack_info,
+    get_week_range,
+    get_weekly_solve_challenges,
+)
 from ..utils.helpers import format_code_block, logger, send_message_safely
 
 
@@ -66,9 +70,73 @@ class Alpacahack(commands.Cog):
             return [format_code_block("No data found")]
         return [format_code_block(section) for section in sections]
 
+    @staticmethod
+    def _format_solve_list(solves: list[str], max_items: int = 12) -> str:
+        if not solves:
+            return "今週の solve はありません。"
+
+        lines = [f"- {name}" for name in solves[:max_items]]
+        if len(solves) > max_items:
+            lines.append(f"... and {len(solves) - max_items} more")
+
+        joined = "\n".join(lines)
+        if len(joined) > 1024:
+            return f"{joined[:1020]}..."
+        return joined
+
+    def _build_weekly_summary_embed(
+        self,
+        weekly_solves: dict[str, list[str]],
+        week_start: datetime.date,
+        today: datetime.date,
+        total_users: int,
+    ) -> discord.Embed:
+        total_solves = sum(len(items) for items in weekly_solves.values())
+        solved_users = len(weekly_solves)
+
+        embed = discord.Embed(
+            title="🦙 AlpacaHack 今週の solve",
+            description=(
+                f"{week_start:%Y-%m-%d} 〜 {today:%Y-%m-%d}\n"
+                f"{solved_users}/{total_users} 人, {total_solves} solves"
+            ),
+            color=discord.Color.orange(),
+            timestamp=datetime.datetime.now(settings.tzinfo),
+        )
+
+        if not weekly_solves:
+            embed.add_field(
+                name="進捗",
+                value="今週の solve はまだありません。",
+                inline=False,
+            )
+            return embed
+
+        sorted_rows = sorted(
+            weekly_solves.items(),
+            key=lambda row: len(row[1]),
+            reverse=True,
+        )
+
+        for username, solves in sorted_rows[:25]:
+            embed.add_field(
+                name=username,
+                value=self._format_solve_list(solves),
+                inline=False,
+            )
+
+        if len(sorted_rows) > 25:
+            embed.set_footer(
+                text=(
+                    f"+ {len(sorted_rows) - 25} users are omitted due to Discord limits"
+                )
+            )
+
+        return embed
+
     @tasks.loop(time=[ALPACAHACK_SOLVE_TIME])
     async def alpacahack_solves(self) -> None:
-        """Post all tracked AlpacaHack user summaries daily."""
+        """Post weekly AlpacaHack solve summary for tracked users."""
         channel = await self._resolve_target_channel()
         if channel is None:
             return
@@ -77,12 +145,26 @@ class Alpacahack(commands.Cog):
         if not users:
             return
 
+        today = datetime.datetime.now(settings.tzinfo).date()
+        week_start, _ = get_week_range(today)
+        weekly_solves: dict[str, list[str]] = {}
+
         for user_row in users:
             username = str(user_row[0])
-            await send_message_safely(channel, content=f"## {username}")
-            for message in await self._render_user_info_messages(username):
-                await send_message_safely(channel, content=message)
-            await asyncio.sleep(0.5)
+            solves = await asyncio.to_thread(
+                get_weekly_solve_challenges, username, today
+            )
+            if solves:
+                weekly_solves[username] = solves
+            await asyncio.sleep(0.2)
+
+        embed = self._build_weekly_summary_embed(
+            weekly_solves=weekly_solves,
+            week_start=week_start,
+            today=today,
+            total_users=len(users),
+        )
+        await send_message_safely(channel, embed=embed)
 
     @alpacahack_solves.before_loop
     async def before_alpacahack_solves(self) -> None:

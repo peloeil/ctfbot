@@ -3,8 +3,9 @@ import os
 import sys
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from bs4 import element
 
@@ -18,7 +19,11 @@ os.environ.setdefault("BOT_CHANNEL_ID", "0")
 os.environ.setdefault("TIMEZONE", "Asia/Tokyo")
 os.environ.setdefault("DATABASE_PATH", str(REPO_ROOT / "test-alpaca.db"))
 
-from bot.services.alpacahack_service import is_leaf  # noqa: E402
+from bot.services.alpacahack_service import (  # noqa: E402
+    get_week_range,
+    get_weekly_solve_challenges,
+    is_leaf,
+)
 from bot.utils.helpers import chunk_message, format_code_block  # noqa: E402
 
 
@@ -58,6 +63,48 @@ class TestAlpacaHackService(unittest.TestCase):
 
         parent.append(element.Tag(name="span"))
         self.assertFalse(is_leaf(parent))
+
+    def test_get_week_range(self):
+        start, end = get_week_range(date(2026, 3, 4))
+        self.assertEqual(start, date(2026, 3, 2))
+        self.assertEqual(end, date(2026, 3, 8))
+
+    def test_get_weekly_solve_challenges_filters_by_current_week(self):
+        html = """
+        <html>
+          <body>
+            <p>SOLVED CHALLENGES</p>
+            <div>
+              <table>
+                <tbody>
+                  <tr>
+                    <td><a>weekly-one</a></td>
+                    <td><p>1</p></td>
+                    <td><span aria-label="2026-03-03 10:00 UTC"></span></td>
+                  </tr>
+                  <tr>
+                    <td><a>old-one</a></td>
+                    <td><p>1</p></td>
+                    <td><span aria-label="2026-02-28 23:00 UTC"></span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </body>
+        </html>
+        """
+        response = Mock()
+        response.content = html.encode("utf-8")
+        response.raise_for_status.return_value = None
+
+        with patch(
+            "bot.services.alpacahack_service.requests.get", return_value=response
+        ):
+            solves = get_weekly_solve_challenges(
+                "alice", reference_date=date(2026, 3, 4)
+            )
+
+        self.assertEqual(solves, ["weekly-one"])
 
 
 class TestDatabase(unittest.TestCase):
