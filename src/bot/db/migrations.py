@@ -12,6 +12,29 @@ MIGRATIONS: tuple[str, ...] = (
         name TEXT NOT NULL UNIQUE
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS ctf_role_campaign (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        guild_id INTEGER NOT NULL,
+        channel_id INTEGER NOT NULL,
+        message_id INTEGER NOT NULL,
+        role_id INTEGER NOT NULL,
+        ctf_name TEXT NOT NULL,
+        start_at_unix INTEGER NOT NULL,
+        end_at_unix INTEGER,
+        status TEXT NOT NULL CHECK (status IN ('active', 'closed')),
+        created_by INTEGER NOT NULL,
+        created_at_unix INTEGER NOT NULL,
+        closed_at_unix INTEGER,
+        UNIQUE (guild_id, message_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_ctf_role_campaign_message
+        ON ctf_role_campaign (guild_id, channel_id, message_id, status);
+    CREATE INDEX IF NOT EXISTS idx_ctf_role_campaign_status_end
+        ON ctf_role_campaign (status, end_at_unix);
+    CREATE INDEX IF NOT EXISTS idx_ctf_role_campaign_guild_status_created
+        ON ctf_role_campaign (guild_id, status, created_at_unix);
+    """,
 )
 
 
