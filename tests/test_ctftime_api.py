@@ -1,56 +1,49 @@
-#!/usr/bin/env python3
-"""
-Test script for CTFtime API functionality.
-"""
+import os
+import sys
+import unittest
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
-import asyncio
-from datetime import datetime, timedelta, timezone
+import requests
 
-from ctftime_api import CTFTimeClient
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = REPO_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+os.environ.setdefault("DISCORD_TOKEN", "test-token")
+os.environ.setdefault("BOT_CHANNEL_ID", "0")
+os.environ.setdefault("TIMEZONE", "Asia/Tokyo")
+
+from bot.services.ctftime_service import get_upcoming_events  # noqa: E402
 
 
-async def test_ctftime_api():
-    """Test CTFtime API functionality."""
-    print("Testing CTFtime API...")
+class TestCTFTimeService(unittest.TestCase):
+    @patch("bot.services.ctftime_service.requests.get")
+    def test_get_upcoming_events_parses_payload(self, mock_get: MagicMock):
+        mock_response = MagicMock()
+        mock_response.json.return_value = [
+            {
+                "title": "Sample CTF",
+                "start": "2026-03-10T12:00:00+00:00",
+                "finish": "2026-03-11T12:00:00+00:00",
+                "url": "https://ctftime.org/event/1",
+            }
+        ]
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
 
-    try:
-        client = CTFTimeClient()
+        events = get_upcoming_events(days=7, limit=5)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].title, "Sample CTF")
+        self.assertEqual(events[0].ctftime_url, "https://ctftime.org/event/1")
 
-        # Calculate date range for next 2 weeks
-        jst = timezone(timedelta(hours=+9))
-        now = datetime.now(jst)
-        start_date = now
-        end_date = now + timedelta(weeks=2)
-
-        print(
-            "Fetching events from "
-            f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
-        )
-
-        # Fetch events
-        events = await client.get_events_information(
-            start=start_date,
-            end=end_date,
-            limit=5,  # Limit to 5 events for testing
-        )
-
-        print(f"Found {len(events)} events:")
-
-        for i, event in enumerate(events, 1):
-            print(f"\n{i}. {event.title}")
-            print(f"   Start: {event.start}")
-            print(f"   End: {event.finish}")
-            print(f"   URL: {event.ctftime_url}")
-
-        await client.close()
-        print("\nCTFtime API test completed successfully!")
-
-    except Exception as e:
-        print(f"Error testing CTFtime API: {e}")
-        import traceback
-
-        traceback.print_exc()
+    @patch("bot.services.ctftime_service.requests.get")
+    def test_get_upcoming_events_returns_empty_on_http_error(self, mock_get: MagicMock):
+        mock_get.side_effect = requests.RequestException("network error")
+        events = get_upcoming_events(days=7, limit=5)
+        self.assertEqual(events, [])
 
 
 if __name__ == "__main__":
-    asyncio.run(test_ctftime_api())
+    unittest.main()
