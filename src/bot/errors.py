@@ -13,6 +13,10 @@ class RepositoryError(BotError):
     """Raised when persistence operations fail."""
 
 
+class ConflictError(RepositoryError):
+    """Raised when an operation conflicts with existing persisted state."""
+
+
 class ServiceError(BotError):
     """Raised when service logic fails."""
 
