@@ -169,6 +169,18 @@ class CTFRoleUseCase:
             limit=limit,
         )
 
+    def list_due_starts(self, *, limit: int = 20) -> list[CTFRoleCampaign]:
+        return self._repository.list_due_starts(
+            now_unix=self._service.now_unix(),
+            limit=limit,
+        )
+
+    def mark_campaign_started(self, *, campaign_id: int) -> bool:
+        return self._repository.mark_campaign_started(
+            campaign_id=campaign_id,
+            started_at_unix=self._service.now_unix(),
+        )
+
     def close_campaign(self, *, campaign_id: int) -> CampaignCloseResult:
         closed_at_unix = self._service.now_unix()
         archive_at_unix = closed_at_unix + self._archive_delay_seconds
@@ -189,6 +201,9 @@ class CTFRoleUseCase:
         if campaign.end_at_unix is None:
             return False
         return campaign.end_at_unix <= self._service.now_unix()
+
+    def is_campaign_started(self, campaign: CTFRoleCampaign) -> bool:
+        return campaign.start_at_unix <= self._service.now_unix()
 
     def list_due_archives(self, *, limit: int = 20) -> list[CTFRoleCampaign]:
         return self._repository.list_due_archives(

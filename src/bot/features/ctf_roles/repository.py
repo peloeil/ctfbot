@@ -9,7 +9,8 @@ from .models import CampaignStatus, CTFRoleCampaign
 SELECT_COLUMNS = (
     "id, guild_id, channel_id, message_id, role_id, ctf_name, "
     "start_at_unix, end_at_unix, status, created_by, created_at_unix, "
-    "closed_at_unix, archive_at_unix, archived_at_unix, discussion_channel_id"
+    "start_notified_at_unix, closed_at_unix, archive_at_unix, "
+    "archived_at_unix, discussion_channel_id"
 )
 
 
@@ -107,6 +108,7 @@ class CTFRoleCampaignRepository:
             status=CampaignStatus.ACTIVE,
             created_by=created_by,
             created_at_unix=created_at_unix,
+            start_notified_at_unix=None,
             closed_at_unix=None,
             discussion_channel_id=discussion_channel_id,
         )
@@ -169,6 +171,44 @@ class CTFRoleCampaignRepository:
                 (CampaignStatus.ACTIVE.value, now_unix, safe_limit),
             ).fetchall()
         return [campaign for row in rows if (campaign := self._to_campaign(row))]
+
+    def list_due_starts(
+        self, *, now_unix: int, limit: int = 20
+    ) -> list[CTFRoleCampaign]:
+        safe_limit = max(1, min(limit, 100))
+        with self.connection_factory.connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT {SELECT_COLUMNS}
+                FROM ctf_role_campaign
+                WHERE status = ?
+                  AND start_notified_at_unix IS NULL
+                  AND start_at_unix <= ?
+                ORDER BY start_at_unix ASC
+                LIMIT ?
+                """,
+                (CampaignStatus.ACTIVE.value, now_unix, safe_limit),
+            ).fetchall()
+        return [campaign for row in rows if (campaign := self._to_campaign(row))]
+
+    def mark_campaign_started(self, *, campaign_id: int, started_at_unix: int) -> bool:
+        with self.connection_factory.connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE ctf_role_campaign
+                SET start_notified_at_unix = ?
+                WHERE id = ?
+                  AND status = ?
+                  AND start_notified_at_unix IS NULL
+                """,
+                (
+                    started_at_unix,
+                    campaign_id,
+                    CampaignStatus.ACTIVE.value,
+                ),
+            )
+            conn.commit()
+        return cursor.rowcount > 0
 
     def close_campaign(
         self,
@@ -277,17 +317,20 @@ class CTFRoleCampaignRepository:
         end_at_unix = (
             int(cast(int, typed_row[7])) if typed_row[7] is not None else None
         )
-        closed_at_unix = (
+        start_notified_at_unix = (
             int(cast(int, typed_row[11])) if typed_row[11] is not None else None
         )
-        archive_at_unix = (
+        closed_at_unix = (
             int(cast(int, typed_row[12])) if typed_row[12] is not None else None
         )
-        archived_at_unix = (
+        archive_at_unix = (
             int(cast(int, typed_row[13])) if typed_row[13] is not None else None
         )
-        discussion_channel_id = (
+        archived_at_unix = (
             int(cast(int, typed_row[14])) if typed_row[14] is not None else None
+        )
+        discussion_channel_id = (
+            int(cast(int, typed_row[15])) if typed_row[15] is not None else None
         )
 
         return CTFRoleCampaign(
@@ -302,6 +345,7 @@ class CTFRoleCampaignRepository:
             status=status,
             created_by=int(cast(int, typed_row[9])),
             created_at_unix=int(cast(int, typed_row[10])),
+            start_notified_at_unix=start_notified_at_unix,
             closed_at_unix=closed_at_unix,
             archive_at_unix=archive_at_unix,
             archived_at_unix=archived_at_unix,
