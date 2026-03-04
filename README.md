@@ -49,7 +49,9 @@ src/
         service.py
     cogs/
       manage_cogs.py
-      slash_commands.py
+      message_tools.py
+      perms_debug.py
+      times_channels.py
     db/
       connection.py          # 接続管理
       migrations.py          # スキーマ適用

@@ -4,7 +4,9 @@ from .utils.helpers import logger
 
 DEFAULT_EXTENSIONS = (
     "bot.cogs.manage_cogs",
-    "bot.cogs.slash_commands",
+    "bot.cogs.message_tools",
+    "bot.cogs.perms_debug",
+    "bot.cogs.times_channels",
     "bot.features.alpacahack.cog",
     "bot.features.ctf_roles.cog",
     "bot.features.ctftime.cog",

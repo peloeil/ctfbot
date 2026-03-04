@@ -10,14 +10,23 @@ from ..utils.helpers import logger, send_interaction_message
 class ManageCogs(commands.Cog):
     """Slash commands for loading/unloading/reloading cogs."""
 
-    CORE_COGS: ClassVar[set[str]] = {"manage_cogs", "slash_commands"}
+    CORE_COGS: ClassVar[set[str]] = {
+        "manage_cogs",
+        "message_tools",
+        "perms_debug",
+        "times_channels",
+    }
     FEATURE_COGS: ClassVar[set[str]] = {"alpacahack", "ctf_roles", "ctftime"}
+    LEGACY_CORE_ALIASES: ClassVar[dict[str, str]] = {
+        "slash_commands": "message_tools"
+    }
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
     def _normalize_extension(self, name: str) -> str:
         normalized = name.strip().removesuffix(".py")
+        normalized = self.LEGACY_CORE_ALIASES.get(normalized, normalized)
         if normalized in self.CORE_COGS:
             return f"bot.cogs.{normalized}"
         if normalized in self.FEATURE_COGS:
