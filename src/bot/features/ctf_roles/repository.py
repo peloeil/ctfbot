@@ -8,7 +8,8 @@ from .models import CampaignStatus, CTFRoleCampaign
 
 SELECT_COLUMNS = (
     "id, guild_id, channel_id, message_id, role_id, ctf_name, "
-    "start_at_unix, end_at_unix, status, created_by, created_at_unix, closed_at_unix"
+    "start_at_unix, end_at_unix, status, created_by, created_at_unix, "
+    "closed_at_unix, discussion_channel_id"
 )
 
 
@@ -50,6 +51,7 @@ class CTFRoleCampaignRepository:
         channel_id: int,
         message_id: int,
         role_id: int,
+        discussion_channel_id: int | None,
         ctf_name: str,
         start_at_unix: int,
         end_at_unix: int | None,
@@ -64,6 +66,7 @@ class CTFRoleCampaignRepository:
                     channel_id,
                     message_id,
                     role_id,
+                    discussion_channel_id,
                     ctf_name,
                     start_at_unix,
                     end_at_unix,
@@ -71,13 +74,14 @@ class CTFRoleCampaignRepository:
                     created_by,
                     created_at_unix
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     guild_id,
                     channel_id,
                     message_id,
                     role_id,
+                    discussion_channel_id,
                     ctf_name,
                     start_at_unix,
                     end_at_unix,
@@ -104,6 +108,7 @@ class CTFRoleCampaignRepository:
             created_by=created_by,
             created_at_unix=created_at_unix,
             closed_at_unix=None,
+            discussion_channel_id=discussion_channel_id,
         )
 
     def find_active_campaign_by_message(
@@ -227,6 +232,9 @@ class CTFRoleCampaignRepository:
         closed_at_unix = (
             int(cast(int, typed_row[11])) if typed_row[11] is not None else None
         )
+        discussion_channel_id = (
+            int(cast(int, typed_row[12])) if typed_row[12] is not None else None
+        )
 
         return CTFRoleCampaign(
             id=int(cast(int, typed_row[0])),
@@ -241,4 +249,5 @@ class CTFRoleCampaignRepository:
             created_by=int(cast(int, typed_row[9])),
             created_at_unix=int(cast(int, typed_row[10])),
             closed_at_unix=closed_at_unix,
+            discussion_channel_id=discussion_channel_id,
         )

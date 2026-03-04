@@ -121,6 +121,7 @@ class CTFRoleUseCase:
         channel_id: int,
         message_id: int,
         role_id: int,
+        discussion_channel_id: int | None,
         created_by: int,
         draft: CampaignDraft,
     ) -> CTFRoleCampaign:
@@ -129,6 +130,7 @@ class CTFRoleUseCase:
             channel_id=channel_id,
             message_id=message_id,
             role_id=role_id,
+            discussion_channel_id=discussion_channel_id,
             ctf_name=draft.ctf_name,
             start_at_unix=draft.start_at_unix,
             end_at_unix=draft.end_at_unix,
@@ -195,4 +197,3 @@ class CTFRoleUseCase:
 
     def format_unix_datetime(self, value: int | None) -> str:
         return self._service.format_unix(value)
-

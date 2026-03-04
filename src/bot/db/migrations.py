@@ -35,6 +35,10 @@ MIGRATIONS: tuple[str, ...] = (
     CREATE INDEX IF NOT EXISTS idx_ctf_role_campaign_guild_status_created
         ON ctf_role_campaign (guild_id, status, created_at_unix);
     """,
+    """
+    ALTER TABLE ctf_role_campaign
+    ADD COLUMN discussion_channel_id INTEGER
+    """,
 )
 
 
