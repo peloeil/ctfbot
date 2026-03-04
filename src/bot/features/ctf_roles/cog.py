@@ -197,6 +197,53 @@ class CTFRoleCampaigns(
         return f"{trimmed}{suffix_text}"
 
     @staticmethod
+    def _build_discussion_channel_overwrites(
+        *,
+        default_role: discord.Role | discord.Object,
+        role: discord.Role | discord.Object,
+        creator: discord.Member | discord.Object | None,
+        bot_member: discord.Member | discord.Object | None,
+    ) -> dict[
+        discord.Role | discord.Member | discord.Object,
+        discord.PermissionOverwrite,
+    ]:
+        overwrites: dict[
+            discord.Role | discord.Member | discord.Object,
+            discord.PermissionOverwrite,
+        ] = {
+            default_role: discord.PermissionOverwrite(view_channel=False),
+            role: discord.PermissionOverwrite(
+                view_channel=True,
+                send_messages=True,
+                read_message_history=True,
+            ),
+        }
+        if creator is not None:
+            overwrites[creator] = discord.PermissionOverwrite(
+                view_channel=True,
+                send_messages=True,
+                read_message_history=True,
+            )
+        if bot_member is not None:
+            # Keep bot access explicitly so it can archive and notify on close.
+            overwrites[bot_member] = discord.PermissionOverwrite(
+                view_channel=True,
+                send_messages=True,
+                read_message_history=True,
+                manage_channels=True,
+            )
+        return overwrites
+
+    def _resolve_bot_member(self, guild: discord.Guild) -> discord.Member | None:
+        if guild.me is not None:
+            return guild.me
+        bot_user = self.bot.user
+        if bot_user is None:
+            return None
+        member = guild.get_member(bot_user.id)
+        return member if isinstance(member, discord.Member) else None
+
+    @staticmethod
     def _normalize_role_color_token(raw_value: str) -> str:
         normalized = raw_value.strip().lower()
         if normalized.startswith("0x"):
@@ -302,24 +349,13 @@ class CTFRoleCampaigns(
         )
 
         topic = f"{draft.ctf_name} discussion channel"
-
-        overwrites: dict[
-            discord.Role | discord.Member | discord.Object,
-            discord.PermissionOverwrite,
-        ] = {
-            guild.default_role: discord.PermissionOverwrite(view_channel=False),
-            role: discord.PermissionOverwrite(
-                view_channel=True,
-                send_messages=True,
-                read_message_history=True,
-            ),
-        }
-        if creator is not None:
-            overwrites[creator] = discord.PermissionOverwrite(
-                view_channel=True,
-                send_messages=True,
-                read_message_history=True,
-            )
+        bot_member = self._resolve_bot_member(guild)
+        overwrites = self._build_discussion_channel_overwrites(
+            default_role=guild.default_role,
+            role=role,
+            creator=creator,
+            bot_member=bot_member,
+        )
 
         return await guild.create_text_channel(
             name=channel_name,
@@ -370,10 +406,14 @@ class CTFRoleCampaigns(
                 ),
             )
             return True
-        except (discord.Forbidden, discord.HTTPException):
+        except (discord.Forbidden, discord.HTTPException) as error:
             logger.warning(
-                "Failed to archive discussion channel for campaign=%s",
+                "Failed to archive discussion channel for campaign=%s guild=%s "
+                "channel=%s",
                 campaign.id,
+                guild.id,
+                campaign.discussion_channel_id,
+                exc_info=error,
             )
             return False
 
