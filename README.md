@@ -12,6 +12,11 @@ CTF サーバー向け Discord bot です。
 - Slash コマンド管理 (`/sync`, `/load`, `/unload`, `/reload`, `/pin`, `/unpin`)
 - Bot の接続状態通知（任意）
 
+## 参加ガイド
+
+- 初めて開発に参加する場合は [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md) を先に読んでください。
+- 機能追加の手順、実装例、テスト方針、PR 前チェックをまとめています。
+
 ## ディレクトリ構成
 
 ```text
