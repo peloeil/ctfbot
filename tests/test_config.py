@@ -9,6 +9,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 import bot.config  # noqa: E402
+from bot.errors import ConfigurationError  # noqa: E402
 
 
 class SettingsTests(unittest.TestCase):
@@ -45,7 +46,7 @@ class SettingsTests(unittest.TestCase):
                 "DATABASE_PATH": str(db_path),
             }
 
-            with self.assertRaises(bot.config.ConfigError):
+            with self.assertRaises(ConfigurationError):
                 bot.config.load_settings(environ=env)
 
     def test_invalid_clock_time_raises_error(self):
@@ -58,7 +59,7 @@ class SettingsTests(unittest.TestCase):
                 "CTFTIME_NOTIFICATION_TIME": "99:00",
             }
 
-            with self.assertRaises(bot.config.ConfigError):
+            with self.assertRaises(ConfigurationError):
                 bot.config.load_settings(environ=env)
 
 

@@ -12,14 +12,10 @@ from dotenv import load_dotenv
 from .errors import ConfigurationError
 
 
-class ConfigError(ConfigurationError):
-    """Backward-compatible alias for configuration errors."""
-
-
 def _read_required_str(environ: Mapping[str, str], name: str) -> str:
     value = environ.get(name, "").strip()
     if not value:
-        raise ConfigError(f"{name} is required.")
+        raise ConfigurationError(f"{name} is required.")
     return value
 
 
@@ -31,14 +27,16 @@ def _read_int(environ: Mapping[str, str], name: str, default: int = 0) -> int:
     try:
         return int(raw_value)
     except ValueError as exc:
-        raise ConfigError(f"{name} must be an integer: {raw_value!r}") from exc
+        raise ConfigurationError(f"{name} must be an integer: {raw_value!r}") from exc
 
 
 def _read_log_level(environ: Mapping[str, str]) -> str:
     value = environ.get("LOG_LEVEL", "INFO").strip().upper() or "INFO"
     allowed = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
     if value not in allowed:
-        raise ConfigError(f"LOG_LEVEL must be one of {sorted(allowed)}: {value!r}")
+        raise ConfigurationError(
+            f"LOG_LEVEL must be one of {sorted(allowed)}: {value!r}"
+        )
     return value
 
 
@@ -62,10 +60,10 @@ def _read_clock_time(
         hour = int(hour_str)
         minute = int(minute_str)
     except ValueError as exc:
-        raise ConfigError(f"{name} must be in HH:MM format: {value!r}") from exc
+        raise ConfigurationError(f"{name} must be in HH:MM format: {value!r}") from exc
 
     if not (0 <= hour <= 23 and 0 <= minute <= 59):
-        raise ConfigError(f"{name} must be a valid 24h time: {value!r}")
+        raise ConfigurationError(f"{name} must be a valid 24h time: {value!r}")
 
     return datetime.time(hour=hour, minute=minute, tzinfo=tzinfo)
 
@@ -99,12 +97,14 @@ def load_settings(
     try:
         tzinfo = ZoneInfo(timezone)
     except ZoneInfoNotFoundError as exc:
-        raise ConfigError(f"TIMEZONE is invalid: {timezone!r}") from exc
+        raise ConfigurationError(f"TIMEZONE is invalid: {timezone!r}") from exc
 
     database_path = env.get("DATABASE_PATH", "alpaca.db").strip() or "alpaca.db"
     database_parent = Path(database_path).expanduser().resolve().parent
     if not database_parent.exists():
-        raise ConfigError(f"DATABASE_PATH directory does not exist: {database_parent}")
+        raise ConfigurationError(
+            f"DATABASE_PATH directory does not exist: {database_parent}"
+        )
 
     command_prefix = env.get("COMMAND_PREFIX", "!").strip() or "!"
 
