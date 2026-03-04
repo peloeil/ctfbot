@@ -25,7 +25,8 @@ class CTFRoleCampaign:
     status: CampaignStatus
     created_by: int
     created_at_unix: int
-    closed_at_unix: int | None
+    start_notified_at_unix: int | None = None
+    closed_at_unix: int | None = None
     archive_at_unix: int | None = None
     archived_at_unix: int | None = None
     discussion_channel_id: int | None = None
