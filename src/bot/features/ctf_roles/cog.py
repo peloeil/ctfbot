@@ -112,10 +112,12 @@ class CTFRoleCampaigns(
         self.timezone_label = getattr(
             self.settings.tzinfo, "key", self.settings.timezone
         )
+        self.start_due_campaigns.start()
         self.close_expired_campaigns.start()
         self.archive_closed_campaigns.start()
 
     async def cog_unload(self) -> None:
+        self.start_due_campaigns.cancel()
         self.close_expired_campaigns.cancel()
         self.archive_closed_campaigns.cancel()
 
@@ -436,31 +438,68 @@ class CTFRoleCampaigns(
             return False
 
     @staticmethod
-    def _split_member_records(
+    def _split_member_mentions(
         members: builtins.list[discord.Member],
     ) -> builtins.list[str]:
         if not members:
             return ["(参加者なし)"]
 
         chunks: builtins.list[str] = []
-        current_lines: builtins.list[str] = []
+        current_tokens: builtins.list[str] = []
         current_length = 0
-        max_chunk_length = 1600
+        max_chunk_length = 1700
         for member in members:
-            safe_name = discord.utils.escape_mentions(member.display_name)
-            line = f"- {safe_name} (ID: {member.id})"
-            token_length = len(line) + (1 if current_lines else 0)
-            if current_lines and current_length + token_length > max_chunk_length:
-                chunks.append("\n".join(current_lines))
-                current_lines = [line]
-                current_length = len(line)
+            mention = member.mention
+            token_length = len(mention) + (1 if current_tokens else 0)
+            if current_tokens and current_length + token_length > max_chunk_length:
+                chunks.append(" ".join(current_tokens))
+                current_tokens = [mention]
+                current_length = len(mention)
                 continue
-            current_lines.append(line)
+            current_tokens.append(mention)
             current_length += token_length
 
-        if current_lines:
-            chunks.append("\n".join(current_lines))
+        if current_tokens:
+            chunks.append(" ".join(current_tokens))
         return chunks
+
+    async def _send_start_announcement(
+        self,
+        *,
+        guild: discord.Guild,
+        campaign: CTFRoleCampaign,
+        role: discord.Role,
+    ) -> tuple[int | None, bool]:
+        if campaign.discussion_channel_id is None:
+            return None, False
+
+        discussion_channel = await self._resolve_text_channel(
+            guild, campaign.discussion_channel_id
+        )
+        if discussion_channel is None:
+            return None, False
+
+        members = sorted(
+            [member for member in role.members if not member.bot],
+            key=lambda member: (member.display_name.lower(), member.id),
+        )
+        mention_chunks = self._split_member_mentions(members)
+        for index, mention_chunk in enumerate(mention_chunks, start=1):
+            suffix = (
+                ""
+                if len(mention_chunks) == 1
+                else f" ({index}/{len(mention_chunks)})"
+            )
+            content = (
+                f"🚩 **{campaign.ctf_name} が開始しました。**\n"
+                f"参加メンバー{suffix} ({len(members)}名)\n"
+                f"{mention_chunk}"
+            )
+            message = await send_message_safely(discussion_channel, content=content)
+            if message is None:
+                return len(members), False
+
+        return len(members), True
 
     async def _record_members_on_close(
         self,
@@ -481,8 +520,11 @@ class CTFRoleCampaigns(
         if role is None:
             return None, False
 
-        members = [member for member in role.members if not member.bot]
-        member_chunks = self._split_member_records(members)
+        members = sorted(
+            [member for member in role.members if not member.bot],
+            key=lambda member: (member.display_name.lower(), member.id),
+        )
+        member_chunks = self._split_member_mentions(members)
         archive_text = self.usecase.format_unix_datetime(archive_at_unix)
         for index, member_chunk in enumerate(member_chunks, start=1):
             suffix = (
@@ -491,7 +533,7 @@ class CTFRoleCampaigns(
                 else f" ({index}/{len(member_chunks)})"
             )
             content = (
-                f"🧾 **{campaign.ctf_name} 終了時点の参加メンバー"
+                f"🧾 **{campaign.ctf_name} の参加メンバー"
                 f"{suffix} ({len(members)}名)**\n"
                 f"{member_chunk}\n"
                 f"archive移行予定: {archive_text}"
@@ -672,6 +714,39 @@ class CTFRoleCampaigns(
             snapshot_member_count=snapshot_count,
             warnings=tuple(warnings),
         )
+
+    async def _start_campaign(
+        self,
+        campaign: CTFRoleCampaign,
+    ) -> tuple[bool, tuple[str, ...]]:
+        warnings: list[str] = []
+
+        guild = self.bot.get_guild(campaign.guild_id)
+        if guild is None:
+            return False, ("guild_not_found",)
+
+        role = await self._resolve_role(guild, campaign.role_id)
+        if role is None:
+            return False, ("role_not_found",)
+
+        _member_count, announced = await self._send_start_announcement(
+            guild=guild,
+            campaign=campaign,
+            role=role,
+        )
+        if not announced:
+            warnings.append("start_announce_failed")
+            return False, tuple(warnings)
+
+        marked = await asyncio.to_thread(
+            self.usecase.mark_campaign_started,
+            campaign_id=campaign.id,
+        )
+        if not marked:
+            warnings.append("start_state_update_failed")
+            return False, tuple(warnings)
+
+        return True, ()
 
     async def _archive_campaign(
         self,
@@ -861,6 +936,8 @@ class CTFRoleCampaigns(
         discussion_channel: discord.TextChannel | None = None
         role: discord.Role | None = None
         message: discord.Message | None = None
+        campaign: CTFRoleCampaign | None = None
+        create_warnings: builtins.list[str] = []
 
         try:
             role_color = (
@@ -896,7 +973,7 @@ class CTFRoleCampaigns(
                 raise RuntimeError("Failed to send recruitment message.")
             await message.add_reaction(REACTION_EMOJI)
 
-            await asyncio.to_thread(
+            campaign = await asyncio.to_thread(
                 self.usecase.create_campaign,
                 guild_id=guild.id,
                 channel_id=announce_channel.id,
@@ -906,6 +983,10 @@ class CTFRoleCampaigns(
                 created_by=interaction.user.id,
                 draft=draft,
             )
+            if self.usecase.is_campaign_started(campaign):
+                started, warnings = await self._start_campaign(campaign)
+                if not started:
+                    create_warnings.extend(warnings)
         except discord.Forbidden:
             await self._cleanup_created_resources(
                 discussion_channel=discussion_channel,
@@ -946,13 +1027,18 @@ class CTFRoleCampaigns(
 
         assert message is not None
         assert discussion_channel is not None
-        await interaction.followup.send(
+        summary = (
             "募集を作成しました: "
             f"{message.jump_url}\n"
             f"募集投稿先: {announce_channel.mention}\n"
-            f"CTFチャンネル: {discussion_channel.mention}",
-            ephemeral=True,
+            f"CTFチャンネル: {discussion_channel.mention}"
         )
+        if create_warnings:
+            summary += (
+                "\nただし開始通知の後処理に失敗しました: "
+                + ", ".join(create_warnings)
+            )
+        await interaction.followup.send(summary, ephemeral=True)
 
     @app_commands.command(name="list", description="CTF募集一覧を表示します。")
     @app_commands.describe(status="表示対象(default: active)")
@@ -1074,6 +1160,19 @@ class CTFRoleCampaigns(
         await self._handle_reaction_event(payload, add_role=False)
 
     @tasks.loop(minutes=1)
+    async def start_due_campaigns(self) -> None:
+        campaigns = await asyncio.to_thread(self.usecase.list_due_starts, limit=20)
+        for campaign in campaigns:
+            started, warnings = await self._start_campaign(campaign)
+            if started:
+                continue
+            logger.warning(
+                "Failed to announce campaign start=%s warnings=%s",
+                campaign.id,
+                ",".join(warnings) if warnings else "(unknown)",
+            )
+
+    @tasks.loop(minutes=1)
     async def close_expired_campaigns(self) -> None:
         campaigns = await asyncio.to_thread(self.usecase.list_due_campaigns, limit=20)
         for campaign in campaigns:
@@ -1094,6 +1193,10 @@ class CTFRoleCampaigns(
                 campaign.id,
                 ",".join(warnings) if warnings else "(unknown)",
             )
+
+    @start_due_campaigns.before_loop
+    async def before_start_due_campaigns(self) -> None:
+        await self.bot.wait_until_ready()
 
     @close_expired_campaigns.before_loop
     async def before_close_expired_campaigns(self) -> None:
