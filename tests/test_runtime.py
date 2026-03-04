@@ -15,6 +15,7 @@ from bot.runtime import build_runtime  # noqa: E402
 from bot.runtime_providers import (  # noqa: E402
     build_alpacahack_components,
     build_connection_factory,
+    build_ctf_role_components,
     build_ctftime_components,
 )
 
@@ -61,6 +62,7 @@ class RuntimeProviderTests(unittest.TestCase):
             self.assertIs(
                 runtime.alpacahack_usecase._service, runtime.alpacahack_service
             )
+            self.assertIs(runtime.ctf_role_usecase._service, runtime.ctf_role_service)
             self.assertIs(runtime.ctftime_usecase._service, runtime.ctftime_service)
 
     def test_feature_provider_factories(self):
@@ -68,9 +70,14 @@ class RuntimeProviderTests(unittest.TestCase):
             settings = self._settings(str(Path(tmpdir) / "alpaca.db"))
             factory = build_connection_factory(settings)
             alpacahack = build_alpacahack_components(settings, factory)
+            ctf_role = build_ctf_role_components(settings, factory)
             ctftime = build_ctftime_components(settings)
 
             self.assertEqual(alpacahack.usecase.list_usernames(), [])
+            self.assertEqual(
+                ctf_role.usecase._service.timezone,
+                settings.tzinfo,
+            )
             self.assertEqual(
                 ctftime.usecase._window_days,
                 settings.ctftime_window_days,

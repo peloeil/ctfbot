@@ -8,6 +8,9 @@ from .db.migrations import apply_migrations
 from .features.alpacahack.repository import AlpacaHackUserRepository
 from .features.alpacahack.service import AlpacaHackService
 from .features.alpacahack.usecase import AlpacaHackUseCase
+from .features.ctf_roles.repository import CTFRoleCampaignRepository
+from .features.ctf_roles.service import CTFRoleService
+from .features.ctf_roles.usecase import CTFRoleUseCase
 from .features.ctftime.service import CTFTimeService
 from .features.ctftime.usecase import CTFTimeUseCase
 
@@ -23,6 +26,13 @@ class AlpacaHackComponents:
 class CTFTimeComponents:
     service: CTFTimeService
     usecase: CTFTimeUseCase
+
+
+@dataclass(frozen=True, slots=True)
+class CTFRoleComponents:
+    repository: CTFRoleCampaignRepository
+    service: CTFRoleService
+    usecase: CTFRoleUseCase
 
 
 def build_connection_factory(settings: Settings) -> DatabaseConnectionFactory:
@@ -52,3 +62,13 @@ def build_ctftime_components(settings: Settings) -> CTFTimeComponents:
         event_limit=settings.ctftime_event_limit,
     )
     return CTFTimeComponents(service=service, usecase=usecase)
+
+
+def build_ctf_role_components(
+    settings: Settings,
+    factory: DatabaseConnectionFactory,
+) -> CTFRoleComponents:
+    repository = CTFRoleCampaignRepository(connection_factory=factory)
+    service = CTFRoleService(timezone=settings.tzinfo)
+    usecase = CTFRoleUseCase(repository=repository, service=service)
+    return CTFRoleComponents(repository=repository, service=service, usecase=usecase)
