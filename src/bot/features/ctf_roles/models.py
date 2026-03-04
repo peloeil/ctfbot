@@ -26,7 +26,16 @@ class CTFRoleCampaign:
     created_by: int
     created_at_unix: int
     closed_at_unix: int | None
+    archive_at_unix: int | None = None
+    archived_at_unix: int | None = None
     discussion_channel_id: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CampaignCloseResult:
+    was_closed: bool
+    closed_at_unix: int | None = None
+    archive_at_unix: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

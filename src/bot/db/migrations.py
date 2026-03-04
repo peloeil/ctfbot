@@ -39,6 +39,14 @@ MIGRATIONS: tuple[str, ...] = (
     ALTER TABLE ctf_role_campaign
     ADD COLUMN discussion_channel_id INTEGER
     """,
+    """
+    ALTER TABLE ctf_role_campaign
+    ADD COLUMN archive_at_unix INTEGER
+    """,
+    """
+    ALTER TABLE ctf_role_campaign
+    ADD COLUMN archived_at_unix INTEGER
+    """,
 )
 
 
