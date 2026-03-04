@@ -14,6 +14,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from bot.db.connection import DatabaseConnectionFactory  # noqa: E402
 from bot.db.migrations import apply_migrations  # noqa: E402
+from bot.errors import RepositoryError  # noqa: E402
 from bot.features.ctf_roles.cog import CTFRoleCampaigns  # noqa: E402
 from bot.features.ctf_roles.models import CampaignDraft, CampaignStatus  # noqa: E402
 from bot.features.ctf_roles.repository import CTFRoleCampaignRepository  # noqa: E402
@@ -221,6 +222,43 @@ class CTFRoleUseCaseTests(unittest.TestCase):
             self.assertTrue(marked)
             due_after_mark = usecase.list_due_starts(limit=10)
             self.assertNotIn(campaign.id, [row.id for row in due_after_mark])
+
+    def test_create_campaign_rejects_duplicate_active_name_atomically(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            usecase, service = self._build_usecase(str(Path(tmpdir) / "ctfbot.db"))
+            start_at_unix = service.now_unix()
+            first_draft = CampaignDraft(
+                ctf_name="Duplicate Name CTF",
+                start_at_unix=start_at_unix,
+                end_at_unix=None,
+            )
+            second_draft = CampaignDraft(
+                ctf_name="duplicate name ctf",
+                start_at_unix=start_at_unix,
+                end_at_unix=None,
+            )
+
+            usecase.create_campaign(
+                guild_id=1,
+                channel_id=100,
+                message_id=401,
+                role_id=501,
+                discussion_channel_id=601,
+                voice_channel_id=701,
+                created_by=10,
+                draft=first_draft,
+            )
+            with self.assertRaises(RepositoryError):
+                usecase.create_campaign(
+                    guild_id=1,
+                    channel_id=100,
+                    message_id=402,
+                    role_id=502,
+                    discussion_channel_id=602,
+                    voice_channel_id=702,
+                    created_by=11,
+                    draft=second_draft,
+                )
 
 
 class CTFRoleCogHelperTests(unittest.TestCase):

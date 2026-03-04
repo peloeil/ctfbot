@@ -10,6 +10,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from ...cogs._runtime import get_runtime
+from ...errors import ConflictError, RepositoryError
 from ...utils.helpers import (
     logger,
     send_interaction_message,
@@ -1219,6 +1220,32 @@ class CTFRoleCampaigns(
                 started, warnings = await self._start_campaign(campaign)
                 if not started:
                     create_warnings.extend(warnings)
+        except ConflictError:
+            await self._cleanup_created_resources(
+                discussion_channel=discussion_channel,
+                voice_channel=voice_channel,
+                role=role,
+                message=message,
+            )
+            await interaction.followup.send(
+                "同名の active 募集が既に存在するため作成できませんでした。"
+                "別名を使うか既存募集を close してください。",
+                ephemeral=True,
+            )
+            return
+        except RepositoryError:
+            await self._cleanup_created_resources(
+                discussion_channel=discussion_channel,
+                voice_channel=voice_channel,
+                role=role,
+                message=message,
+            )
+            logger.exception("Repository error while creating CTF role campaign")
+            await interaction.followup.send(
+                "募集の保存中にエラーが発生しました。",
+                ephemeral=True,
+            )
+            return
         except discord.Forbidden:
             await self._cleanup_created_resources(
                 discussion_channel=discussion_channel,

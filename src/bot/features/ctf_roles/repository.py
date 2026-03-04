@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 from ...db.connection import DatabaseConnectionFactory
+from ...errors import ConflictError, RepositoryError
 from .models import CampaignStatus, CTFRoleCampaign
 
 SELECT_COLUMNS = (
@@ -61,6 +62,7 @@ class CTFRoleCampaignRepository:
         created_at_unix: int,
     ) -> CTFRoleCampaign:
         with self.connection_factory.connection() as conn:
+            total_changes_before = conn.total_changes
             cursor = conn.execute(
                 """
                 INSERT INTO ctf_role_campaign (
@@ -77,7 +79,14 @@ class CTFRoleCampaignRepository:
                     created_by,
                     created_at_unix
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM ctf_role_campaign
+                    WHERE guild_id = ?
+                      AND status = ?
+                      AND ctf_name = ? COLLATE NOCASE
+                )
                 """,
                 (
                     guild_id,
@@ -92,11 +101,18 @@ class CTFRoleCampaignRepository:
                     CampaignStatus.ACTIVE.value,
                     created_by,
                     created_at_unix,
+                    guild_id,
+                    CampaignStatus.ACTIVE.value,
+                    ctf_name,
                 ),
             )
             conn.commit()
+            if conn.total_changes == total_changes_before:
+                raise ConflictError(
+                    "Active campaign with the same name already exists."
+                )
             if cursor.lastrowid is None:
-                raise RuntimeError("Failed to resolve inserted campaign id.")
+                raise RepositoryError("Failed to resolve inserted campaign id.")
             campaign_id = int(cursor.lastrowid)
 
         return CTFRoleCampaign(
