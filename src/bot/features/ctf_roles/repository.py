@@ -9,7 +9,7 @@ from .models import CampaignStatus, CTFRoleCampaign
 SELECT_COLUMNS = (
     "id, guild_id, channel_id, message_id, role_id, ctf_name, "
     "start_at_unix, end_at_unix, status, created_by, created_at_unix, "
-    "closed_at_unix, discussion_channel_id"
+    "closed_at_unix, archive_at_unix, archived_at_unix, discussion_channel_id"
 )
 
 
@@ -170,19 +170,67 @@ class CTFRoleCampaignRepository:
             ).fetchall()
         return [campaign for row in rows if (campaign := self._to_campaign(row))]
 
-    def close_campaign(self, *, campaign_id: int, closed_at_unix: int) -> bool:
+    def close_campaign(
+        self,
+        *,
+        campaign_id: int,
+        closed_at_unix: int,
+        archive_at_unix: int,
+    ) -> bool:
         with self.connection_factory.connection() as conn:
             cursor = conn.execute(
                 """
                 UPDATE ctf_role_campaign
-                SET status = ?, closed_at_unix = ?
+                SET status = ?, closed_at_unix = ?, archive_at_unix = ?
                 WHERE id = ? AND status = ?
                 """,
                 (
                     CampaignStatus.CLOSED.value,
                     closed_at_unix,
+                    archive_at_unix,
                     campaign_id,
                     CampaignStatus.ACTIVE.value,
+                ),
+            )
+            conn.commit()
+        return cursor.rowcount > 0
+
+    def list_due_archives(
+        self, *, now_unix: int, limit: int = 20
+    ) -> list[CTFRoleCampaign]:
+        safe_limit = max(1, min(limit, 100))
+        with self.connection_factory.connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT {SELECT_COLUMNS}
+                FROM ctf_role_campaign
+                WHERE status = ?
+                  AND archive_at_unix IS NOT NULL
+                  AND archived_at_unix IS NULL
+                  AND archive_at_unix <= ?
+                ORDER BY archive_at_unix ASC
+                LIMIT ?
+                """,
+                (CampaignStatus.CLOSED.value, now_unix, safe_limit),
+            ).fetchall()
+        return [campaign for row in rows if (campaign := self._to_campaign(row))]
+
+    def mark_campaign_archived(
+        self, *, campaign_id: int, archived_at_unix: int
+    ) -> bool:
+        with self.connection_factory.connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE ctf_role_campaign
+                SET archived_at_unix = ?
+                WHERE id = ?
+                  AND status = ?
+                  AND archived_at_unix IS NULL
+                """,
+                (
+                    archived_at_unix,
+                    campaign_id,
+                    CampaignStatus.CLOSED.value,
                 ),
             )
             conn.commit()
@@ -232,8 +280,14 @@ class CTFRoleCampaignRepository:
         closed_at_unix = (
             int(cast(int, typed_row[11])) if typed_row[11] is not None else None
         )
-        discussion_channel_id = (
+        archive_at_unix = (
             int(cast(int, typed_row[12])) if typed_row[12] is not None else None
+        )
+        archived_at_unix = (
+            int(cast(int, typed_row[13])) if typed_row[13] is not None else None
+        )
+        discussion_channel_id = (
+            int(cast(int, typed_row[14])) if typed_row[14] is not None else None
         )
 
         return CTFRoleCampaign(
@@ -249,5 +303,7 @@ class CTFRoleCampaignRepository:
             created_by=int(cast(int, typed_row[9])),
             created_at_unix=int(cast(int, typed_row[10])),
             closed_at_unix=closed_at_unix,
+            archive_at_unix=archive_at_unix,
+            archived_at_unix=archived_at_unix,
             discussion_channel_id=discussion_channel_id,
         )
