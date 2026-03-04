@@ -53,11 +53,23 @@ async def send_interaction_message(
     interaction: discord.Interaction, content: str, ephemeral: bool = True
 ) -> None:
     """Send interaction response safely, handling already-responded state."""
+    if interaction.is_expired():
+        logger.warning(
+            "Skipped interaction response because interaction expired: id=%s",
+            interaction.id,
+        )
+        return
+
     try:
         if interaction.response.is_done():
             await interaction.followup.send(content, ephemeral=ephemeral)
         else:
             await interaction.response.send_message(content, ephemeral=ephemeral)
+    except discord.NotFound:
+        logger.warning(
+            "Failed to send interaction response because interaction expired: id=%s",
+            interaction.id,
+        )
     except discord.HTTPException:
         logger.exception("Failed to send interaction response")
 
