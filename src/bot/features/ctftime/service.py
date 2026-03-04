@@ -3,25 +3,17 @@ from __future__ import annotations
 import datetime
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
 
 import requests
 
 from ...errors import ExternalAPIError
 from ...utils.helpers import logger
+from .models import CTFEvent
 
 API_URL = "https://ctftime.org/api/v1/events/"
 REQUEST_TIMEOUT_SECONDS = 10
 MAX_RETRIES = 3
 RETRY_BACKOFF_SECONDS = 1.5
-
-
-@dataclass(frozen=True, slots=True)
-class CTFEvent:
-    title: str
-    start: datetime.datetime
-    finish: datetime.datetime
-    ctftime_url: str
 
 
 class CTFTimeService:

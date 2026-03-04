@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from .service import CTFEvent, CTFTimeService
+from .models import CTFEvent
+from .service import CTFTimeService
 
 
 class CTFTimeUseCase:

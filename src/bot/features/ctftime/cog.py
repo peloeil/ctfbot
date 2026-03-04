@@ -10,7 +10,7 @@ from ...cogs._runtime import get_runtime
 from ...discord_gateway import DiscordGateway
 from ...errors import ExternalAPIError
 from ...utils.helpers import logger, send_message_safely
-from .service import CTFEvent
+from .models import CTFEvent
 
 
 class CTFTimeNotifications(commands.Cog):
