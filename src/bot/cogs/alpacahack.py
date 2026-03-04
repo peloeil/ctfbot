@@ -1,15 +1,10 @@
-"""
-AlpacaHack cog for the CTF Discord bot.
-Handles commands and tasks related to AlpacaHack CTF platform.
-"""
-
 import asyncio
-from datetime import time
+import datetime
 
 import discord
 from discord.ext import commands, tasks
 
-from ..config import BOT_CHANNEL_ID, JST
+from ..config import settings
 from ..db.database import (
     create_alpacahack_user_table_if_not_exists,
     delete_alpacahack_user,
@@ -20,113 +15,113 @@ from ..services.alpacahack_service import get_alpacahack_info
 from ..utils.helpers import format_code_block, logger, send_message_safely
 
 
+def _parse_daily_time(raw_value: str) -> datetime.time:
+    try:
+        hour_str, minute_str = raw_value.split(":", maxsplit=1)
+        hour = int(hour_str)
+        minute = int(minute_str)
+    except ValueError:
+        return datetime.time(hour=23, minute=0, tzinfo=settings.tzinfo)
+
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        return datetime.time(hour=23, minute=0, tzinfo=settings.tzinfo)
+    return datetime.time(hour=hour, minute=minute, tzinfo=settings.tzinfo)
+
+
+ALPACAHACK_SOLVE_TIME = _parse_daily_time(settings.alpacahack_solve_time)
+
+
 class Alpacahack(commands.Cog):
-    """Cog for AlpacaHack CTF platform integration."""
+    """Commands and scheduled notifications for AlpacaHack users."""
 
     def __init__(self, bot: commands.Bot) -> None:
-        """
-        Initialize the Alpacahack cog.
-
-        Args:
-            bot: The bot instance
-        """
-        # Initialize database if needed
-        create_alpacahack_user_table_if_not_exists()
-
         self.bot = bot
+        create_alpacahack_user_table_if_not_exists()
         self.alpacahack_solves.start()
 
-    @tasks.loop(time=[time(hour=23, minute=0, tzinfo=JST)])
-    async def alpacahack_solves(self) -> None:
-        """Task to fetch and post AlpacaHack solve information at 11:00 PM JST."""
-        channel = self.bot.get_channel(BOT_CHANNEL_ID)
+    async def cog_unload(self) -> None:
+        self.alpacahack_solves.cancel()
+
+    async def _resolve_target_channel(self) -> discord.abc.Messageable | None:
+        channel_id = settings.bot_channel_id
+        if channel_id <= 0:
+            return None
+
+        channel = self.bot.get_channel(channel_id)
         if channel is None:
-            logger.error("Channel not found. Check the BOT_CHANNEL_ID configuration.")
-            return
+            try:
+                channel = await self.bot.fetch_channel(channel_id)
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                logger.exception("Failed to resolve channel: %s", channel_id)
+                return None
+
         if not isinstance(channel, discord.abc.Messageable):
-            logger.error("Channel is not messageable. Check the channel type.")
+            logger.warning("Configured channel %s is not messageable", channel_id)
+            return None
+        return channel
+
+    async def _render_user_info_messages(self, username: str) -> list[str]:
+        sections = await asyncio.to_thread(lambda: list(get_alpacahack_info(username)))
+        if not sections:
+            return [format_code_block("No data found")]
+        return [format_code_block(section) for section in sections]
+
+    @tasks.loop(time=[ALPACAHACK_SOLVE_TIME])
+    async def alpacahack_solves(self) -> None:
+        """Post all tracked AlpacaHack user summaries daily."""
+        channel = await self._resolve_target_channel()
+        if channel is None:
             return
-        try:
-            users = get_all_alpacahack_users()
-            for user in users:
-                await send_message_safely(channel, f"## {user[0]}")
-                for info in get_alpacahack_info(user[0]):
-                    await send_message_safely(channel, format_code_block(info))
-                await asyncio.sleep(1)  # Rate limiting
-        except Exception as e:
-            logger.error(f"Failed to fetch AlpacaHack data: {e}")
+
+        users = await asyncio.to_thread(get_all_alpacahack_users)
+        if not users:
+            return
+
+        for user_row in users:
+            username = str(user_row[0])
+            await send_message_safely(channel, content=f"## {username}")
+            for message in await self._render_user_info_messages(username):
+                await send_message_safely(channel, content=message)
+            await asyncio.sleep(0.5)
+
+    @alpacahack_solves.before_loop
+    async def before_alpacahack_solves(self) -> None:
+        await self.bot.wait_until_ready()
 
     @commands.command()
     async def add_alpaca(self, ctx: commands.Context, name: str) -> None:
-        """
-        Add a user to the AlpacaHack tracking database.
-
-        Args:
-            ctx: Command context
-            name: Username to add
-        """
-        result = insert_alpacahack_user(name)
+        result = await asyncio.to_thread(insert_alpacahack_user, name)
         await send_message_safely(ctx.channel, content=result)
 
     @commands.command()
     async def del_alpaca(self, ctx: commands.Context, name: str) -> None:
-        """
-        Remove a user from the AlpacaHack tracking database.
-
-        Args:
-            ctx: Command context
-            name: Username to remove
-        """
-        result = delete_alpacahack_user(name)
+        result = await asyncio.to_thread(delete_alpacahack_user, name)
         await send_message_safely(ctx.channel, content=result)
 
     @commands.command()
     async def show_alpaca(self, ctx: commands.Context) -> None:
-        """
-        Show all users in the AlpacaHack tracking database.
-
-        Args:
-            ctx: Command context
-        """
-        users = get_all_alpacahack_users()
+        users = await asyncio.to_thread(get_all_alpacahack_users)
         if not users:
             await send_message_safely(ctx.channel, content="誰も登録されていません")
-        else:
-            user_list = "\n".join(user[0] for user in users)
-            await send_message_safely(ctx.channel, content=format_code_block(user_list))
+            return
+
+        user_list = "\n".join(str(user[0]) for user in users)
+        await send_message_safely(ctx.channel, content=format_code_block(user_list))
 
     @commands.command()
     async def show_alpaca_score(self, ctx: commands.Context) -> None:
-        """
-        Show scores for all tracked AlpacaHack users.
+        users = await asyncio.to_thread(get_all_alpacahack_users)
+        if not users:
+            await send_message_safely(ctx.channel, content="誰も登録されていません")
+            return
 
-        Args:
-            ctx: Command context
-        """
-        try:
-            users = get_all_alpacahack_users()
-            for user in users:
-                await send_message_safely(ctx.channel, content=f"## {user[0]}")
-                for info in get_alpacahack_info(user[0]):
-                    await send_message_safely(
-                        ctx.channel, content=format_code_block(info)
-                    )
-                await asyncio.sleep(1)  # Rate limiting
-        except Exception as e:
-            await send_message_safely(
-                ctx.channel, content=f"Failed to fetch AlpacaHack data: {e}"
-            )
-
-    def cog_unload(self) -> None:
-        """Clean up when the cog is unloaded."""
-        self.alpacahack_solves.cancel()
+        for user_row in users:
+            username = str(user_row[0])
+            await send_message_safely(ctx.channel, content=f"## {username}")
+            for message in await self._render_user_info_messages(username):
+                await send_message_safely(ctx.channel, content=message)
+            await asyncio.sleep(0.5)
 
 
 async def setup(bot: commands.Bot) -> None:
-    """
-    Add the Alpacahack cog to the bot.
-
-    Args:
-        bot: The bot instance
-    """
     await bot.add_cog(Alpacahack(bot))
