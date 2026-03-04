@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 
 import discord
 
@@ -89,25 +88,3 @@ def chunk_message(message: str, chunk_size: int = 1900) -> list[str]:
         List of message chunks
     """
     return [message[i : i + chunk_size] for i in range(0, len(message), chunk_size)]
-
-
-def handle_error(error: Exception, context: Any = None) -> str:
-    """
-    Handle an exception and return an appropriate error message.
-    Also logs the error.
-
-    Args:
-        error: The exception to handle
-        context: Optional context information
-
-    Returns:
-        Error message for the user
-    """
-    error_type = type(error).__name__
-    error_message = str(error)
-
-    logger.error("Error (%s): %s", error_type, error_message, exc_info=True)
-    if context:
-        logger.error("Context: %s", context)
-
-    return f"An error occurred: {error_message}"
