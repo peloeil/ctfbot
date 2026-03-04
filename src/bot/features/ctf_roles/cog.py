@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
 import re
 from dataclasses import dataclass
 
@@ -23,6 +24,17 @@ ARCHIVE_CATEGORY_NAME = "archive"
 ROLE_ANNOUNCE_CHANNEL_NAME = "role"
 FALLBACK_CHANNEL_NAME = "ctf"
 MAX_CHANNEL_NAME_LENGTH = 100
+ROLE_COLOR_SUGGESTIONS: tuple[tuple[str, str], ...] = (
+    ("🟥 Red", "#ef4444"),
+    ("🟧 Orange", "#f97316"),
+    ("🟨 Yellow", "#eab308"),
+    ("🟩 Green", "#22c55e"),
+    ("🟦 Blue", "#3b82f6"),
+    ("🟪 Purple", "#a855f7"),
+    ("🟫 Brown", "#92400e"),
+    ("⬜ White", "#f3f4f6"),
+    ("⬛ Gray", "#6b7280"),
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,17 +197,45 @@ class CTFRoleCampaigns(
         return f"{trimmed}{suffix_text}"
 
     @staticmethod
-    def _parse_role_color(raw_value: str | None) -> tuple[int | None, str]:
-        if raw_value is None:
-            return None, ""
-
+    def _normalize_role_color_token(raw_value: str) -> str:
         normalized = raw_value.strip().lower()
-        if not normalized:
-            return None, ""
         if normalized.startswith("0x"):
             normalized = normalized[2:]
         if normalized.startswith("#"):
             normalized = normalized[1:]
+        return normalized
+
+    @classmethod
+    def _build_role_color_suggestions(
+        cls, current: str
+    ) -> builtins.list[app_commands.Choice[str]]:
+        query = current.strip().lower()
+        normalized_query = cls._normalize_role_color_token(current)
+        suggestions: builtins.list[app_commands.Choice[str]] = []
+
+        for label, value in ROLE_COLOR_SUGGESTIONS:
+            if query:
+                lowered_label = label.lower()
+                if (
+                    query not in lowered_label
+                    and query not in value
+                    and normalized_query not in value[1:]
+                ):
+                    continue
+            suggestions.append(
+                app_commands.Choice(name=f"{label} ({value})", value=value)
+            )
+
+        return suggestions[:25]
+
+    @staticmethod
+    def _parse_role_color(raw_value: str | None) -> tuple[int | None, str]:
+        if raw_value is None:
+            return None, ""
+
+        normalized = CTFRoleCampaigns._normalize_role_color_token(raw_value)
+        if not normalized:
+            return None, ""
         if len(normalized) != 6 or not re.fullmatch(r"[0-9a-f]{6}", normalized):
             return None, (
                 "ロールカラーは 6 桁の16進数で入力してください。"
@@ -547,7 +587,7 @@ class CTFRoleCampaigns(
     @app_commands.command(name="create", description="CTF募集メッセージを作成します。")
     @app_commands.describe(
         ctf_name="CTF名",
-        role_color="ロールカラー(任意, 16進: #RRGGBB)",
+        role_color="ロールカラー(任意, #RRGGBB / 候補あり)",
     )
     async def create(
         self,
@@ -578,6 +618,14 @@ class CTFRoleCampaigns(
             role_color_value=role_color_value,
         )
         await interaction.response.send_modal(modal)
+
+    @create.autocomplete("role_color")
+    async def create_role_color_autocomplete(
+        self,
+        _interaction: discord.Interaction,
+        current: str,
+    ) -> builtins.list[app_commands.Choice[str]]:
+        return self._build_role_color_suggestions(current)
 
     async def handle_create_modal_submit(
         self,
