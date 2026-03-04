@@ -11,7 +11,7 @@ class ManageCogs(commands.Cog):
     """Slash commands for loading/unloading/reloading cogs."""
 
     CORE_COGS: ClassVar[set[str]] = {"manage_cogs", "slash_commands"}
-    FEATURE_COGS: ClassVar[set[str]] = {"alpacahack", "ctftime"}
+    FEATURE_COGS: ClassVar[set[str]] = {"alpacahack", "ctf_roles", "ctftime"}
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot

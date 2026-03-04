@@ -6,6 +6,7 @@ DEFAULT_EXTENSIONS = (
     "bot.cogs.manage_cogs",
     "bot.cogs.slash_commands",
     "bot.features.alpacahack.cog",
+    "bot.features.ctf_roles.cog",
     "bot.features.ctftime.cog",
 )
 
