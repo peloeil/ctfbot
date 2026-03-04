@@ -21,6 +21,11 @@ def _load_imports(path: Path) -> set[str]:
     return imports
 
 
+def _load_import_from_nodes(path: Path) -> list[ast.ImportFrom]:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    return [node for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)]
+
+
 def _normalise_import_name(name: str) -> str:
     trimmed = name.lstrip(".")
     if trimmed.startswith("bot."):
@@ -66,6 +71,14 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 self.assertFalse(_imports_starting_with(imports, "discord"))
                 self.assertFalse(_imports_starting_with(imports, "bot.cogs"))
                 self.assertFalse(_imports_starting_with(imports, "bot.services"))
+
+    def test_feature_cogs_do_not_depend_on_service_or_repository(self):
+        for path in (SRC_ROOT / "bot" / "features").glob("*/cog.py"):
+            with self.subTest(path=path.as_posix()):
+                import_from_nodes = _load_import_from_nodes(path)
+                for node in import_from_nodes:
+                    self.assertFalse(node.level == 1 and node.module == "service")
+                    self.assertFalse(node.level == 1 and node.module == "repository")
 
 
 if __name__ == "__main__":
