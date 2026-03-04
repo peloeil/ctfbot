@@ -40,17 +40,12 @@ src/
         cog.py
         usecase.py
         service.py
-    application/             # 互換エクスポート（薄いラッパ）
     cogs/
-      alpacahack.py          # 互換エクスポート（薄いラッパ）
-      ctftime_notifications.py # 互換エクスポート（薄いラッパ）
       manage_cogs.py
       slash_commands.py
     db/
       connection.py          # 接続管理
       migrations.py          # スキーマ適用
-      database.py            # 互換ファサード
-    services/                # 互換エクスポート（薄いラッパ）
     utils/
       helpers.py
   main.py                    # エントリポイント
@@ -119,7 +114,7 @@ uv run python -m unittest discover -s tests -v
 ## チーム開発ルール
 
 1. 依存方向は `cog -> usecase -> service/repository -> db` に固定します。
-2. `src/bot/cogs/` から `src/bot/services/` と `src/bot/db/` を直接 import しません。
+2. `src/bot/cogs/` から `src/bot/db/` を直接 import しません。機能本体は `src/bot/features/` で実装します。
 3. 新機能は `src/bot/features/<feature>/` に追加します。
 4. 例外は `bot.errors` の型を使って層ごとに扱いを明確にします。
 5. 境界違反は `tests/test_architecture.py` で検出されます。
@@ -148,8 +143,7 @@ GitHub Actions の `CI` ワークフローで以下を実行します。
 
 ## 新しい機能を足すとき
 
-1. `src/bot/features/<feature>/` に `cog.py`, `usecase.py`, `service.py`（必要なら `repository.py`）を追加する。
-2. 互換用に `src/bot/cogs/` 配下へ薄いラッパを追加する（必要な場合）。
-3. 起動時に自動ロードしたい場合は `src/bot/cogs_loader.py` の `DEFAULT_EXTENSIONS` に追加する。
-4. Slash コマンドを追加した場合は `/sync` で反映する。
-5. `tests/` にユニットテストと `tests/test_architecture.py` の境界ルールに沿ったテストを追加する。
+1. `src/bot/features/<feature>/` に `cog.py`, `usecase.py`, `service.py`（必要なら `repository.py`, `models.py`）を追加する。
+2. 起動時に自動ロードしたい場合は `src/bot/cogs_loader.py` の `DEFAULT_EXTENSIONS` に追加する。
+3. Slash コマンドを追加した場合は `/sync` で反映する。
+4. `tests/` にユニットテストと `tests/test_architecture.py` の境界ルールに沿ったテストを追加する。

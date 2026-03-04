@@ -51,8 +51,9 @@ uv run python src/main.py
 3. `usecase.py` で処理を組み立てる
 4. `cog.py` で Discord コマンドを公開する
 5. 必要なら `repository.py` を追加する
-6. `src/bot/cogs_loader.py` の `DEFAULT_EXTENSIONS` に登録する
-7. `tests/` にユニットテストを追加する
+6. 層をまたいで共有する型がある場合は `models.py` を追加する
+7. `src/bot/cogs_loader.py` の `DEFAULT_EXTENSIONS` に登録する
+8. `tests/` にユニットテストを追加する
 
 ## 4. 例: 新しい機能の最小構成
 
