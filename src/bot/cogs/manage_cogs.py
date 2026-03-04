@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -8,14 +10,26 @@ from ..utils.helpers import logger, send_interaction_message
 class ManageCogs(commands.Cog):
     """Slash commands for loading/unloading/reloading cogs."""
 
+    CORE_COGS: ClassVar[set[str]] = {"manage_cogs", "slash_commands"}
+    FEATURE_COGS: ClassVar[set[str]] = {"alpacahack", "ctftime"}
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
     def _normalize_extension(self, name: str) -> str:
         normalized = name.strip().removesuffix(".py")
-        if normalized.startswith("bot.cogs."):
+        if normalized in self.CORE_COGS:
+            return f"bot.cogs.{normalized}"
+        if normalized in self.FEATURE_COGS:
+            return f"bot.features.{normalized}.cog"
+
+        if normalized.startswith("bot."):
             return normalized
-        return f"bot.cogs.{normalized}"
+        if normalized.startswith("cogs."):
+            return f"bot.{normalized}"
+        if normalized.startswith("features."):
+            return f"bot.{normalized}"
+        return f"bot.features.{normalized}.cog"
 
     @app_commands.command(name="sync")
     @app_commands.checks.has_permissions(manage_guild=True)

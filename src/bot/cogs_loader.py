@@ -5,8 +5,8 @@ from .utils.helpers import logger
 DEFAULT_EXTENSIONS = (
     "bot.cogs.manage_cogs",
     "bot.cogs.slash_commands",
-    "bot.cogs.alpacahack",
-    "bot.cogs.ctftime_notifications",
+    "bot.features.alpacahack.cog",
+    "bot.features.ctftime.cog",
 )
 
 
