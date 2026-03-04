@@ -12,6 +12,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from bot.db.connection import DatabaseConnectionFactory  # noqa: E402
 from bot.db.migrations import apply_migrations  # noqa: E402
+from bot.features.ctf_roles.cog import CTFRoleCampaigns  # noqa: E402
 from bot.features.ctf_roles.models import CampaignDraft, CampaignStatus  # noqa: E402
 from bot.features.ctf_roles.repository import CTFRoleCampaignRepository  # noqa: E402
 from bot.features.ctf_roles.service import CTFRoleService  # noqa: E402
@@ -134,6 +135,17 @@ class CTFRoleUseCaseTests(unittest.TestCase):
         self.assertIn("上限", validation.error_message)
 
 
+class CTFRoleCogHelperTests(unittest.TestCase):
+    def test_build_channel_base_name_normalizes_text(self) -> None:
+        channel_name = CTFRoleCampaigns._build_channel_base_name(
+            "  SECCON CTF 13 Finals!!  "
+        )
+        self.assertEqual(channel_name, "seccon-ctf-13-finals")
+
+    def test_build_channel_base_name_falls_back_when_empty(self) -> None:
+        channel_name = CTFRoleCampaigns._build_channel_base_name("!!!")
+        self.assertEqual(channel_name, "ctf")
+
+
 if __name__ == "__main__":
     unittest.main()
-
