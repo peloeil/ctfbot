@@ -79,12 +79,18 @@ class CTFRoleUseCaseTests(unittest.TestCase):
             self.assertEqual(found.discussion_channel_id, 500)
 
             closed = usecase.close_campaign(campaign_id=campaign.id)
-            self.assertTrue(closed)
+            self.assertTrue(closed.was_closed)
+            self.assertIsNotNone(closed.closed_at_unix)
+            self.assertIsNotNone(closed.archive_at_unix)
+            assert closed.closed_at_unix is not None
+            assert closed.archive_at_unix is not None
+            self.assertGreater(closed.archive_at_unix, closed.closed_at_unix)
             active = usecase.list_campaigns(guild_id=1, status="active")
             closed_rows = usecase.list_campaigns(guild_id=1, status="closed")
             self.assertEqual(active, [])
             self.assertEqual(len(closed_rows), 1)
             self.assertEqual(closed_rows[0].ctf_name, "SECCON CTF")
+            self.assertIsNotNone(closed_rows[0].archive_at_unix)
 
     def test_due_campaigns_detected(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -139,6 +145,48 @@ class CTFRoleUseCaseTests(unittest.TestCase):
 
         self.assertFalse(validation.is_valid)
         self.assertIn("上限", validation.error_message)
+
+    def test_due_archives_detected_and_marked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "ctfbot.db"
+            usecase, service = self._build_usecase(str(db_path))
+            draft = CampaignDraft(
+                ctf_name="ArchiveTarget CTF",
+                start_at_unix=service.now_unix(),
+                end_at_unix=None,
+            )
+            campaign = usecase.create_campaign(
+                guild_id=1,
+                channel_id=100,
+                message_id=302,
+                role_id=402,
+                discussion_channel_id=502,
+                created_by=10,
+                draft=draft,
+            )
+            close_result = usecase.close_campaign(campaign_id=campaign.id)
+            self.assertTrue(close_result.was_closed)
+
+            factory = DatabaseConnectionFactory(database_path=str(db_path))
+            past_unix = service.now_unix() - 1
+            with factory.connection() as conn:
+                conn.execute(
+                    """
+                    UPDATE ctf_role_campaign
+                    SET archive_at_unix = ?
+                    WHERE id = ?
+                    """,
+                    (past_unix, campaign.id),
+                )
+                conn.commit()
+
+            due = usecase.list_due_archives(limit=10)
+            self.assertIn(campaign.id, [row.id for row in due])
+
+            marked = usecase.mark_campaign_archived(campaign_id=campaign.id)
+            self.assertTrue(marked)
+            due_after_mark = usecase.list_due_archives(limit=10)
+            self.assertNotIn(campaign.id, [row.id for row in due_after_mark])
 
 
 class CTFRoleCogHelperTests(unittest.TestCase):
