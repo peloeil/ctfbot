@@ -278,6 +278,18 @@ class CTFRoleCampaigns(
         member = guild.get_member(bot_user.id)
         return member if isinstance(member, discord.Member) else None
 
+    def _resolve_bot_target(
+        self, guild: discord.Guild
+    ) -> discord.Member | discord.Object | None:
+        bot_member = self._resolve_bot_member(guild)
+        if bot_member is not None:
+            return bot_member
+
+        bot_user = self.bot.user
+        if bot_user is None:
+            return None
+        return discord.Object(id=bot_user.id)
+
     @staticmethod
     def _normalize_role_color_token(raw_value: str) -> str:
         normalized = raw_value.strip().lower()
@@ -382,7 +394,7 @@ class CTFRoleCampaigns(
         )
 
         topic = f"{draft.ctf_name} discussion channel"
-        bot_member = self._resolve_bot_member(guild)
+        bot_member = self._resolve_bot_target(guild)
         overwrites = self._build_discussion_channel_overwrites(
             default_role=guild.default_role,
             role=role,
@@ -415,7 +427,7 @@ class CTFRoleCampaigns(
             base_name=voice_base_name,
         )
 
-        bot_member = self._resolve_bot_member(guild)
+        bot_member = self._resolve_bot_target(guild)
         overwrites: dict[
             discord.Role | discord.Member | discord.Object,
             discord.PermissionOverwrite,
