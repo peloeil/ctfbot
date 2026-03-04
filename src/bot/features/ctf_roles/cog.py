@@ -158,6 +158,22 @@ class CTFRoleCampaigns(
             return fetched
         return None
 
+    async def _resolve_voice_channel(
+        self, guild: discord.Guild, channel_id: int
+    ) -> discord.VoiceChannel | None:
+        cached = guild.get_channel(channel_id)
+        if isinstance(cached, discord.VoiceChannel):
+            return cached
+
+        try:
+            fetched = await self.bot.fetch_channel(channel_id)
+        except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+            return None
+
+        if isinstance(fetched, discord.VoiceChannel):
+            return fetched
+        return None
+
     async def _resolve_role(
         self, guild: discord.Guild, role_id: int
     ) -> discord.Role | None:
@@ -499,6 +515,35 @@ class CTFRoleCampaigns(
             )
             return False
 
+    async def _delete_voice_channel(
+        self,
+        *,
+        guild: discord.Guild,
+        campaign: CTFRoleCampaign,
+        reason: str,
+    ) -> bool:
+        if campaign.voice_channel_id is None:
+            return True
+
+        voice_channel = await self._resolve_voice_channel(
+            guild, campaign.voice_channel_id
+        )
+        if voice_channel is None:
+            return True
+
+        try:
+            await voice_channel.delete(reason=reason)
+            return True
+        except (discord.Forbidden, discord.HTTPException) as error:
+            logger.warning(
+                "Failed to delete voice channel for campaign=%s guild=%s channel=%s",
+                campaign.id,
+                guild.id,
+                campaign.voice_channel_id,
+                exc_info=error,
+            )
+            return False
+
     @staticmethod
     def _split_member_mentions(
         members: builtins.list[discord.Member],
@@ -803,6 +848,14 @@ class CTFRoleCampaigns(
         if not message_closed:
             warnings.append("message_update_failed")
 
+        voice_deleted = await self._delete_voice_channel(
+            guild=guild,
+            campaign=campaign,
+            reason="CTF campaign closed",
+        )
+        if not voice_deleted:
+            warnings.append("voice_delete_failed")
+
         return CloseCampaignReport(
             was_closed=True,
             archive_at_unix=close_result.archive_at_unix,
@@ -864,6 +917,15 @@ class CTFRoleCampaigns(
         )
         if not archived:
             warnings.append("discussion_archive_failed")
+            return False, tuple(warnings)
+
+        voice_deleted = await self._delete_voice_channel(
+            guild=guild,
+            campaign=campaign,
+            reason=reason,
+        )
+        if not voice_deleted:
+            warnings.append("voice_delete_failed")
             return False, tuple(warnings)
 
         if role is not None:
