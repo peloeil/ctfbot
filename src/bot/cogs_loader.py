@@ -11,10 +11,11 @@ DEFAULT_EXTENSIONS = (
 
 
 async def load_cogs(bot: commands.Bot) -> None:
-    """Load production cogs for the bot."""
+    """Load required production cogs for the bot (fail-fast)."""
     for cog in DEFAULT_EXTENSIONS:
         try:
             await bot.load_extension(cog)
             logger.info("Loaded extension: %s", cog)
-        except Exception:
+        except Exception as exc:
             logger.exception("Failed to load extension: %s", cog)
+            raise RuntimeError(f"Failed to load required extension: {cog}") from exc
