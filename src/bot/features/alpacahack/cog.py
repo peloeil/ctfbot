@@ -9,6 +9,7 @@ from discord.ext import commands, tasks
 from ...cogs._runtime import get_runtime
 from ...discord_gateway import DiscordGateway
 from ...utils.helpers import format_code_block, logger, send_message_safely
+from .models import UserMutationResult, UserMutationStatus
 from .usecase import WeeklySolveSummary
 
 WEEKLY_NOTIFICATION_WEEKDAY = 6  # 0=Mon ... 6=Sun
@@ -47,6 +48,20 @@ class Alpacahack(commands.Cog):
         if len(joined) > 1024:
             return f"{joined[:1020]}..."
         return joined
+
+    @staticmethod
+    def _to_user_message(result: UserMutationResult) -> str:
+        if result.status == UserMutationStatus.INVALID_NAME:
+            return "ユーザー名が空です。"
+        if result.status == UserMutationStatus.CREATED:
+            return f"User '{result.normalized_name}' added."
+        if result.status == UserMutationStatus.ALREADY_EXISTS:
+            return f"User '{result.normalized_name}' is already registered."
+        if result.status == UserMutationStatus.DELETED:
+            return f"Deleted user: {result.normalized_name}"
+        if result.status == UserMutationStatus.NOT_FOUND:
+            return f"No user: {result.normalized_name}"
+        return "Unknown result."
 
     def _build_weekly_summary_embed(self, summary: WeeklySolveSummary) -> discord.Embed:
         total_solves = sum(len(items) for items in summary.weekly_solves.values())
@@ -135,12 +150,12 @@ class Alpacahack(commands.Cog):
     @commands.command()
     async def add_alpaca(self, ctx: commands.Context, name: str) -> None:
         result = await asyncio.to_thread(self.usecase.add_user, name)
-        await send_message_safely(ctx.channel, content=result)
+        await send_message_safely(ctx.channel, content=self._to_user_message(result))
 
     @commands.command()
     async def del_alpaca(self, ctx: commands.Context, name: str) -> None:
         result = await asyncio.to_thread(self.usecase.delete_user, name)
-        await send_message_safely(ctx.channel, content=result)
+        await send_message_safely(ctx.channel, content=self._to_user_message(result))
 
     @commands.command()
     async def show_alpaca(self, ctx: commands.Context) -> None:

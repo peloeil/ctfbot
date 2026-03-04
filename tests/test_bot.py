@@ -6,8 +6,6 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 from zoneinfo import ZoneInfo
 
-from bs4 import element
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
@@ -15,8 +13,9 @@ if str(SRC_ROOT) not in sys.path:
 
 from bot.db.connection import DatabaseConnectionFactory  # noqa: E402
 from bot.db.migrations import apply_migrations  # noqa: E402
+from bot.features.alpacahack.models import UserMutationStatus  # noqa: E402
 from bot.features.alpacahack.repository import AlpacaHackUserRepository  # noqa: E402
-from bot.features.alpacahack.service import AlpacaHackService, is_leaf  # noqa: E402
+from bot.features.alpacahack.service import AlpacaHackService  # noqa: E402
 from bot.features.alpacahack.usecase import AlpacaHackUseCase  # noqa: E402
 from bot.utils.helpers import chunk_message, format_code_block  # noqa: E402
 
@@ -37,14 +36,6 @@ class TestHelpers(unittest.TestCase):
 class TestAlpacaHackService(unittest.TestCase):
     def setUp(self):
         self.service = AlpacaHackService(timezone=ZoneInfo("Asia/Tokyo"))
-
-    def test_is_leaf(self):
-        parent = element.Tag(name="div")
-        parent.append("text")
-        self.assertTrue(is_leaf(parent))
-
-        parent.append(element.Tag(name="span"))
-        self.assertFalse(is_leaf(parent))
 
     def test_get_week_range(self):
         start, end = self.service.get_week_range(date(2026, 3, 4))
@@ -108,11 +99,11 @@ class TestDatabaseAndUseCase(unittest.TestCase):
             )
 
             added = usecase.add_user("alice")
-            self.assertIn("added", added)
+            self.assertEqual(added.status, UserMutationStatus.CREATED)
             self.assertEqual(usecase.list_usernames(), ["alice"])
 
             deleted = usecase.delete_user("alice")
-            self.assertEqual(deleted, "Deleted user: alice")
+            self.assertEqual(deleted.status, UserMutationStatus.DELETED)
             self.assertEqual(usecase.list_usernames(), [])
 
     def test_insert_duplicate_user(self):
@@ -131,7 +122,7 @@ class TestDatabaseAndUseCase(unittest.TestCase):
 
             usecase.add_user("alice")
             duplicate = usecase.add_user("alice")
-            self.assertIn("already registered", duplicate)
+            self.assertEqual(duplicate.status, UserMutationStatus.ALREADY_EXISTS)
 
 
 if __name__ == "__main__":

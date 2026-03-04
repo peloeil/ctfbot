@@ -5,6 +5,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from .models import UserMutationResult
 from .repository import AlpacaHackUserRepository
 from .service import AlpacaHackService
 
@@ -31,10 +32,10 @@ class AlpacaHackUseCase:
         self._request_interval_seconds = max(0.0, request_interval_seconds)
         self._sleep = sleep_fn
 
-    def add_user(self, name: str) -> str:
+    def add_user(self, name: str) -> UserMutationResult:
         return self._repository.add_user(name)
 
-    def delete_user(self, name: str) -> str:
+    def delete_user(self, name: str) -> UserMutationResult:
         return self._repository.delete_user(name)
 
     def list_usernames(self) -> list[str]:
