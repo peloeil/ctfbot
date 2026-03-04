@@ -19,6 +19,7 @@ STATUS_CLOSED = "closed"
 STATUS_ALL = "all"
 CLOSED_HEADER = "🔒 **この募集は終了しました。**"
 CTF_CATEGORY_NAME = "ctf"
+ARCHIVE_CATEGORY_NAME = "archive"
 ROLE_ANNOUNCE_CHANNEL_NAME = "role"
 FALLBACK_CHANNEL_NAME = "ctf"
 MAX_CHANNEL_NAME_LENGTH = 100
@@ -36,10 +37,12 @@ class CTFRoleCreateModal(discord.ui.Modal, title="CTF Role 募集作成"):
         cog: CTFRoleCampaigns,
         *,
         ctf_name: str,
+        role_color_value: int | None,
     ) -> None:
         super().__init__()
         self._cog = cog
         self._ctf_name = ctf_name
+        self._role_color_value = role_color_value
         timezone_label = cog.timezone_label
         self.start_at_input = discord.ui.TextInput(
             label=f"開始日時 ({timezone_label})",
@@ -60,6 +63,7 @@ class CTFRoleCreateModal(discord.ui.Modal, title="CTF Role 募集作成"):
         await self._cog.handle_create_modal_submit(
             interaction,
             ctf_name=self._ctf_name,
+            role_color_value=self._role_color_value,
             start_at_raw=self.start_at_input.value,
             end_at_raw=self.end_at_input.value,
         )
@@ -180,6 +184,25 @@ class CTFRoleCampaigns(
             trimmed = FALLBACK_CHANNEL_NAME
         return f"{trimmed}{suffix_text}"
 
+    @staticmethod
+    def _parse_role_color(raw_value: str | None) -> tuple[int | None, str]:
+        if raw_value is None:
+            return None, ""
+
+        normalized = raw_value.strip().lower()
+        if not normalized:
+            return None, ""
+        if normalized.startswith("0x"):
+            normalized = normalized[2:]
+        if normalized.startswith("#"):
+            normalized = normalized[1:]
+        if len(normalized) != 6 or not re.fullmatch(r"[0-9a-f]{6}", normalized):
+            return None, (
+                "ロールカラーは 6 桁の16進数で入力してください。"
+                "(例: #ff6600)"
+            )
+        return int(normalized, 16), ""
+
     def _pick_unique_channel_name(
         self,
         *,
@@ -210,11 +233,25 @@ class CTFRoleCampaigns(
             reason="Create CTF category for ctf-role campaigns",
         )
 
+    async def _ensure_archive_category(
+        self, guild: discord.Guild
+    ) -> discord.CategoryChannel:
+        for category in guild.categories:
+            if category.name.strip().lower() == ARCHIVE_CATEGORY_NAME:
+                return category
+
+        return await guild.create_category(
+            ARCHIVE_CATEGORY_NAME,
+            reason="Create archive category for ctf-role campaigns",
+        )
+
     async def _create_ctf_discussion_channel(
         self,
         *,
         guild: discord.Guild,
         draft: CampaignDraft,
+        role: discord.Role,
+        creator: discord.Member | None,
         creator_id: int,
     ) -> discord.TextChannel:
         category = await self._ensure_ctf_category(guild)
@@ -224,25 +261,81 @@ class CTFRoleCampaigns(
             base_name=base_name,
         )
 
-        start_text = self.usecase.format_unix_datetime(draft.start_at_unix)
-        end_text = (
-            self.usecase.format_unix_datetime(draft.end_at_unix)
-            if draft.end_at_unix is not None
-            else "permanent"
-        )
-        topic = (
-            f"{draft.ctf_name} discussion | start={start_text} | "
-            f"end={end_text} | owner={creator_id}"
-        )
-        if len(topic) > 1024:
-            topic = topic[:1021] + "..."
+        topic = f"{draft.ctf_name} discussion channel"
+
+        overwrites: dict[
+            discord.Role | discord.Member | discord.Object,
+            discord.PermissionOverwrite,
+        ] = {
+            guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            role: discord.PermissionOverwrite(
+                view_channel=True,
+                send_messages=True,
+                read_message_history=True,
+            ),
+        }
+        if creator is not None:
+            overwrites[creator] = discord.PermissionOverwrite(
+                view_channel=True,
+                send_messages=True,
+                read_message_history=True,
+            )
 
         return await guild.create_text_channel(
             name=channel_name,
             category=category,
             topic=topic,
+            overwrites=overwrites,
             reason=f"Create CTF discussion channel by {creator_id}",
         )
+
+    async def _archive_discussion_channel(
+        self,
+        *,
+        guild: discord.Guild,
+        campaign: CTFRoleCampaign,
+        role: discord.Role | None,
+        reason: str,
+    ) -> bool:
+        if campaign.discussion_channel_id is None:
+            return False
+
+        discussion_channel = await self._resolve_text_channel(
+            guild, campaign.discussion_channel_id
+        )
+        if discussion_channel is None:
+            return False
+
+        try:
+            archive_category = await self._ensure_archive_category(guild)
+            await discussion_channel.edit(category=archive_category, reason=reason)
+            await discussion_channel.set_permissions(
+                guild.default_role,
+                view_channel=True,
+                send_messages=True,
+                read_message_history=True,
+                reason=reason,
+            )
+            if role is not None:
+                await discussion_channel.set_permissions(
+                    role,
+                    overwrite=None,
+                    reason=reason,
+                )
+            await send_message_safely(
+                discussion_channel,
+                content=(
+                    "📦 このCTFは終了しました。"
+                    "チャンネルを archive に移動し、全体公開に切り替えました。"
+                ),
+            )
+            return True
+        except (discord.Forbidden, discord.HTTPException):
+            logger.warning(
+                "Failed to archive discussion channel for campaign=%s",
+                campaign.id,
+            )
+            return False
 
     @staticmethod
     def _resolve_role_announce_channel(
@@ -366,6 +459,15 @@ class CTFRoleCampaigns(
             return CloseCampaignReport(was_closed=True, warnings=tuple(warnings))
 
         role = await self._resolve_role(guild, campaign.role_id)
+        archived = await self._archive_discussion_channel(
+            guild=guild,
+            campaign=campaign,
+            role=role,
+            reason=reason,
+        )
+        if not archived:
+            warnings.append("discussion_archive_failed")
+
         if role is not None:
             try:
                 await role.delete(reason=reason)
@@ -443,11 +545,15 @@ class CTFRoleCampaigns(
             )
 
     @app_commands.command(name="create", description="CTF募集メッセージを作成します。")
-    @app_commands.describe(ctf_name="CTF名")
+    @app_commands.describe(
+        ctf_name="CTF名",
+        role_color="ロールカラー(任意, 16進: #RRGGBB)",
+    )
     async def create(
         self,
         interaction: discord.Interaction,
         ctf_name: str,
+        role_color: str | None = None,
     ) -> None:
         if interaction.guild is None:
             await send_interaction_message(
@@ -457,9 +563,19 @@ class CTFRoleCampaigns(
             )
             return
 
+        role_color_value, color_error = self._parse_role_color(role_color)
+        if color_error:
+            await send_interaction_message(
+                interaction,
+                color_error,
+                ephemeral=True,
+            )
+            return
+
         modal = CTFRoleCreateModal(
             self,
             ctf_name=ctf_name,
+            role_color_value=role_color_value,
         )
         await interaction.response.send_modal(modal)
 
@@ -468,6 +584,7 @@ class CTFRoleCampaigns(
         interaction: discord.Interaction,
         *,
         ctf_name: str,
+        role_color_value: int | None,
         start_at_raw: str,
         end_at_raw: str,
     ) -> None:
@@ -510,15 +627,28 @@ class CTFRoleCampaigns(
         message: discord.Message | None = None
 
         try:
-            discussion_channel = await self._create_ctf_discussion_channel(
-                guild=guild,
-                draft=draft,
-                creator_id=interaction.user.id,
+            role_color = (
+                discord.Color(role_color_value)
+                if role_color_value is not None
+                else discord.Color.default()
             )
             role = await guild.create_role(
                 name=draft.ctf_name,
+                color=role_color,
                 mentionable=True,
                 reason=f"CTF role campaign created by {interaction.user.id}",
+            )
+            creator_member = (
+                interaction.user
+                if isinstance(interaction.user, discord.Member)
+                else None
+            )
+            discussion_channel = await self._create_ctf_discussion_channel(
+                guild=guild,
+                draft=draft,
+                role=role,
+                creator=creator_member,
+                creator_id=interaction.user.id,
             )
             content = self._build_recruitment_message(
                 draft=draft,
@@ -536,6 +666,7 @@ class CTFRoleCampaigns(
                 channel_id=announce_channel.id,
                 message_id=message.id,
                 role_id=role.id,
+                discussion_channel_id=discussion_channel.id,
                 created_by=interaction.user.id,
                 draft=draft,
             )
