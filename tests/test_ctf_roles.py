@@ -165,6 +165,17 @@ class CTFRoleCogHelperTests(unittest.TestCase):
         self.assertIsNone(parsed)
         self.assertIn("16進数", error)
 
+    def test_role_color_suggestions_show_preview(self) -> None:
+        choices = CTFRoleCampaigns._build_role_color_suggestions("")
+        self.assertGreater(len(choices), 0)
+        self.assertIn("🟥", choices[0].name)
+        self.assertTrue(choices[0].value.startswith("#"))
+
+    def test_role_color_suggestions_filter_by_hex(self) -> None:
+        choices = CTFRoleCampaigns._build_role_color_suggestions("22c55e")
+        self.assertEqual(len(choices), 1)
+        self.assertEqual(choices[0].value, "#22c55e")
+
 
 if __name__ == "__main__":
     unittest.main()
