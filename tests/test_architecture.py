@@ -39,6 +39,18 @@ def _imports_starting_with(imports: set[str], prefix: str) -> bool:
     return any(_normalise_import_name(name).startswith(prefix) for name in imports)
 
 
+def _is_feature_service_or_repository_import(name: str) -> bool:
+    normalized = _normalise_import_name(name)
+    if not normalized.startswith("bot.features."):
+        return False
+    return (
+        normalized.endswith(".service")
+        or normalized.endswith(".repository")
+        or ".service." in normalized
+        or ".repository." in normalized
+    )
+
+
 class ArchitectureBoundaryTests(unittest.TestCase):
     def test_cogs_do_not_depend_on_data_or_services(self):
         cogs_dir = SRC_ROOT / "bot" / "cogs"
@@ -75,10 +87,33 @@ class ArchitectureBoundaryTests(unittest.TestCase):
     def test_feature_cogs_do_not_depend_on_service_or_repository(self):
         for path in (SRC_ROOT / "bot" / "features").glob("*/cog.py"):
             with self.subTest(path=path.as_posix()):
+                imports = _load_imports(path)
+                self.assertFalse(
+                    any(
+                        _is_feature_service_or_repository_import(name)
+                        for name in imports
+                    )
+                )
+
                 import_from_nodes = _load_import_from_nodes(path)
                 for node in import_from_nodes:
-                    self.assertFalse(node.level == 1 and node.module == "service")
-                    self.assertFalse(node.level == 1 and node.module == "repository")
+                    self.assertFalse(node.level >= 1 and node.module == "service")
+                    self.assertFalse(node.level >= 1 and node.module == "repository")
+
+                    if node.module is None:
+                        continue
+
+                    normalized_module = _normalise_import_name(
+                        f"{'.' * node.level}{node.module}"
+                    )
+                    self.assertFalse(
+                        _is_feature_service_or_repository_import(normalized_module)
+                    )
+                    if normalized_module.startswith("bot.features."):
+                        imported_names = {alias.name for alias in node.names}
+                        self.assertFalse(
+                            {"service", "repository"} & imported_names,
+                        )
 
 
 if __name__ == "__main__":
