@@ -1,118 +1,124 @@
-"""
-AlpacaHack service module for the CTF Discord bot.
-Handles web scraping and data retrieval from AlpacaHack website.
-"""
-
 from collections.abc import Generator
 
 import requests
 from bs4 import BeautifulSoup, element
+from requests import RequestException
 
 from ..utils.helpers import format_code_block, handle_error, logger
 
+ALPACAHACK_BASE_URL = "https://alpacahack.com/users/"
+REQUEST_TIMEOUT_SECONDS = 10
+
 
 def is_leaf(tag: element.Tag) -> bool:
-    """
-    Check if a BeautifulSoup tag is a leaf node (has no child tags).
-
-    Args:
-        tag: BeautifulSoup tag to check
-
-    Returns:
-        True if the tag is a leaf node, False otherwise
-    """
-    # Fix the logic to correctly identify tags with Tag children
+    """Return True if a BeautifulSoup tag has no child tags."""
     return all(not isinstance(child, element.Tag) for child in tag.children)
 
 
 def get_alpacahack_solves(user: str) -> str:
-    """
-    Get solve information for a user from AlpacaHack website.
-
-    Args:
-        user: Username to get solves for
-
-    Returns:
-        Formatted string with solve information
-    """
     try:
-        logger.info(f"Fetching solve information for user: {user}")
-        response = requests.get(f"https://alpacahack.com/users/{user}")
-        response.raise_for_status()  # Raise exception for HTTP errors
-        soup = BeautifulSoup(response.content, features="html.parser")
+        logger.info("Fetching solve information for user: %s", user)
+        soup = _fetch_user_page(user)
         tbody = soup.find("tbody", class_="MuiTableBody-root")
-        if not tbody:
-            logger.warning(f"No data found for user: {user}")
+        if not isinstance(tbody, element.Tag):
+            logger.warning("No data found for user: %s", user)
             return format_code_block(f"No data found for user: {user}")
-        result = []
+
+        result: list[str] = []
         result.append(user)
         result.append(f"{'CHALLENGE':20}{'SOLVES':20}{'SOLVED AT':20}")
         for row in tbody.find_all("tr"):
+            if not isinstance(row, element.Tag):
+                continue
             data = row.find_all("td")
-            challenge = data[0].find("a").text
-            solves = data[1].find("p").text
-            solve_at = data[2].find("p").text
+            if len(data) < 3:
+                continue
+            challenge = data[0].get_text(strip=True)
+            solves = data[1].get_text(strip=True)
+            solve_at = data[2].get_text(strip=True)
             result.append(f"{challenge:20}{solves:20}{solve_at:20}")
-        logger.info(f"Successfully fetched solve information for user: {user}")
+
+        logger.info("Successfully fetched solve information for user: %s", user)
         return format_code_block("\n".join(result))
-    except Exception as e:
-        logger.error(f"Error fetching solve information for user {user}: {e}")
-        return format_code_block(handle_error(e, f"Failed to get solves for {user}"))
+    except Exception as error:
+        logger.error("Error fetching solve information for user %s: %s", user, error)
+        return format_code_block(
+            handle_error(error, f"Failed to get solves for {user}")
+        )
 
 
 def get_alpacahack_info(user: str) -> Generator[str, None, None]:
-    """
-    Get detailed information for a user from AlpacaHack website.
-
-    Args:
-        user: Username to get information for
-
-    Returns:
-        Generator yielding formatted strings with user information
-    """
     try:
-        logger.info(f"Fetching detailed information for user: {user}")
-        response = requests.get(f"https://alpacahack.com/users/{user}")
-        response.raise_for_status()  # Raise exception for HTTP errors
-        soup = BeautifulSoup(response.content, features="html.parser")
+        logger.info("Fetching detailed information for user: %s", user)
+        soup = _fetch_user_page(user)
         root_container = soup.find("div", class_="MuiContainer-root")
-        if not root_container:
-            logger.warning(f"No data container found for user: {user}")
+        if not isinstance(root_container, element.Tag):
+            logger.warning("No data container found for user: %s", user)
             yield "No data found"
             return
+
         section_count = 0
         for section in root_container.contents[1:]:
+            if not isinstance(section, element.Tag):
+                continue
+
             tbody = section.find("tbody", class_="MuiTableBody-root")
-            if tbody is None:
+            if not isinstance(tbody, element.Tag):
                 continue
             thead = section.find("thead")
-            if thead is None:
+            if not isinstance(thead, element.Tag):
                 continue
             header_title = section.find("p", class_="MuiTypography-root")
             if header_title is None:
                 continue
+
             section_count += 1
-            result = []
+            result: list[str] = []
             result.append(f"{header_title.text.center(50, '-')}")
-            # Add header row
-            header_cells = thead.find("tr").find_all("th")
-            result.append("".join(cell.text.ljust(20) for cell in header_cells))
-            # Add data rows
+            header_row = thead.find("tr")
+            if not isinstance(header_row, element.Tag):
+                continue
+
+            header_cells = header_row.find_all("th")
+            result.append(
+                "".join(cell.get_text(strip=True).ljust(20) for cell in header_cells)
+            )
+
             for row in tbody.find_all("tr"):
+                if not isinstance(row, element.Tag):
+                    continue
                 data = row.find_all("td")
-                row_text = []
+                row_text: list[str] = []
                 for cell in data:
-                    leaf_texts = " ".join(
-                        [
-                            tag.get_text(strip=True)
-                            for tag in cell.find_all()
-                            if is_leaf(tag) and tag.name != "style"
-                        ]
-                    )
+                    if not isinstance(cell, element.Tag):
+                        continue
+                    leaf_values: list[str] = []
+                    for child_tag in cell.find_all():
+                        if not isinstance(child_tag, element.Tag):
+                            continue
+                        if is_leaf(child_tag) and child_tag.name != "style":
+                            leaf_values.append(child_tag.get_text(strip=True))
+                    leaf_texts = " ".join(leaf_values)
                     row_text.append(leaf_texts.ljust(20))
                 result.append("".join(row_text))
+
             yield "\n".join(result)
-        logger.info(f"Successfully fetched {section_count} sections for user: {user}")
-    except Exception as e:
-        logger.error(f"Error fetching detailed information for user {user}: {e}")
-        yield handle_error(e, f"Failed to get info for {user}")
+        logger.info(
+            "Successfully fetched %s sections for user: %s", section_count, user
+        )
+    except Exception as error:
+        logger.error("Error fetching detailed information for user %s: %s", user, error)
+        yield handle_error(error, f"Failed to get info for {user}")
+
+
+def _fetch_user_page(user: str) -> BeautifulSoup:
+    try:
+        response = requests.get(
+            f"{ALPACAHACK_BASE_URL}{user}",
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+    except RequestException as error:
+        raise RuntimeError(f"Failed to fetch AlpacaHack page for {user}") from error
+
+    return BeautifulSoup(response.content, features="html.parser")

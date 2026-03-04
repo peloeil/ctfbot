@@ -1,26 +1,17 @@
-"""
-Database utilities for the CTF Discord bot.
-Handles database connections and operations.
-"""
-
 import sqlite3
 from collections.abc import Generator
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
-from ..config import DATABASE_NAME
+from ..config import settings
 
 
 @contextmanager
 def get_db_connection() -> Generator[sqlite3.Connection, Any, None]:
-    """
-    Context manager for database connections.
-    Ensures connections are properly closed after use.
-
-    Yields:
-        sqlite3.Connection: Database connection object
-    """
-    conn = sqlite3.connect(DATABASE_NAME)
+    """Context manager for database connections."""
+    db_path = Path(settings.database_path).expanduser().resolve()
+    conn = sqlite3.connect(str(db_path))
     try:
         yield conn
     finally:
@@ -28,56 +19,31 @@ def get_db_connection() -> Generator[sqlite3.Connection, Any, None]:
 
 
 def execute_query(query: str, params: tuple = ()) -> None:
-    """
-    Execute a database query with no return value.
-
-    Args:
-        query: SQL query string
-        params: Query parameters
-    """
+    """Execute a query and commit changes."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(query, params)
         conn.commit()
 
 
-def fetch_all(query: str, params: tuple = ()) -> list[tuple]:
-    """
-    Execute a query and fetch all results.
-
-    Args:
-        query: SQL query string
-        params: Query parameters
-
-    Returns:
-        List of query results
-    """
+def fetch_all(query: str, params: tuple = ()) -> list[tuple[Any, ...]]:
+    """Execute a query and fetch all results."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(query, params)
         return cursor.fetchall()
 
 
-def fetch_one(query: str, params: tuple = ()) -> tuple | None:
-    """
-    Execute a query and fetch one result.
-
-    Args:
-        query: SQL query string
-        params: Query parameters
-
-    Returns:
-        Single query result or None
-    """
+def fetch_one(query: str, params: tuple = ()) -> tuple[Any, ...] | None:
+    """Execute a query and fetch one result."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(query, params)
         return cursor.fetchone()
 
 
-# AlpacaHack specific database functions
-def create_alpacahack_user_table_if_not_exists() -> None:
-    """Create the alpacahack_user table if it doesn't exist."""
+def initialize_database() -> None:
+    """Ensure all required database tables exist."""
     query = """
     CREATE TABLE IF NOT EXISTS alpacahack_user (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -87,47 +53,44 @@ def create_alpacahack_user_table_if_not_exists() -> None:
     execute_query(query)
 
 
+def create_alpacahack_user_table_if_not_exists() -> None:
+    """Backward-compatible wrapper."""
+    initialize_database()
+
+
 def insert_alpacahack_user(name: str) -> str:
-    """
-    Insert a new user into the alpacahack_user table.
+    """Insert a new user into the alpacahack_user table."""
+    normalized = name.strip()
+    if not normalized:
+        return "ユーザー名が空です。"
 
-    Args:
-        name: Username to insert
-
-    Returns:
-        Result message
-    """
     try:
-        execute_query("INSERT INTO alpacahack_user (name) VALUES (?)", (name,))
-        return f"User '{name}' added."
-    except sqlite3.IntegrityError as e:
-        return f"Insert error: {e}"
+        execute_query("INSERT INTO alpacahack_user (name) VALUES (?)", (normalized,))
+        return f"User '{normalized}' added."
+    except sqlite3.IntegrityError:
+        return f"User '{normalized}' is already registered."
 
 
 def delete_alpacahack_user(name: str) -> str:
-    """
-    Delete a user from the alpacahack_user table.
+    """Delete a user from the alpacahack_user table."""
+    normalized = name.strip()
+    if not normalized:
+        return "ユーザー名が空です。"
 
-    Args:
-        name: Username to delete
-
-    Returns:
-        Result message
-    """
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM alpacahack_user WHERE name=?", (name,))
+        cursor.execute("DELETE FROM alpacahack_user WHERE name=?", (normalized,))
+        conn.commit()
         if cursor.rowcount == 0:
-            return f"No user: {name}"
-        else:
-            return f"Deleted user: {name}"
+            return f"No user: {normalized}"
+        return f"Deleted user: {normalized}"
 
 
 def get_all_alpacahack_users() -> list[tuple[str]]:
-    """
-    Get all users from the alpacahack_user table.
-
-    Returns:
-        List of usernames
-    """
+    """Get all users from the alpacahack_user table."""
     return fetch_all("SELECT name FROM alpacahack_user")
+
+
+def list_alpacahack_usernames() -> list[str]:
+    """Return only usernames as a flat list."""
+    return [str(row[0]) for row in get_all_alpacahack_users()]
