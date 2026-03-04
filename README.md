@@ -7,10 +7,11 @@ CTF サーバー向け Discord bot です。
 
 - CTFtime の定期通知（週次）と手動通知コマンド `!ctf`
 - CTF ロール募集管理（`/ctf-role create|list|close`、`#role` で募集、`ctf` カテゴリへ専用チャンネル作成、リアクション連動ロール付与、終了/アーカイブ自動処理、ロール色指定）
+- times カテゴリのチャンネル作成 (`/create-times`)
 - AlpacaHack の週次 solve サマリ通知（登録ユーザー対象、毎週日曜）
 - AlpacaHack ユーザー管理 (`!add_alpaca`, `!del_alpaca`, `!show_alpaca`)
 - AlpacaHack スコア表示 (`!show_alpaca_score`)
-- Slash コマンド管理 (`/sync`, `/load`, `/unload`, `/reload`, `/pin`, `/unpin`, `/perms`)
+- Slash コマンド管理 (`/sync`, `/load`, `/unload`, `/reload`, `/pin`, `/unpin`, `/perms`, `/create-times`)
 - Bot の接続状態通知（任意）
 
 ## 参加ガイド
@@ -77,7 +78,7 @@ src/
    - `Send Messages`
    - `Manage Messages`（`/pin` `/unpin` の実行に必要）
    - `Manage Roles`（`/ctf-role create` の role 作成/削除に必要）
-   - `Manage Channels`（`/ctf-role create` の `ctf` カテゴリと CTF チャンネル作成に必要）
+   - `Manage Channels`（`/ctf-role create` と `/create-times` のチャンネル作成に必要）
    - `Add Reactions`（`/ctf-role create` で募集メッセージにリアクションを付けるために必要）
 
 ### ローカル実行手順
@@ -150,6 +151,7 @@ GitHub Actions の `CI` ワークフローで以下を実行します。
 3. `/sync`, `/load`, `/unload`, `/reload` は `Manage Server` 権限が必要です。
 4. bot アカウント側には、`/pin` `/unpin` を動かすために `Manage Messages` 権限が必要です。
 5. `/ctf-role create` には、bot アカウント側で `Manage Roles` / `Manage Channels` / `Add Reactions` が必要です。
+6. `/create-times` には、bot アカウント側で `times` カテゴリに対する `Manage Channels` が必要です。
 
 ## 新しい機能を足すとき
 
