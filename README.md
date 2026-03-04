@@ -70,7 +70,7 @@ src/
 ### Discord Bot の権限設定（従来手順）
 
 1. Bot 公開設定（Public Bot）は運用方針に応じて設定します。
-2. Privileged Gateway Intents は `MESSAGE CONTENT INTENT` を有効にします。
+2. Privileged Gateway Intents は `MESSAGE CONTENT INTENT` と `SERVER MEMBERS INTENT` を有効にします。
 3. OAuth2 の Scope は `bot`（必要なら `applications.commands` も）を選択します。
 4. bot アカウントに付与する権限の目安:
    - `View Channels`
