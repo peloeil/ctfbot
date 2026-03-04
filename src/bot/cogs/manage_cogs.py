@@ -1,108 +1,89 @@
-"""
-Manage cogs commands for the CTF Discord bot.
-Provides commands for loading, unloading, and reloading cogs.
-"""
-
 import discord
 from discord import app_commands
 from discord.ext import commands
 
-from ..utils.helpers import handle_error
+from ..utils.helpers import logger, send_interaction_message
 
 
 class ManageCogs(commands.Cog):
-    """Cog for managing other cogs (loading, unloading, reloading)."""
+    """Slash commands for loading/unloading/reloading cogs."""
 
     def __init__(self, bot: commands.Bot):
-        """
-        Initialize the ManageCogs cog.
-
-        Args:
-            bot: The bot instance
-        """
         self.bot = bot
 
+    def _normalize_extension(self, name: str) -> str:
+        normalized = name.strip().removesuffix(".py")
+        if normalized.startswith("bot.cogs."):
+            return normalized
+        return f"bot.cogs.{normalized}"
+
     @app_commands.command(name="sync")
-    @app_commands.checks.has_permissions(moderate_members=True)
-    async def sync(self, interaction: discord.Interaction):
-        """
-        Sync slash commands with Discord.
-        Requires moderate_members permission.
-        """
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def sync(self, interaction: discord.Interaction) -> None:
         try:
             synced = await self.bot.tree.sync()
-            await interaction.response.send_message(f"Synced {len(synced)} command(s)")
-        except Exception as e:
-            await interaction.response.send_message(
-                handle_error(e, "Failed to sync commands")
+            await send_interaction_message(
+                interaction,
+                f"Synced {len(synced)} command(s)",
+                ephemeral=True,
+            )
+        except Exception as error:
+            logger.exception("Failed to sync commands")
+            await send_interaction_message(
+                interaction,
+                f"Failed to sync commands: {error}",
+                ephemeral=True,
             )
 
     @app_commands.command(name="load")
-    @app_commands.checks.has_permissions(moderate_members=True)
-    async def load(self, interaction: discord.Interaction, name: str):
-        """
-        Load a cog.
-        Requires moderate_members permission.
-
-        Args:
-            interaction: Command interaction
-            name: Name of the cog to load
-        """
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def load(self, interaction: discord.Interaction, name: str) -> None:
+        extension = self._normalize_extension(name)
         try:
-            # Fix the module path to use correct prefix
-            await self.bot.load_extension(f"bot.cogs.{name}")
-            await interaction.response.send_message(f"Loaded {name}")
-        except Exception as e:
-            await interaction.response.send_message(
-                handle_error(e, f"Failed to load {name}")
+            await self.bot.load_extension(extension)
+            await send_interaction_message(interaction, f"Loaded {extension}")
+        except Exception as error:
+            logger.exception("Failed to load extension %s", extension)
+            await send_interaction_message(
+                interaction,
+                f"Failed to load {extension}: {error}",
             )
 
     @app_commands.command(name="unload")
-    @app_commands.checks.has_permissions(moderate_members=True)
-    async def unload(self, interaction: discord.Interaction, name: str):
-        """
-        Unload a cog.
-        Requires moderate_members permission.
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def unload(self, interaction: discord.Interaction, name: str) -> None:
+        extension = self._normalize_extension(name)
+        if extension == "bot.cogs.manage_cogs":
+            await send_interaction_message(
+                interaction,
+                "この cog は unload できません。",
+            )
+            return
 
-        Args:
-            interaction: Command interaction
-            name: Name of the cog to unload
-        """
         try:
-            # Fix the module path to use correct prefix
-            await self.bot.unload_extension(f"bot.cogs.{name}")
-            await interaction.response.send_message(f"Unloaded {name}")
-        except Exception as e:
-            await interaction.response.send_message(
-                handle_error(e, f"Failed to unload {name}")
+            await self.bot.unload_extension(extension)
+            await send_interaction_message(interaction, f"Unloaded {extension}")
+        except Exception as error:
+            logger.exception("Failed to unload extension %s", extension)
+            await send_interaction_message(
+                interaction,
+                f"Failed to unload {extension}: {error}",
             )
 
     @app_commands.command(name="reload")
-    @app_commands.checks.has_permissions(moderate_members=True)
-    async def reload(self, interaction: discord.Interaction, name: str):
-        """
-        Reload a cog.
-        Requires moderate_members permission.
-
-        Args:
-            interaction: Command interaction
-            name: Name of the cog to reload
-        """
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def reload(self, interaction: discord.Interaction, name: str) -> None:
+        extension = self._normalize_extension(name)
         try:
-            # Fix the module path to use correct prefix
-            await self.bot.reload_extension(f"bot.cogs.{name}")
-            await interaction.response.send_message(f"Reloaded {name}")
-        except Exception as e:
-            await interaction.response.send_message(
-                handle_error(e, f"Failed to reload {name}")
+            await self.bot.reload_extension(extension)
+            await send_interaction_message(interaction, f"Reloaded {extension}")
+        except Exception as error:
+            logger.exception("Failed to reload extension %s", extension)
+            await send_interaction_message(
+                interaction,
+                f"Failed to reload {extension}: {error}",
             )
 
 
 async def setup(bot: commands.Bot):
-    """
-    Add the ManageCogs cog to the bot.
-
-    Args:
-        bot: The bot instance
-    """
     await bot.add_cog(ManageCogs(bot))
