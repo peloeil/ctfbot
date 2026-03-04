@@ -60,6 +60,7 @@ class CTFRoleUseCaseTests(unittest.TestCase):
                 channel_id=100,
                 message_id=200,
                 role_id=300,
+                discussion_channel_id=500,
                 created_by=10,
                 draft=draft_validation.draft,
             )
@@ -73,6 +74,7 @@ class CTFRoleUseCaseTests(unittest.TestCase):
             assert found is not None
             self.assertEqual(found.id, campaign.id)
             self.assertEqual(found.status, CampaignStatus.ACTIVE)
+            self.assertEqual(found.discussion_channel_id, 500)
 
             closed = usecase.close_campaign(campaign_id=campaign.id)
             self.assertTrue(closed)
@@ -96,6 +98,7 @@ class CTFRoleUseCaseTests(unittest.TestCase):
                 channel_id=100,
                 message_id=201,
                 role_id=301,
+                discussion_channel_id=501,
                 created_by=10,
                 draft=draft,
             )
@@ -119,6 +122,7 @@ class CTFRoleUseCaseTests(unittest.TestCase):
                     channel_id=100,
                     message_id=300 + index,
                     role_id=400 + index,
+                    discussion_channel_id=500 + index,
                     created_by=10,
                     draft=draft,
                 )
@@ -145,6 +149,21 @@ class CTFRoleCogHelperTests(unittest.TestCase):
     def test_build_channel_base_name_falls_back_when_empty(self) -> None:
         channel_name = CTFRoleCampaigns._build_channel_base_name("!!!")
         self.assertEqual(channel_name, "ctf")
+
+    def test_parse_role_color_accepts_hex(self) -> None:
+        parsed, error = CTFRoleCampaigns._parse_role_color("#12AB34")
+        self.assertEqual(parsed, 0x12AB34)
+        self.assertEqual(error, "")
+
+    def test_parse_role_color_accepts_0x_prefix(self) -> None:
+        parsed, error = CTFRoleCampaigns._parse_role_color("0xff6600")
+        self.assertEqual(parsed, 0xFF6600)
+        self.assertEqual(error, "")
+
+    def test_parse_role_color_rejects_invalid_value(self) -> None:
+        parsed, error = CTFRoleCampaigns._parse_role_color("orange")
+        self.assertIsNone(parsed)
+        self.assertIn("16進数", error)
 
 
 if __name__ == "__main__":
