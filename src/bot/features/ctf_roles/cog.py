@@ -383,6 +383,16 @@ class CTFRoleCampaigns(
             return False
 
         try:
+            bot_member = self._resolve_bot_member(guild)
+            if bot_member is not None:
+                await discussion_channel.set_permissions(
+                    bot_member,
+                    view_channel=True,
+                    send_messages=True,
+                    read_message_history=True,
+                    manage_channels=True,
+                    reason=reason,
+                )
             archive_category = await self._ensure_archive_category(guild)
             await discussion_channel.edit(category=archive_category, reason=reason)
             await discussion_channel.set_permissions(
