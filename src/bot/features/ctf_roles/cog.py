@@ -590,12 +590,25 @@ class CTFRoleCampaigns(
         role: discord.Role,
     ) -> tuple[int | None, bool]:
         if campaign.discussion_channel_id is None:
+            logger.warning(
+                "Skipping campaign start announcement: discussion channel is not set "
+                "for campaign=%s guild=%s",
+                campaign.id,
+                guild.id,
+            )
             return None, False
 
         discussion_channel = await self._resolve_text_channel(
             guild, campaign.discussion_channel_id
         )
         if discussion_channel is None:
+            logger.warning(
+                "Skipping campaign start announcement: discussion channel not found "
+                "for campaign=%s guild=%s channel=%s",
+                campaign.id,
+                guild.id,
+                campaign.discussion_channel_id,
+            )
             return None, False
 
         members = sorted(
@@ -616,6 +629,13 @@ class CTFRoleCampaigns(
             )
             message = await send_message_safely(discussion_channel, content=content)
             if message is None:
+                logger.warning(
+                    "Failed to send campaign start announcement message: "
+                    "campaign=%s guild=%s channel=%s",
+                    campaign.id,
+                    guild.id,
+                    campaign.discussion_channel_id,
+                )
                 return len(members), False
 
         return len(members), True
@@ -883,11 +903,25 @@ class CTFRoleCampaigns(
 
         guild = self.bot.get_guild(campaign.guild_id)
         if guild is None:
-            return False, ("guild_not_found",)
+            warnings.append("guild_not_found")
+            marked = await asyncio.to_thread(
+                self.usecase.mark_campaign_started,
+                campaign_id=campaign.id,
+            )
+            if not marked:
+                warnings.append("start_state_update_failed")
+            return False, tuple(warnings)
 
         role = await self._resolve_role(guild, campaign.role_id)
         if role is None:
-            return False, ("role_not_found",)
+            warnings.append("role_not_found")
+            marked = await asyncio.to_thread(
+                self.usecase.mark_campaign_started,
+                campaign_id=campaign.id,
+            )
+            if not marked:
+                warnings.append("start_state_update_failed")
+            return False, tuple(warnings)
 
         _member_count, announced = await self._send_start_announcement(
             guild=guild,
@@ -896,6 +930,12 @@ class CTFRoleCampaigns(
         )
         if not announced:
             warnings.append("start_announce_failed")
+            marked = await asyncio.to_thread(
+                self.usecase.mark_campaign_started,
+                campaign_id=campaign.id,
+            )
+            if not marked:
+                warnings.append("start_state_update_failed")
             return False, tuple(warnings)
 
         marked = await asyncio.to_thread(
