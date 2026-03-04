@@ -17,19 +17,35 @@ CTF サーバー向け Discord bot です。
 ```text
 src/
   bot/
-    __init__.py              # Bot 生成と起動
+    __init__.py              # パッケージ定義
+    app.py                   # Bot 生成と起動
+    runtime.py               # Runtime 組み立て
+    runtime_providers.py     # 依存注入用 provider 群
     config.py                # 環境変数の読み込みとバリデーション
+    errors.py                # 例外階層
+    discord_gateway.py       # Discord channel 解決の共通化
     cogs_loader.py           # 本番 cogs のロード
+    features/                # 機能単位（縦割り）
+      alpacahack/
+        cog.py
+        usecase.py
+        service.py
+        repository.py
+      ctftime/
+        cog.py
+        usecase.py
+        service.py
+    application/             # 互換エクスポート（薄いラッパ）
     cogs/
-      alpacahack.py
-      ctftime_notifications.py
+      alpacahack.py          # 互換エクスポート（薄いラッパ）
+      ctftime_notifications.py # 互換エクスポート（薄いラッパ）
       manage_cogs.py
       slash_commands.py
     db/
-      database.py
-    services/
-      alpacahack_service.py
-      ctftime_service.py
+      connection.py          # 接続管理
+      migrations.py          # スキーマ適用
+      database.py            # 互換ファサード
+    services/                # 互換エクスポート（薄いラッパ）
     utils/
       helpers.py
   main.py                    # エントリポイント
@@ -95,6 +111,22 @@ uv run ty check
 uv run python -m unittest discover -s tests -v
 ```
 
+## チーム開発ルール
+
+1. 依存方向は `cog -> usecase -> service/repository -> db` に固定します。
+2. `src/bot/cogs/` から `src/bot/services/` と `src/bot/db/` を直接 import しません。
+3. 新機能は `src/bot/features/<feature>/` に追加します。
+4. 例外は `bot.errors` の型を使って層ごとに扱いを明確にします。
+5. 境界違反は `tests/test_architecture.py` で検出されます。
+
+## CI
+
+GitHub Actions の `CI` ワークフローで以下を実行します。
+
+1. `uv run ruff check src tests`
+2. `uv run ty check`
+3. `uv run python -m unittest discover -s tests -v`
+
 ## 開発時の反映手順（bot を止めない運用）
 
 1. Cog ファイルを変更したら `/reload name:<cog名>` を実行する
@@ -111,7 +143,8 @@ uv run python -m unittest discover -s tests -v
 
 ## 新しい機能を足すとき
 
-1. `src/bot/cogs/` に新しい cog を追加する。
-2. 起動時に自動ロードしたい場合は `src/bot/cogs_loader.py` の `DEFAULT_EXTENSIONS` に追加する。
-3. Slash コマンドを追加した場合は `/sync` で反映する。
-4. 追加した機能に対応するテストを `tests/` に追加する。
+1. `src/bot/features/<feature>/` に `cog.py`, `usecase.py`, `service.py`（必要なら `repository.py`）を追加する。
+2. 互換用に `src/bot/cogs/` 配下へ薄いラッパを追加する（必要な場合）。
+3. 起動時に自動ロードしたい場合は `src/bot/cogs_loader.py` の `DEFAULT_EXTENSIONS` に追加する。
+4. Slash コマンドを追加した場合は `/sync` で反映する。
+5. `tests/` にユニットテストと `tests/test_architecture.py` の境界ルールに沿ったテストを追加する。
