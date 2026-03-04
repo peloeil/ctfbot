@@ -40,6 +40,39 @@ class _FakeTextChannel:
         return self._perms
 
 
+class _FakeTimesCategory:
+    def __init__(
+        self,
+        *,
+        name: str = "times",
+        existing_names: list[str] | None = None,
+        can_manage_channels: bool = True,
+    ) -> None:
+        self.name = name
+        self._can_manage_channels = can_manage_channels
+        self.created_names: list[str] = []
+        self.channels = [
+            SimpleNamespace(name=channel_name, mention=f"#{channel_name}")
+            for channel_name in (existing_names or [])
+        ]
+
+    def permissions_for(self, _member: object) -> object:
+        return SimpleNamespace(manage_channels=self._can_manage_channels)
+
+    async def create_text_channel(self, name: str, *, reason: str) -> object:
+        _ = reason
+        channel = SimpleNamespace(name=name, mention=f"#{name}")
+        self.channels.append(channel)
+        self.created_names.append(name)
+        return channel
+
+
+class _FakeGuild:
+    def __init__(self, categories: list[object]) -> None:
+        self.id = 123
+        self.categories = categories
+
+
 class _FakeBot:
     def __init__(self) -> None:
         self.user = type("BotUser", (), {"id": 999})()
@@ -132,6 +165,109 @@ class SlashCommandsTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Manage Channels", sent_content)
         self.assertIn("Add Reactions", sent_content)
         self.assertNotIn("/ctf-role create", sent_content)
+
+    async def test_create_times_rejects_when_times_category_missing(self) -> None:
+        bot = cast(commands.Bot, _FakeBot())
+        cog = SlashCommands(bot)
+        interaction: Any = SimpleNamespace(
+            guild=_FakeGuild(categories=[]),
+            user=SimpleNamespace(id=42),
+        )
+
+        with patch(
+            "bot.cogs.slash_commands.send_interaction_message",
+            new=AsyncMock(),
+        ) as send_mock:
+            await SlashCommands.create_times.callback(cog, interaction, "web")
+
+        await_args = send_mock.await_args
+        assert await_args is not None
+        sent_content = await_args.args[1]
+        self.assertIn("`times` カテゴリが見つかりません", sent_content)
+
+    async def test_create_times_creates_only_missing_channels(self) -> None:
+        bot = cast(commands.Bot, _FakeBot())
+        cog = SlashCommands(bot)
+        times_category = _FakeTimesCategory(existing_names=["web"])
+        interaction: Any = SimpleNamespace(
+            guild=_FakeGuild(categories=[times_category]),
+            user=SimpleNamespace(id=42),
+        )
+        bot_member = SimpleNamespace()
+
+        with (
+            patch.object(cog, "_fetch_member", new=AsyncMock(return_value=bot_member)),
+            patch(
+                "bot.cogs.slash_commands.send_interaction_message",
+                new=AsyncMock(),
+            ) as send_mock,
+        ):
+            await SlashCommands.create_times.callback(cog, interaction, "web,pwn,rev")
+
+        self.assertEqual(times_category.created_names, ["pwn", "rev"])
+        await_args = send_mock.await_args
+        assert await_args is not None
+        sent_content = await_args.args[1]
+        self.assertIn("#pwn", sent_content)
+        self.assertIn("#rev", sent_content)
+        self.assertIn("既存のためスキップ", sent_content)
+        self.assertIn("`web`", sent_content)
+
+    async def test_create_times_normalizes_and_deduplicates_names(self) -> None:
+        bot = cast(commands.Bot, _FakeBot())
+        cog = SlashCommands(bot)
+        times_category = _FakeTimesCategory(existing_names=[])
+        interaction: Any = SimpleNamespace(
+            guild=_FakeGuild(categories=[times_category]),
+            user=SimpleNamespace(id=42),
+        )
+        bot_member = SimpleNamespace()
+
+        with (
+            patch.object(cog, "_fetch_member", new=AsyncMock(return_value=bot_member)),
+            patch(
+                "bot.cogs.slash_commands.send_interaction_message",
+                new=AsyncMock(),
+            ) as send_mock,
+        ):
+            await SlashCommands.create_times.callback(
+                cog, interaction, " Web, web, !!!, rev team"
+            )
+
+        self.assertEqual(times_category.created_names, ["web", "rev-team"])
+        await_args = send_mock.await_args
+        assert await_args is not None
+        sent_content = await_args.args[1]
+        self.assertIn("無効な入力", sent_content)
+        self.assertIn("`!!!`", sent_content)
+
+    async def test_create_times_requires_bot_manage_channels_permission(self) -> None:
+        bot = cast(commands.Bot, _FakeBot())
+        cog = SlashCommands(bot)
+        times_category = _FakeTimesCategory(
+            existing_names=[],
+            can_manage_channels=False,
+        )
+        interaction: Any = SimpleNamespace(
+            guild=_FakeGuild(categories=[times_category]),
+            user=SimpleNamespace(id=42),
+        )
+        bot_member = SimpleNamespace()
+
+        with (
+            patch.object(cog, "_fetch_member", new=AsyncMock(return_value=bot_member)),
+            patch(
+                "bot.cogs.slash_commands.send_interaction_message",
+                new=AsyncMock(),
+            ) as send_mock,
+        ):
+            await SlashCommands.create_times.callback(cog, interaction, "web")
+
+        self.assertEqual(times_category.created_names, [])
+        await_args = send_mock.await_args
+        assert await_args is not None
+        sent_content = await_args.args[1]
+        self.assertIn("Manage Channels", sent_content)
 
 
 if __name__ == "__main__":
