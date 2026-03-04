@@ -533,6 +533,7 @@ class CTFRoleCampaigns(
                 else f" ({index}/{len(member_chunks)})"
             )
             content = (
+                f"🏁 **{campaign.ctf_name} は終了しました。**\n"
                 f"🧾 **{campaign.ctf_name} の参加メンバー"
                 f"{suffix} ({len(members)}名)**\n"
                 f"{member_chunk}\n"
