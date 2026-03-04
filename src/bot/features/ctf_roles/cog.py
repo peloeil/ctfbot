@@ -10,7 +10,11 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from ...cogs._runtime import get_runtime
-from ...utils.helpers import logger, send_interaction_message, send_message_safely
+from ...utils.helpers import (
+    logger,
+    send_interaction_message,
+    send_message_safely,
+)
 from .models import INPUT_DATETIME_PLACEHOLDER, CampaignDraft, CTFRoleCampaign
 
 REACTION_EMOJI = "✅"
@@ -40,6 +44,8 @@ ROLE_COLOR_SUGGESTIONS: tuple[tuple[str, str], ...] = (
 @dataclass(frozen=True, slots=True)
 class CloseCampaignReport:
     was_closed: bool
+    archive_at_unix: int | None = None
+    snapshot_member_count: int | None = None
     warnings: tuple[str, ...] = ()
 
 
@@ -107,9 +113,11 @@ class CTFRoleCampaigns(
             self.settings.tzinfo, "key", self.settings.timezone
         )
         self.close_expired_campaigns.start()
+        self.archive_closed_campaigns.start()
 
     async def cog_unload(self) -> None:
         self.close_expired_campaigns.cancel()
+        self.archive_closed_campaigns.cancel()
 
     @staticmethod
     def _can_operate_in_channel(
@@ -428,6 +436,73 @@ class CTFRoleCampaigns(
             return False
 
     @staticmethod
+    def _split_member_records(
+        members: builtins.list[discord.Member],
+    ) -> builtins.list[str]:
+        if not members:
+            return ["(参加者なし)"]
+
+        chunks: builtins.list[str] = []
+        current_lines: builtins.list[str] = []
+        current_length = 0
+        max_chunk_length = 1600
+        for member in members:
+            safe_name = discord.utils.escape_mentions(member.display_name)
+            line = f"- {safe_name} (ID: {member.id})"
+            token_length = len(line) + (1 if current_lines else 0)
+            if current_lines and current_length + token_length > max_chunk_length:
+                chunks.append("\n".join(current_lines))
+                current_lines = [line]
+                current_length = len(line)
+                continue
+            current_lines.append(line)
+            current_length += token_length
+
+        if current_lines:
+            chunks.append("\n".join(current_lines))
+        return chunks
+
+    async def _record_members_on_close(
+        self,
+        *,
+        guild: discord.Guild,
+        campaign: CTFRoleCampaign,
+        role: discord.Role | None,
+        archive_at_unix: int | None,
+    ) -> tuple[int | None, bool]:
+        if campaign.discussion_channel_id is None:
+            return None, False
+
+        discussion_channel = await self._resolve_text_channel(
+            guild, campaign.discussion_channel_id
+        )
+        if discussion_channel is None:
+            return None, False
+        if role is None:
+            return None, False
+
+        members = [member for member in role.members if not member.bot]
+        member_chunks = self._split_member_records(members)
+        archive_text = self.usecase.format_unix_datetime(archive_at_unix)
+        for index, member_chunk in enumerate(member_chunks, start=1):
+            suffix = (
+                ""
+                if len(member_chunks) == 1
+                else f" ({index}/{len(member_chunks)})"
+            )
+            content = (
+                f"🧾 **{campaign.ctf_name} 終了時点の参加メンバー"
+                f"{suffix} ({len(members)}名)**\n"
+                f"{member_chunk}\n"
+                f"archive移行予定: {archive_text}"
+            )
+            message = await send_message_safely(discussion_channel, content=content)
+            if message is None:
+                return len(members), False
+
+        return len(members), True
+
+    @staticmethod
     def _resolve_role_announce_channel(
         guild: discord.Guild,
     ) -> discord.TextChannel | None:
@@ -454,8 +529,8 @@ class CTFRoleCampaigns(
             f"開始: {start_text}\n"
             f"終了: {end_text}\n"
             f"CTFチャンネル: {discussion_channel.mention}\n"
-            f"{REACTION_EMOJI} を付けると {role.mention} を付与します。\n"
-            f"{REACTION_EMOJI} を外すと {role.mention} を剥奪します。"
+            f"{REACTION_EMOJI} を付けると {role.mention} を付与します"
+            "(終了時刻まで有効)。"
         )
 
     def _format_campaign_line(self, campaign: CTFRoleCampaign) -> str:
@@ -465,9 +540,21 @@ class CTFRoleCampaigns(
             if campaign.end_at_unix is not None
             else "常設"
         )
+        archive_text = (
+            self.usecase.format_unix_datetime(campaign.archive_at_unix)
+            if campaign.archive_at_unix is not None
+            else "-"
+        )
+        archived_text = (
+            self.usecase.format_unix_datetime(campaign.archived_at_unix)
+            if campaign.archived_at_unix is not None
+            else "-"
+        )
         return (
             f"- {campaign.ctf_name} | status={campaign.status.value} | "
-            f"start={start_text} | end={end_text} | by=<@{campaign.created_by}>"
+            f"start={start_text} | end={end_text} | "
+            f"archive_at={archive_text} | archived_at={archived_text} | "
+            f"by=<@{campaign.created_by}>"
         )
 
     async def _cleanup_created_resources(
@@ -499,7 +586,11 @@ class CTFRoleCampaigns(
                 )
 
     async def _mark_campaign_message_closed(
-        self, guild: discord.Guild, campaign: CTFRoleCampaign
+        self,
+        guild: discord.Guild,
+        campaign: CTFRoleCampaign,
+        *,
+        archive_at_unix: int | None,
     ) -> bool:
         channel = await self._resolve_text_channel(guild, campaign.channel_id)
         if channel is None:
@@ -522,8 +613,15 @@ class CTFRoleCampaigns(
         if message.content.startswith(CLOSED_HEADER):
             return True
 
+        archive_text = self.usecase.format_unix_datetime(archive_at_unix)
         try:
-            await message.edit(content=f"{CLOSED_HEADER}\n\n{message.content}")
+            await message.edit(
+                content=(
+                    f"{CLOSED_HEADER}\n"
+                    f"🗂️ archive移行予定: {archive_text}\n\n"
+                    f"{message.content}"
+                )
+            )
         except (discord.Forbidden, discord.HTTPException):
             logger.warning("Failed to edit campaign close message: %s", message.id)
             return False
@@ -532,21 +630,60 @@ class CTFRoleCampaigns(
     async def _close_campaign(
         self,
         campaign: CTFRoleCampaign,
-        *,
-        reason: str,
     ) -> CloseCampaignReport:
-        closed = await asyncio.to_thread(
+        close_result = await asyncio.to_thread(
             self.usecase.close_campaign,
             campaign_id=campaign.id,
         )
-        if not closed:
+        if not close_result.was_closed:
             return CloseCampaignReport(was_closed=False)
 
         warnings: list[str] = []
         guild = self.bot.get_guild(campaign.guild_id)
         if guild is None:
             warnings.append("guild_not_found")
-            return CloseCampaignReport(was_closed=True, warnings=tuple(warnings))
+            return CloseCampaignReport(
+                was_closed=True,
+                archive_at_unix=close_result.archive_at_unix,
+                warnings=tuple(warnings),
+            )
+
+        role = await self._resolve_role(guild, campaign.role_id)
+        snapshot_count, snapshot_saved = await self._record_members_on_close(
+            guild=guild,
+            campaign=campaign,
+            role=role,
+            archive_at_unix=close_result.archive_at_unix,
+        )
+        if not snapshot_saved:
+            warnings.append("member_snapshot_failed")
+
+        message_closed = await self._mark_campaign_message_closed(
+            guild,
+            campaign,
+            archive_at_unix=close_result.archive_at_unix,
+        )
+        if not message_closed:
+            warnings.append("message_update_failed")
+
+        return CloseCampaignReport(
+            was_closed=True,
+            archive_at_unix=close_result.archive_at_unix,
+            snapshot_member_count=snapshot_count,
+            warnings=tuple(warnings),
+        )
+
+    async def _archive_campaign(
+        self,
+        campaign: CTFRoleCampaign,
+        *,
+        reason: str,
+    ) -> tuple[bool, tuple[str, ...]]:
+        warnings: list[str] = []
+
+        guild = self.bot.get_guild(campaign.guild_id)
+        if guild is None:
+            return False, ("guild_not_found",)
 
         role = await self._resolve_role(guild, campaign.role_id)
         archived = await self._archive_discussion_channel(
@@ -557,23 +694,30 @@ class CTFRoleCampaigns(
         )
         if not archived:
             warnings.append("discussion_archive_failed")
+            return False, tuple(warnings)
 
         if role is not None:
             try:
                 await role.delete(reason=reason)
             except (discord.Forbidden, discord.HTTPException):
-                logger.warning("Failed to delete role for campaign: %s", campaign.id)
-                warnings.append("role_delete_failed")
+                logger.warning("Failed to delete role for archive: %s", campaign.id)
+                return False, ("role_delete_failed",)
 
-        message_closed = await self._mark_campaign_message_closed(guild, campaign)
-        if not message_closed:
-            warnings.append("message_update_failed")
+        marked = await asyncio.to_thread(
+            self.usecase.mark_campaign_archived,
+            campaign_id=campaign.id,
+        )
+        if not marked:
+            return False, ("archive_state_update_failed",)
 
-        return CloseCampaignReport(was_closed=True, warnings=tuple(warnings))
+        return True, ()
 
     async def _handle_reaction_event(
         self, payload: discord.RawReactionActionEvent, *, add_role: bool
     ) -> None:
+        if not add_role:
+            # Role removal is intentionally delayed until archive migration.
+            return
         if payload.guild_id is None:
             return
         if str(payload.emoji) != REACTION_EMOJI:
@@ -592,14 +736,14 @@ class CTFRoleCampaigns(
         if campaign is None:
             return
         if self.usecase.is_campaign_expired(campaign):
-            await self._close_campaign(campaign, reason="Campaign expired")
+            await self._close_campaign(campaign)
             return
 
         guild = self.bot.get_guild(payload.guild_id)
         if guild is None:
             return
 
-        member = payload.member if add_role else None
+        member = payload.member
         if member is None:
             member = await self._fetch_member(guild, payload.user_id)
         if member is None or member.bot:
@@ -610,16 +754,10 @@ class CTFRoleCampaigns(
             return
 
         try:
-            if add_role:
-                if role not in member.roles:
-                    await member.add_roles(
-                        role,
-                        reason=f"Joined CTF role: {campaign.ctf_name}",
-                    )
-            elif role in member.roles:
-                await member.remove_roles(
+            if role not in member.roles:
+                await member.add_roles(
                     role,
-                    reason=f"Left CTF role: {campaign.ctf_name}",
+                    reason=f"Joined CTF role: {campaign.ctf_name}",
                 )
         except discord.Forbidden:
             logger.warning(
@@ -892,10 +1030,7 @@ class CTFRoleCampaigns(
             )
             return
 
-        report = await self._close_campaign(
-            campaign,
-            reason=f"CTF role campaign closed by {interaction.user.id}",
-        )
+        report = await self._close_campaign(campaign)
         if not report.was_closed:
             await interaction.followup.send(
                 "この募集はすでに終了済みです。",
@@ -912,8 +1047,17 @@ class CTFRoleCampaigns(
             )
             return
 
+        archive_text = self.usecase.format_unix_datetime(report.archive_at_unix)
+        member_count_text = (
+            str(report.snapshot_member_count)
+            if report.snapshot_member_count is not None
+            else "不明"
+        )
         await interaction.followup.send(
-            f"`{campaign.ctf_name}` を終了し、ロールを削除しました。",
+            f"`{campaign.ctf_name}` を終了しました。\n"
+            f"終了時点メンバー記録: {member_count_text}名\n"
+            f"archive移行予定: {archive_text}\n"
+            "archive移行まではロールを保持します。",
             ephemeral=True,
         )
 
@@ -933,10 +1077,30 @@ class CTFRoleCampaigns(
     async def close_expired_campaigns(self) -> None:
         campaigns = await asyncio.to_thread(self.usecase.list_due_campaigns, limit=20)
         for campaign in campaigns:
-            await self._close_campaign(campaign, reason="CTF campaign end_at reached")
+            await self._close_campaign(campaign)
+
+    @tasks.loop(minutes=1)
+    async def archive_closed_campaigns(self) -> None:
+        campaigns = await asyncio.to_thread(self.usecase.list_due_archives, limit=20)
+        for campaign in campaigns:
+            archived, warnings = await self._archive_campaign(
+                campaign,
+                reason="CTF campaign archive_at reached",
+            )
+            if archived:
+                continue
+            logger.warning(
+                "Failed to archive campaign=%s warnings=%s",
+                campaign.id,
+                ",".join(warnings) if warnings else "(unknown)",
+            )
 
     @close_expired_campaigns.before_loop
     async def before_close_expired_campaigns(self) -> None:
+        await self.bot.wait_until_ready()
+
+    @archive_closed_campaigns.before_loop
+    async def before_archive_closed_campaigns(self) -> None:
         await self.bot.wait_until_ready()
 
 
