@@ -30,6 +30,7 @@ class CTFRoleCampaign:
     archive_at_unix: int | None = None
     archived_at_unix: int | None = None
     discussion_channel_id: int | None = None
+    voice_channel_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

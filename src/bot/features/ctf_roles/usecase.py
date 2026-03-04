@@ -128,6 +128,7 @@ class CTFRoleUseCase:
         discussion_channel_id: int | None,
         created_by: int,
         draft: CampaignDraft,
+        voice_channel_id: int | None = None,
     ) -> CTFRoleCampaign:
         return self._repository.create_campaign(
             guild_id=guild_id,
@@ -135,6 +136,7 @@ class CTFRoleUseCase:
             message_id=message_id,
             role_id=role_id,
             discussion_channel_id=discussion_channel_id,
+            voice_channel_id=voice_channel_id,
             ctf_name=draft.ctf_name,
             start_at_unix=draft.start_at_unix,
             end_at_unix=draft.end_at_unix,

@@ -10,7 +10,7 @@ SELECT_COLUMNS = (
     "id, guild_id, channel_id, message_id, role_id, ctf_name, "
     "start_at_unix, end_at_unix, status, created_by, created_at_unix, "
     "start_notified_at_unix, closed_at_unix, archive_at_unix, "
-    "archived_at_unix, discussion_channel_id"
+    "archived_at_unix, discussion_channel_id, voice_channel_id"
 )
 
 
@@ -53,6 +53,7 @@ class CTFRoleCampaignRepository:
         message_id: int,
         role_id: int,
         discussion_channel_id: int | None,
+        voice_channel_id: int | None,
         ctf_name: str,
         start_at_unix: int,
         end_at_unix: int | None,
@@ -68,6 +69,7 @@ class CTFRoleCampaignRepository:
                     message_id,
                     role_id,
                     discussion_channel_id,
+                    voice_channel_id,
                     ctf_name,
                     start_at_unix,
                     end_at_unix,
@@ -75,7 +77,7 @@ class CTFRoleCampaignRepository:
                     created_by,
                     created_at_unix
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     guild_id,
@@ -83,6 +85,7 @@ class CTFRoleCampaignRepository:
                     message_id,
                     role_id,
                     discussion_channel_id,
+                    voice_channel_id,
                     ctf_name,
                     start_at_unix,
                     end_at_unix,
@@ -111,6 +114,7 @@ class CTFRoleCampaignRepository:
             start_notified_at_unix=None,
             closed_at_unix=None,
             discussion_channel_id=discussion_channel_id,
+            voice_channel_id=voice_channel_id,
         )
 
     def find_active_campaign_by_message(
@@ -332,6 +336,9 @@ class CTFRoleCampaignRepository:
         discussion_channel_id = (
             int(cast(int, typed_row[15])) if typed_row[15] is not None else None
         )
+        voice_channel_id = (
+            int(cast(int, typed_row[16])) if typed_row[16] is not None else None
+        )
 
         return CTFRoleCampaign(
             id=int(cast(int, typed_row[0])),
@@ -350,4 +357,5 @@ class CTFRoleCampaignRepository:
             archive_at_unix=archive_at_unix,
             archived_at_unix=archived_at_unix,
             discussion_channel_id=discussion_channel_id,
+            voice_channel_id=voice_channel_id,
         )

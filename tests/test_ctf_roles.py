@@ -63,6 +63,7 @@ class CTFRoleUseCaseTests(unittest.TestCase):
                 message_id=200,
                 role_id=300,
                 discussion_channel_id=500,
+                voice_channel_id=600,
                 created_by=10,
                 draft=draft_validation.draft,
             )
@@ -77,6 +78,7 @@ class CTFRoleUseCaseTests(unittest.TestCase):
             self.assertEqual(found.id, campaign.id)
             self.assertEqual(found.status, CampaignStatus.ACTIVE)
             self.assertEqual(found.discussion_channel_id, 500)
+            self.assertEqual(found.voice_channel_id, 600)
 
             closed = usecase.close_campaign(campaign_id=campaign.id)
             self.assertTrue(closed.was_closed)
@@ -107,6 +109,7 @@ class CTFRoleUseCaseTests(unittest.TestCase):
                 message_id=201,
                 role_id=301,
                 discussion_channel_id=501,
+                voice_channel_id=601,
                 created_by=10,
                 draft=draft,
             )
@@ -131,6 +134,7 @@ class CTFRoleUseCaseTests(unittest.TestCase):
                     message_id=300 + index,
                     role_id=400 + index,
                     discussion_channel_id=500 + index,
+                    voice_channel_id=600 + index,
                     created_by=10,
                     draft=draft,
                 )
@@ -161,6 +165,7 @@ class CTFRoleUseCaseTests(unittest.TestCase):
                 message_id=302,
                 role_id=402,
                 discussion_channel_id=502,
+                voice_channel_id=602,
                 created_by=10,
                 draft=draft,
             )
@@ -204,6 +209,7 @@ class CTFRoleUseCaseTests(unittest.TestCase):
                 message_id=303,
                 role_id=403,
                 discussion_channel_id=503,
+                voice_channel_id=603,
                 created_by=10,
                 draft=draft,
             )
