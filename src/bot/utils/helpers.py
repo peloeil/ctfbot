@@ -1,19 +1,22 @@
-"""
-Utility functions for the CTF Discord bot.
-Contains common helper functions used across the bot.
-"""
-
 import logging
 from typing import Any
 
 import discord
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
 logger = logging.getLogger("ctfbot")
+
+
+def configure_logging(level: str) -> None:
+    """Configure root logger once at startup."""
+    root = logging.getLogger()
+    if root.handlers:
+        root.setLevel(level)
+        return
+
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s:%(levelname)s:%(name)s: %(message)s",
+    )
 
 
 async def send_message_safely(
@@ -32,21 +35,32 @@ async def send_message_safely(
     Returns:
         The sent message or None if sending failed
     """
+    if content is None and embed is None:
+        raise ValueError("Either content or embed must be provided")
+
     try:
-        if content is None and embed is None:
-            raise ValueError("Either content or embed must be provided")
-
-        # Build kwargs to avoid overload issues
-        kwargs = {}
+        if content is not None and embed is not None:
+            return await channel.send(content=content, embed=embed)
         if content is not None:
-            kwargs["content"] = content
-        if embed is not None:
-            kwargs["embed"] = embed
-
-        return await channel.send(**kwargs)
-    except Exception as e:
-        logger.error(f"Failed to send message: {e}")
+            return await channel.send(content=content)
+        assert embed is not None
+        return await channel.send(embed=embed)
+    except discord.HTTPException:
+        logger.exception("Failed to send message")
         return None
+
+
+async def send_interaction_message(
+    interaction: discord.Interaction, content: str, ephemeral: bool = True
+) -> None:
+    """Send interaction response safely, handling already-responded state."""
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(content, ephemeral=ephemeral)
+        else:
+            await interaction.response.send_message(content, ephemeral=ephemeral)
+    except discord.HTTPException:
+        logger.exception("Failed to send interaction response")
 
 
 def format_code_block(content: str, language: str = "") -> str:
@@ -92,8 +106,8 @@ def handle_error(error: Exception, context: Any = None) -> str:
     error_type = type(error).__name__
     error_message = str(error)
 
-    logger.error(f"Error ({error_type}): {error_message}", exc_info=True)
+    logger.error("Error (%s): %s", error_type, error_message, exc_info=True)
     if context:
-        logger.error(f"Context: {context}")
+        logger.error("Context: %s", context)
 
     return f"An error occurred: {error_message}"
