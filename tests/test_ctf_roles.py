@@ -188,6 +188,34 @@ class CTFRoleUseCaseTests(unittest.TestCase):
             due_after_mark = usecase.list_due_archives(limit=10)
             self.assertNotIn(campaign.id, [row.id for row in due_after_mark])
 
+    def test_due_starts_detected_and_marked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "ctfbot.db"
+            usecase, service = self._build_usecase(str(db_path))
+            now_unix = service.now_unix()
+            draft = CampaignDraft(
+                ctf_name="StartTarget CTF",
+                start_at_unix=now_unix - 60,
+                end_at_unix=now_unix + 3600,
+            )
+            campaign = usecase.create_campaign(
+                guild_id=1,
+                channel_id=100,
+                message_id=303,
+                role_id=403,
+                discussion_channel_id=503,
+                created_by=10,
+                draft=draft,
+            )
+
+            due = usecase.list_due_starts(limit=10)
+            self.assertIn(campaign.id, [row.id for row in due])
+
+            marked = usecase.mark_campaign_started(campaign_id=campaign.id)
+            self.assertTrue(marked)
+            due_after_mark = usecase.list_due_starts(limit=10)
+            self.assertNotIn(campaign.id, [row.id for row in due_after_mark])
+
 
 class CTFRoleCogHelperTests(unittest.TestCase):
     def test_build_channel_base_name_normalizes_text(self) -> None:
