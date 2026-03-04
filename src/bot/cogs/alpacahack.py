@@ -12,7 +12,6 @@ from ..db.database import (
     insert_alpacahack_user,
 )
 from ..services.alpacahack_service import (
-    get_alpacahack_info,
     get_week_range,
     get_weekly_solve_challenges,
 )
@@ -64,12 +63,6 @@ class Alpacahack(commands.Cog):
             logger.warning("Configured channel %s is not messageable", channel_id)
             return None
         return channel
-
-    async def _render_user_info_messages(self, username: str) -> list[str]:
-        sections = await asyncio.to_thread(lambda: list(get_alpacahack_info(username)))
-        if not sections:
-            return [format_code_block("No data found")]
-        return [format_code_block(section) for section in sections]
 
     @staticmethod
     def _format_solve_list(solves: list[str], max_items: int = 12) -> str:
@@ -135,22 +128,9 @@ class Alpacahack(commands.Cog):
 
         return embed
 
-    @tasks.loop(time=[ALPACAHACK_SOLVE_TIME])
-    async def alpacahack_solves(self) -> None:
-        """Post weekly AlpacaHack solve summary for tracked users."""
-        today = datetime.datetime.now(settings.tzinfo).date()
-        if today.weekday() != WEEKLY_NOTIFICATION_WEEKDAY:
-            return
-
-        channel = await self._resolve_target_channel()
-        if channel is None:
-            return
-
-        users = await asyncio.to_thread(get_all_alpacahack_users)
-        if not users:
-            return
-
-        week_start, week_end = get_week_range(today)
+    async def _collect_weekly_solves(
+        self, users: list[tuple[str]], today: datetime.date
+    ) -> dict[str, list[str]]:
         weekly_solves: dict[str, list[str]] = {}
 
         for user_row in users:
@@ -162,13 +142,51 @@ class Alpacahack(commands.Cog):
                 weekly_solves[username] = solves
             await asyncio.sleep(0.2)
 
+        return weekly_solves
+
+    async def _send_weekly_summary_embed(
+        self,
+        target_channel: discord.abc.Messageable,
+        period_end: datetime.date,
+        *,
+        notify_if_no_users: bool,
+    ) -> None:
+        users = await asyncio.to_thread(get_all_alpacahack_users)
+        if not users:
+            if notify_if_no_users:
+                await send_message_safely(
+                    target_channel, content="誰も登録されていません"
+                )
+            return
+
+        today = datetime.datetime.now(settings.tzinfo).date()
+        week_start, week_end = get_week_range(today)
+        weekly_solves = await self._collect_weekly_solves(users, today)
+
         embed = self._build_weekly_summary_embed(
             weekly_solves=weekly_solves,
             week_start=week_start,
-            week_end=week_end,
+            week_end=period_end if period_end >= week_start else week_end,
             total_users=len(users),
         )
-        await send_message_safely(channel, embed=embed)
+        await send_message_safely(target_channel, embed=embed)
+
+    @tasks.loop(time=[ALPACAHACK_SOLVE_TIME])
+    async def alpacahack_solves(self) -> None:
+        """Post weekly AlpacaHack solve summary for tracked users."""
+        today = datetime.datetime.now(settings.tzinfo).date()
+        if today.weekday() != WEEKLY_NOTIFICATION_WEEKDAY:
+            return
+
+        channel = await self._resolve_target_channel()
+        if channel is None:
+            return
+
+        await self._send_weekly_summary_embed(
+            target_channel=channel,
+            period_end=today,
+            notify_if_no_users=False,
+        )
 
     @alpacahack_solves.before_loop
     async def before_alpacahack_solves(self) -> None:
@@ -196,17 +214,12 @@ class Alpacahack(commands.Cog):
 
     @commands.command()
     async def show_alpaca_score(self, ctx: commands.Context) -> None:
-        users = await asyncio.to_thread(get_all_alpacahack_users)
-        if not users:
-            await send_message_safely(ctx.channel, content="誰も登録されていません")
-            return
-
-        for user_row in users:
-            username = str(user_row[0])
-            await send_message_safely(ctx.channel, content=f"## {username}")
-            for message in await self._render_user_info_messages(username):
-                await send_message_safely(ctx.channel, content=message)
-            await asyncio.sleep(0.5)
+        today = datetime.datetime.now(settings.tzinfo).date()
+        await self._send_weekly_summary_embed(
+            target_channel=ctx.channel,
+            period_end=today,
+            notify_if_no_users=True,
+        )
 
 
 async def setup(bot: commands.Bot) -> None:
