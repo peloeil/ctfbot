@@ -68,7 +68,10 @@ class CTFBot(commands.Bot):
         )
         if channel is None:
             return
-        await channel.send(content)
+        try:
+            await channel.send(content)
+        except (discord.Forbidden, discord.HTTPException):
+            logger.exception("Failed to send status message")
 
 
 def create_bot(settings: Settings | None = None) -> CTFBot:
