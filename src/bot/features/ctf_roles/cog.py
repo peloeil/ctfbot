@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from dataclasses import dataclass
 
 import discord
@@ -17,6 +18,10 @@ STATUS_ACTIVE = "active"
 STATUS_CLOSED = "closed"
 STATUS_ALL = "all"
 CLOSED_HEADER = "🔒 **この募集は終了しました。**"
+CTF_CATEGORY_NAME = "ctf"
+ROLE_ANNOUNCE_CHANNEL_NAME = "role"
+FALLBACK_CHANNEL_NAME = "ctf"
+MAX_CHANNEL_NAME_LENGTH = 100
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,12 +36,10 @@ class CTFRoleCreateModal(discord.ui.Modal, title="CTF Role 募集作成"):
         cog: CTFRoleCampaigns,
         *,
         ctf_name: str,
-        channel_id: int,
     ) -> None:
         super().__init__()
         self._cog = cog
         self._ctf_name = ctf_name
-        self._channel_id = channel_id
         timezone_label = cog.timezone_label
         self.start_at_input = discord.ui.TextInput(
             label=f"開始日時 ({timezone_label})",
@@ -57,7 +60,6 @@ class CTFRoleCreateModal(discord.ui.Modal, title="CTF Role 募集作成"):
         await self._cog.handle_create_modal_submit(
             interaction,
             ctf_name=self._ctf_name,
-            channel_id=self._channel_id,
             start_at_raw=self.start_at_input.value,
             end_at_raw=self.end_at_input.value,
         )
@@ -158,8 +160,105 @@ class CTFRoleCampaigns(
         except (discord.NotFound, discord.Forbidden, discord.HTTPException):
             return None
 
+    @staticmethod
+    def _build_channel_base_name(ctf_name: str) -> str:
+        lowered = ctf_name.strip().lower()
+        lowered = lowered.replace("_", "-")
+        lowered = re.sub(r"\s+", "-", lowered)
+        lowered = re.sub(r"[^\w-]", "-", lowered)
+        lowered = re.sub(r"-{2,}", "-", lowered).strip("-")
+        if not lowered:
+            return FALLBACK_CHANNEL_NAME
+        return lowered[:MAX_CHANNEL_NAME_LENGTH].strip("-") or FALLBACK_CHANNEL_NAME
+
+    @staticmethod
+    def _build_channel_name_with_suffix(base_name: str, suffix: int) -> str:
+        suffix_text = f"-{suffix}"
+        max_base_length = MAX_CHANNEL_NAME_LENGTH - len(suffix_text)
+        trimmed = base_name[:max_base_length].strip("-")
+        if not trimmed:
+            trimmed = FALLBACK_CHANNEL_NAME
+        return f"{trimmed}{suffix_text}"
+
+    def _pick_unique_channel_name(
+        self,
+        *,
+        category: discord.CategoryChannel,
+        base_name: str,
+    ) -> str:
+        existing_names = {
+            text_channel.name for text_channel in category.text_channels
+        }
+        if base_name not in existing_names:
+            return base_name
+
+        for suffix in range(2, 1000):
+            candidate = self._build_channel_name_with_suffix(base_name, suffix)
+            if candidate not in existing_names:
+                return candidate
+        return self._build_channel_name_with_suffix(base_name, 1000)
+
+    async def _ensure_ctf_category(
+        self, guild: discord.Guild
+    ) -> discord.CategoryChannel:
+        for category in guild.categories:
+            if category.name.strip().lower() == CTF_CATEGORY_NAME:
+                return category
+
+        return await guild.create_category(
+            CTF_CATEGORY_NAME,
+            reason="Create CTF category for ctf-role campaigns",
+        )
+
+    async def _create_ctf_discussion_channel(
+        self,
+        *,
+        guild: discord.Guild,
+        draft: CampaignDraft,
+        creator_id: int,
+    ) -> discord.TextChannel:
+        category = await self._ensure_ctf_category(guild)
+        base_name = self._build_channel_base_name(draft.ctf_name)
+        channel_name = self._pick_unique_channel_name(
+            category=category,
+            base_name=base_name,
+        )
+
+        start_text = self.usecase.format_unix_datetime(draft.start_at_unix)
+        end_text = (
+            self.usecase.format_unix_datetime(draft.end_at_unix)
+            if draft.end_at_unix is not None
+            else "permanent"
+        )
+        topic = (
+            f"{draft.ctf_name} discussion | start={start_text} | "
+            f"end={end_text} | owner={creator_id}"
+        )
+        if len(topic) > 1024:
+            topic = topic[:1021] + "..."
+
+        return await guild.create_text_channel(
+            name=channel_name,
+            category=category,
+            topic=topic,
+            reason=f"Create CTF discussion channel by {creator_id}",
+        )
+
+    @staticmethod
+    def _resolve_role_announce_channel(
+        guild: discord.Guild,
+    ) -> discord.TextChannel | None:
+        for text_channel in guild.text_channels:
+            if text_channel.name.strip().lower() == ROLE_ANNOUNCE_CHANNEL_NAME:
+                return text_channel
+        return None
+
     def _build_recruitment_message(
-        self, *, draft: CampaignDraft, role: discord.Role
+        self,
+        *,
+        draft: CampaignDraft,
+        role: discord.Role,
+        discussion_channel: discord.TextChannel,
     ) -> str:
         start_text = self.usecase.format_unix_datetime(draft.start_at_unix)
         if draft.end_at_unix is None:
@@ -171,7 +270,9 @@ class CTFRoleCampaigns(
             f"📣 **{draft.ctf_name}** 参加者募集\n"
             f"開始: {start_text}\n"
             f"終了: {end_text}\n"
-            f"{REACTION_EMOJI} リアクションで {role.mention} を付与します。"
+            f"CTFチャンネル: {discussion_channel.mention}\n"
+            f"{REACTION_EMOJI} を付けると {role.mention} を付与します。\n"
+            f"{REACTION_EMOJI} を外すと {role.mention} を剥奪します。"
         )
 
     def _format_campaign_line(self, campaign: CTFRoleCampaign) -> str:
@@ -189,6 +290,7 @@ class CTFRoleCampaigns(
     async def _cleanup_created_resources(
         self,
         *,
+        discussion_channel: discord.TextChannel | None,
         role: discord.Role | None,
         message: discord.Message | None,
     ) -> None:
@@ -202,6 +304,16 @@ class CTFRoleCampaigns(
                 await role.delete(reason="Cleanup after failed campaign creation")
             except (discord.Forbidden, discord.NotFound, discord.HTTPException):
                 logger.warning("Failed to clean up role: %s", role.id)
+        if discussion_channel is not None:
+            try:
+                await discussion_channel.delete(
+                    reason="Cleanup after failed campaign creation"
+                )
+            except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+                logger.warning(
+                    "Failed to clean up discussion channel: %s",
+                    discussion_channel.id,
+                )
 
     async def _mark_campaign_message_closed(
         self, guild: discord.Guild, campaign: CTFRoleCampaign
@@ -331,15 +443,11 @@ class CTFRoleCampaigns(
             )
 
     @app_commands.command(name="create", description="CTF募集メッセージを作成します。")
-    @app_commands.describe(
-        ctf_name="CTF名",
-        channel="募集メッセージを投稿するチャンネル(省略時は実行チャンネル)",
-    )
+    @app_commands.describe(ctf_name="CTF名")
     async def create(
         self,
         interaction: discord.Interaction,
         ctf_name: str,
-        channel: discord.TextChannel | None = None,
     ) -> None:
         if interaction.guild is None:
             await send_interaction_message(
@@ -349,27 +457,9 @@ class CTFRoleCampaigns(
             )
             return
 
-        target_channel = channel or interaction.channel
-        if not isinstance(target_channel, discord.TextChannel):
-            await send_interaction_message(
-                interaction,
-                "募集投稿先はテキストチャンネルを指定してください。",
-                ephemeral=True,
-            )
-            return
-
-        if not self._can_operate_in_channel(interaction.user, target_channel):
-            await send_interaction_message(
-                interaction,
-                "そのチャンネルを閲覧・投稿できるメンバーのみ利用できます。",
-                ephemeral=True,
-            )
-            return
-
         modal = CTFRoleCreateModal(
             self,
             ctf_name=ctf_name,
-            channel_id=target_channel.id,
         )
         await interaction.response.send_modal(modal)
 
@@ -378,7 +468,6 @@ class CTFRoleCampaigns(
         interaction: discord.Interaction,
         *,
         ctf_name: str,
-        channel_id: int,
         start_at_raw: str,
         end_at_raw: str,
     ) -> None:
@@ -391,21 +480,6 @@ class CTFRoleCampaigns(
             return
 
         guild = interaction.guild
-        target_channel = await self._resolve_text_channel(guild, channel_id)
-        if target_channel is None:
-            await send_interaction_message(
-                interaction,
-                "投稿先チャンネルを解決できませんでした。",
-                ephemeral=True,
-            )
-            return
-        if not self._can_operate_in_channel(interaction.user, target_channel):
-            await send_interaction_message(
-                interaction,
-                "そのチャンネルを閲覧・投稿できるメンバーのみ利用できます。",
-                ephemeral=True,
-            )
-            return
 
         await interaction.response.defer(ephemeral=True, thinking=True)
 
@@ -422,17 +496,36 @@ class CTFRoleCampaigns(
             return
 
         draft = validation.draft
+        announce_channel = self._resolve_role_announce_channel(guild)
+        if announce_channel is None:
+            await interaction.followup.send(
+                "`role` という名前のテキストチャンネルが見つかりません。"
+                "募集メッセージの投稿先として `#role` を作成してください。",
+                ephemeral=True,
+            )
+            return
+
+        discussion_channel: discord.TextChannel | None = None
         role: discord.Role | None = None
         message: discord.Message | None = None
 
         try:
+            discussion_channel = await self._create_ctf_discussion_channel(
+                guild=guild,
+                draft=draft,
+                creator_id=interaction.user.id,
+            )
             role = await guild.create_role(
                 name=draft.ctf_name,
                 mentionable=True,
                 reason=f"CTF role campaign created by {interaction.user.id}",
             )
-            content = self._build_recruitment_message(draft=draft, role=role)
-            message = await send_message_safely(target_channel, content=content)
+            content = self._build_recruitment_message(
+                draft=draft,
+                role=role,
+                discussion_channel=discussion_channel,
+            )
+            message = await send_message_safely(announce_channel, content=content)
             if message is None:
                 raise RuntimeError("Failed to send recruitment message.")
             await message.add_reaction(REACTION_EMOJI)
@@ -440,23 +533,32 @@ class CTFRoleCampaigns(
             await asyncio.to_thread(
                 self.usecase.create_campaign,
                 guild_id=guild.id,
-                channel_id=target_channel.id,
+                channel_id=announce_channel.id,
                 message_id=message.id,
                 role_id=role.id,
                 created_by=interaction.user.id,
                 draft=draft,
             )
         except discord.Forbidden:
-            await self._cleanup_created_resources(role=role, message=message)
+            await self._cleanup_created_resources(
+                discussion_channel=discussion_channel,
+                role=role,
+                message=message,
+            )
             await interaction.followup.send(
                 "Botの権限不足で募集作成に失敗しました。"
-                "Manage Roles と Add Reactions 権限を確認してください。",
+                "Manage Roles / Manage Channels / Add Reactions "
+                "権限を確認してください。",
                 ephemeral=True,
             )
             return
         except discord.HTTPException:
             logger.exception("Discord API error while creating CTF role campaign")
-            await self._cleanup_created_resources(role=role, message=message)
+            await self._cleanup_created_resources(
+                discussion_channel=discussion_channel,
+                role=role,
+                message=message,
+            )
             await interaction.followup.send(
                 "募集作成中に Discord API エラーが発生しました。",
                 ephemeral=True,
@@ -464,7 +566,11 @@ class CTFRoleCampaigns(
             return
         except Exception:
             logger.exception("Unexpected error while creating CTF role campaign")
-            await self._cleanup_created_resources(role=role, message=message)
+            await self._cleanup_created_resources(
+                discussion_channel=discussion_channel,
+                role=role,
+                message=message,
+            )
             await interaction.followup.send(
                 "募集作成中にエラーが発生しました。",
                 ephemeral=True,
@@ -472,8 +578,12 @@ class CTFRoleCampaigns(
             return
 
         assert message is not None
+        assert discussion_channel is not None
         await interaction.followup.send(
-            f"募集を作成しました: {message.jump_url}",
+            "募集を作成しました: "
+            f"{message.jump_url}\n"
+            f"募集投稿先: {announce_channel.mention}\n"
+            f"CTFチャンネル: {discussion_channel.mention}",
             ephemeral=True,
         )
 
