@@ -494,6 +494,7 @@ class CTFRoleCampaigns(
                     reason=reason,
                 )
             archive_category = await self._ensure_archive_category(guild)
+            moved_to_archive = discussion_channel.category_id != archive_category.id
             await discussion_channel.edit(category=archive_category, reason=reason)
             await discussion_channel.set_permissions(
                 guild.default_role,
@@ -512,14 +513,15 @@ class CTFRoleCampaigns(
                     overwrite=None,
                     reason=reason,
                 )
-            await send_message_safely(
-                discussion_channel,
-                content=(
-                    "📦 このCTFは終了しました。"
-                    "チャンネルを archive に移動し、"
-                    "全体公開(read-only)に切り替えました。"
-                ),
-            )
+            if moved_to_archive:
+                await send_message_safely(
+                    discussion_channel,
+                    content=(
+                        "📦 このCTFは終了しました。"
+                        "チャンネルを archive に移動し、"
+                        "全体公開(read-only)に切り替えました。"
+                    ),
+                )
             return True
         except (discord.Forbidden, discord.HTTPException) as error:
             logger.warning(
