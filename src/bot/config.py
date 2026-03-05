@@ -19,15 +19,27 @@ def _read_required_str(environ: Mapping[str, str], name: str) -> str:
     return value
 
 
-def _read_int(environ: Mapping[str, str], name: str, default: int = 0) -> int:
+def _read_int(
+    environ: Mapping[str, str],
+    name: str,
+    default: int = 0,
+    *,
+    min_value: int | None = None,
+) -> int:
     raw_value = environ.get(name)
     if raw_value is None or raw_value.strip() == "":
-        return default
+        value = default
+    else:
+        try:
+            value = int(raw_value)
+        except ValueError as exc:
+            raise ConfigurationError(
+                f"{name} must be an integer: {raw_value!r}"
+            ) from exc
 
-    try:
-        return int(raw_value)
-    except ValueError as exc:
-        raise ConfigurationError(f"{name} must be an integer: {raw_value!r}") from exc
+    if min_value is not None and value < min_value:
+        raise ConfigurationError(f"{name} must be >= {min_value}: {value!r}")
+    return value
 
 
 def _read_log_level(environ: Mapping[str, str]) -> str:
@@ -111,8 +123,8 @@ def load_settings(
     return Settings(
         discord_token=_read_required_str(env, "DISCORD_TOKEN"),
         command_prefix=command_prefix,
-        bot_channel_id=_read_int(env, "BOT_CHANNEL_ID"),
-        bot_status_channel_id=_read_int(env, "BOT_STATUS_CHANNEL_ID"),
+        bot_channel_id=_read_int(env, "BOT_CHANNEL_ID", min_value=0),
+        bot_status_channel_id=_read_int(env, "BOT_STATUS_CHANNEL_ID", min_value=0),
         timezone=timezone,
         tzinfo=tzinfo,
         log_level=_read_log_level(env),
@@ -123,7 +135,17 @@ def load_settings(
         ctftime_notification_time=_read_clock_time(
             env, "CTFTIME_NOTIFICATION_TIME", "09:00", tzinfo=tzinfo
         ),
-        ctftime_window_days=_read_int(env, "CTFTIME_WINDOW_DAYS", default=14),
-        ctftime_event_limit=_read_int(env, "CTFTIME_EVENT_LIMIT", default=20),
+        ctftime_window_days=_read_int(
+            env,
+            "CTFTIME_WINDOW_DAYS",
+            default=14,
+            min_value=1,
+        ),
+        ctftime_event_limit=_read_int(
+            env,
+            "CTFTIME_EVENT_LIMIT",
+            default=20,
+            min_value=1,
+        ),
         ctftime_user_agent=_read_user_agent(env),
     )

@@ -62,6 +62,45 @@ class SettingsTests(unittest.TestCase):
             with self.assertRaises(ConfigurationError):
                 bot.config.load_settings(environ=env)
 
+    def test_negative_bot_channel_id_raises_error(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "alpaca.db"
+            env = {
+                "DISCORD_TOKEN": "token",
+                "TIMEZONE": "Asia/Tokyo",
+                "DATABASE_PATH": str(db_path),
+                "BOT_CHANNEL_ID": "-1",
+            }
+
+            with self.assertRaises(ConfigurationError):
+                bot.config.load_settings(environ=env)
+
+    def test_non_positive_ctftime_window_days_raises_error(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "alpaca.db"
+            env = {
+                "DISCORD_TOKEN": "token",
+                "TIMEZONE": "Asia/Tokyo",
+                "DATABASE_PATH": str(db_path),
+                "CTFTIME_WINDOW_DAYS": "0",
+            }
+
+            with self.assertRaises(ConfigurationError):
+                bot.config.load_settings(environ=env)
+
+    def test_non_positive_ctftime_event_limit_raises_error(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "alpaca.db"
+            env = {
+                "DISCORD_TOKEN": "token",
+                "TIMEZONE": "Asia/Tokyo",
+                "DATABASE_PATH": str(db_path),
+                "CTFTIME_EVENT_LIMIT": "-3",
+            }
+
+            with self.assertRaises(ConfigurationError):
+                bot.config.load_settings(environ=env)
+
 
 if __name__ == "__main__":
     unittest.main()
