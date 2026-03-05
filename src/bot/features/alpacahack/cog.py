@@ -8,7 +8,6 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from ...cogs._runtime import get_runtime
-from ...discord_gateway import DiscordGateway
 from ...utils.helpers import (
     format_code_block,
     logger,
@@ -19,6 +18,8 @@ from .models import UserMutationResult, UserMutationStatus
 from .usecase import WeeklySolveSummary
 
 WEEKLY_NOTIFICATION_WEEKDAY = 6  # 0=Mon ... 6=Sun
+CTF_CATEGORY_NAME = "ctf"
+ALPACAHACK_CHANNEL_NAME = "alpacahack"
 
 
 class Alpacahack(
@@ -32,7 +33,6 @@ class Alpacahack(
         self.bot = bot
         self.runtime = get_runtime(bot)
         self.settings = self.runtime.settings
-        self.gateway = DiscordGateway(bot, logger)
         self.usecase = self.runtime.alpacahack_usecase
         self.alpacahack_solves.change_interval(time=self.settings.alpacahack_solve_time)
         self.alpacahack_solves.start()
@@ -40,10 +40,33 @@ class Alpacahack(
     async def cog_unload(self) -> None:
         self.alpacahack_solves.cancel()
 
+    @staticmethod
+    def _normalize_name(name: str) -> str:
+        return name.strip().lower()
+
+    @classmethod
+    def _find_alpacahack_channel(
+        cls, guild: discord.Guild
+    ) -> discord.TextChannel | None:
+        for category in guild.categories:
+            if cls._normalize_name(category.name) != CTF_CATEGORY_NAME:
+                continue
+            for channel in category.text_channels:
+                if cls._normalize_name(channel.name) == ALPACAHACK_CHANNEL_NAME:
+                    return channel
+        return None
+
     async def _resolve_target_channel(self) -> discord.abc.Messageable | None:
-        return await self.gateway.resolve_messageable_channel(
-            self.settings.bot_channel_id
+        for guild in self.bot.guilds:
+            channel = self._find_alpacahack_channel(guild)
+            if channel is not None:
+                return channel
+        logger.warning(
+            "Could not find #%s under %s category in joined guilds",
+            ALPACAHACK_CHANNEL_NAME,
+            CTF_CATEGORY_NAME,
         )
+        return None
 
     @staticmethod
     def _format_solve_list(solves: list[str], max_items: int = 12) -> str:
