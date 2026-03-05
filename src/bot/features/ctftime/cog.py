@@ -141,7 +141,10 @@ class CTFTimeNotifications(commands.Cog):
         )
         return embed
 
-    @app_commands.command(name="ctf", description="CTFtimeの予定を手動で取得します。")
+    @app_commands.command(
+        name="ctftime",
+        description="CTFtimeの予定を手動で取得します。",
+    )
     async def manual_ctf_check(self, interaction: discord.Interaction) -> None:
         target_channel = interaction.channel
         if not isinstance(target_channel, (discord.TextChannel, discord.Thread)):
