@@ -7,7 +7,11 @@ from discord.ext import commands
 from ..utils.helpers import logger, send_interaction_message
 
 
-class MessageTools(commands.Cog):
+class MessageTools(
+    commands.GroupCog,
+    group_name="message",
+    group_description="メッセージ関連コマンドです。",
+):
     """Slash commands for echo/pin/unpin utilities."""
 
     MESSAGE_LINK_REGEX = re.compile(
