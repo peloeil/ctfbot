@@ -5,13 +5,13 @@ CTF サーバー向け Discord bot です。
 
 ## 主な機能
 
-- CTFtime の定期通知（週次）と手動通知コマンド `/ctf`
+- CTFtime の定期通知（週次）と手動通知コマンド `/ctftime`
 - CTF ロール募集管理（`/ctf-role create|list|close`、`#role` で募集、`ctf` カテゴリへ専用チャンネル作成、リアクション連動ロール付与、終了/アーカイブ自動処理、ロール色指定）
-- times カテゴリのチャンネル作成 (`/create-times`)
+- times カテゴリのチャンネル作成 (`/times create`)
 - AlpacaHack の週次 solve サマリ通知（登録ユーザー対象、毎週日曜）
-- AlpacaHack ユーザー管理 (`/alpaca-add`, `/alpaca-del`, `/alpaca-list`)
-- AlpacaHack スコア表示 (`/alpaca-solve`)
-- Slash コマンド管理 (`/help`, `/sync`, `/load`, `/unload`, `/reload`, `/pin`, `/unpin`, `/perms`, `/create-times`)
+- AlpacaHack ユーザー管理 (`/alpaca add`, `/alpaca del`, `/alpaca list`)
+- AlpacaHack スコア表示 (`/alpaca solve`)
+- Slash コマンド管理 (`/help`, `/cog sync|load|unload|reload`, `/message echo|pin|unpin`, `/perms`, `/times create`)
 - Bot の接続状態通知（任意）
 
 ## 参加ガイド
@@ -78,9 +78,9 @@ src/
 4. bot アカウントに付与する権限の目安:
    - `View Channels`
    - `Send Messages`
-   - `Manage Messages`（`/pin` `/unpin` の実行に必要）
+   - `Manage Messages`（`/message pin` `/message unpin` の実行に必要）
    - `Manage Roles`（`/ctf-role create` の role 作成/削除に必要）
-   - `Manage Channels`（`/ctf-role create` と `/create-times` のチャンネル作成に必要）
+   - `Manage Channels`（`/ctf-role create` と `/times create` のチャンネル作成に必要）
    - `Add Reactions`（`/ctf-role create` で募集メッセージにリアクションを付けるために必要）
 
 ### ローカル実行手順
@@ -141,23 +141,23 @@ GitHub Actions の `CI` ワークフローで以下を実行します。
 
 ## 開発時の反映手順（bot を止めない運用）
 
-1. Cog ファイルを変更したら `/reload name:<cog名>` を実行する
-2. Slash コマンド定義を変更したら `/reload` の後に `/sync` を実行する
+1. Cog ファイルを変更したら `/cog reload name:<cog名>` を実行する
+2. Slash コマンド定義を変更したら `/cog reload name:<cog名>` の後に `/cog sync` を実行する
 3. `config.py`、`.env`、共通モジュールの変更時は bot を再起動する
 
 ## 権限モデルのメモ（このサーバー向け）
 
-1. `/pin` と `/unpin` は、実行ユーザーに `Manage Messages` は不要  
+1. `/message pin` と `/message unpin` は、実行ユーザーに `Manage Messages` は不要  
 実行対象チャンネルを「閲覧 + 投稿」できれば実行可能です。
-2. `/ctf` も同様に、実行チャンネルを「閲覧 + 投稿」できれば実行可能です。
-3. `/sync`, `/load`, `/unload`, `/reload` は `Manage Server` 権限が必要です。
-4. bot アカウント側には、`/pin` `/unpin` を動かすために `Manage Messages` 権限が必要です。
+2. `/ctftime` も同様に、実行チャンネルを「閲覧 + 投稿」できれば実行可能です。
+3. `/cog sync`, `/cog load`, `/cog unload`, `/cog reload` は `Manage Server` 権限が必要です。
+4. bot アカウント側には、`/message pin` `/message unpin` を動かすために `Manage Messages` 権限が必要です。
 5. `/ctf-role create` には、bot アカウント側で `Manage Roles` / `Manage Channels` / `Add Reactions` が必要です。
-6. `/create-times` には、bot アカウント側で `times` カテゴリに対する `Manage Channels` が必要です。
+6. `/times create` には、bot アカウント側で `times` カテゴリに対する `Manage Channels` が必要です。
 
 ## 新しい機能を足すとき
 
 1. `src/bot/features/<feature>/` に `cog.py`, `usecase.py`, `service.py`（必要なら `repository.py`, `models.py`）を追加する。
 2. 起動時に自動ロードしたい場合は `src/bot/cogs_loader.py` の `DEFAULT_EXTENSIONS` に追加する。
-3. Slash コマンドを追加した場合は `/sync` で反映する。
+3. Slash コマンドを追加した場合は `/cog sync` で反映する。
 4. `tests/` にユニットテストと `tests/test_architecture.py` の境界ルールに沿ったテストを追加する。
