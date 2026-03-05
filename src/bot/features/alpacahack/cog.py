@@ -4,11 +4,17 @@ import asyncio
 import datetime
 
 import discord
+from discord import app_commands
 from discord.ext import commands, tasks
 
 from ...cogs._runtime import get_runtime
 from ...discord_gateway import DiscordGateway
-from ...utils.helpers import format_code_block, logger, send_message_safely
+from ...utils.helpers import (
+    format_code_block,
+    logger,
+    send_interaction_message,
+    send_message_safely,
+)
 from .models import UserMutationResult, UserMutationStatus
 from .usecase import WeeklySolveSummary
 
@@ -127,6 +133,31 @@ class Alpacahack(commands.Cog):
         embed = self._build_weekly_summary_embed(summary)
         await send_message_safely(target_channel, embed=embed)
 
+    async def _send_weekly_summary_interaction(
+        self,
+        interaction: discord.Interaction,
+        period_end: datetime.date,
+        *,
+        notify_if_no_users: bool,
+    ) -> None:
+        summary = await asyncio.to_thread(
+            self.usecase.collect_weekly_summary, period_end
+        )
+        if summary.total_users == 0:
+            if notify_if_no_users:
+                await send_interaction_message(
+                    interaction,
+                    "誰も登録されていません",
+                    ephemeral=False,
+                )
+            return
+
+        embed = self._build_weekly_summary_embed(summary)
+        if interaction.response.is_done():
+            await interaction.followup.send(embed=embed, ephemeral=False)
+            return
+        await interaction.response.send_message(embed=embed, ephemeral=False)
+
     @tasks.loop()
     async def alpacahack_solves(self) -> None:
         today = datetime.datetime.now(self.settings.tzinfo).date()
@@ -147,31 +178,63 @@ class Alpacahack(commands.Cog):
     async def before_alpacahack_solves(self) -> None:
         await self.bot.wait_until_ready()
 
-    @commands.command()
-    async def add_alpaca(self, ctx: commands.Context, name: str) -> None:
+    @app_commands.command(
+        name="add_alpaca",
+        description="AlpacaHackユーザーを登録します。",
+    )
+    @app_commands.describe(name="登録するユーザー名")
+    async def add_alpaca(self, interaction: discord.Interaction, name: str) -> None:
         result = await asyncio.to_thread(self.usecase.add_user, name)
-        await send_message_safely(ctx.channel, content=self._to_user_message(result))
+        await send_interaction_message(
+            interaction,
+            self._to_user_message(result),
+            ephemeral=False,
+        )
 
-    @commands.command()
-    async def del_alpaca(self, ctx: commands.Context, name: str) -> None:
+    @app_commands.command(
+        name="del_alpaca",
+        description="AlpacaHackユーザーの登録を削除します。",
+    )
+    @app_commands.describe(name="削除するユーザー名")
+    async def del_alpaca(self, interaction: discord.Interaction, name: str) -> None:
         result = await asyncio.to_thread(self.usecase.delete_user, name)
-        await send_message_safely(ctx.channel, content=self._to_user_message(result))
+        await send_interaction_message(
+            interaction,
+            self._to_user_message(result),
+            ephemeral=False,
+        )
 
-    @commands.command()
-    async def show_alpaca(self, ctx: commands.Context) -> None:
+    @app_commands.command(
+        name="show_alpaca",
+        description="登録済みのAlpacaHackユーザー一覧を表示します。",
+    )
+    async def show_alpaca(self, interaction: discord.Interaction) -> None:
         usernames = await asyncio.to_thread(self.usecase.list_usernames)
         if not usernames:
-            await send_message_safely(ctx.channel, content="誰も登録されていません")
+            await send_interaction_message(
+                interaction,
+                "誰も登録されていません",
+                ephemeral=False,
+            )
             return
 
         user_list = "\n".join(usernames)
-        await send_message_safely(ctx.channel, content=format_code_block(user_list))
+        await send_interaction_message(
+            interaction,
+            format_code_block(user_list),
+            ephemeral=False,
+        )
 
-    @commands.command()
-    async def show_alpaca_score(self, ctx: commands.Context) -> None:
+    @app_commands.command(
+        name="show_alpaca_score",
+        description="AlpacaHackの今週のsolve状況を表示します。",
+    )
+    async def show_alpaca_score(self, interaction: discord.Interaction) -> None:
+        if not interaction.response.is_done():
+            await interaction.response.defer(thinking=True)
         today = datetime.datetime.now(self.settings.tzinfo).date()
-        await self._send_weekly_summary_embed(
-            target_channel=ctx.channel,
+        await self._send_weekly_summary_interaction(
+            interaction=interaction,
             period_end=today,
             notify_if_no_users=True,
         )
