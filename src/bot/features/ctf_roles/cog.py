@@ -102,7 +102,7 @@ class CTFRoleCreateModal(discord.ui.Modal, title="CTF Role 募集作成"):
 
 class CTFRoleCampaigns(
     commands.GroupCog,
-    group_name="ctf-role",
+    group_name="ctfteam",
     group_description="CTF参加ロール募集を管理します。",
 ):
     def __init__(self, bot: commands.Bot) -> None:
@@ -363,7 +363,7 @@ class CTFRoleCampaigns(
 
         return await guild.create_category(
             CTF_CATEGORY_NAME,
-            reason="Create CTF category for ctf-role campaigns",
+            reason="Create CTF category for ctfteam campaigns",
         )
 
     async def _ensure_archive_category(
@@ -375,7 +375,7 @@ class CTFRoleCampaigns(
 
         return await guild.create_category(
             ARCHIVE_CATEGORY_NAME,
-            reason="Create archive category for ctf-role campaigns",
+            reason="Create archive category for ctfteam campaigns",
         )
 
     async def _create_ctf_discussion_channel(
@@ -731,7 +731,7 @@ class CTFRoleCampaigns(
     ) -> str:
         start_text = self.usecase.format_unix_datetime(draft.start_at_unix)
         if draft.end_at_unix is None:
-            end_text = "常設(手動で /ctf-role close)"
+            end_text = "常設(手動で /ctfteam close)"
         else:
             end_text = self.usecase.format_unix_datetime(draft.end_at_unix)
 
@@ -1069,12 +1069,12 @@ class CTFRoleCampaigns(
                 member.id,
             )
 
-    @app_commands.command(name="create", description="CTF募集メッセージを作成します。")
+    @app_commands.command(name="open", description="CTF募集メッセージを作成します。")
     @app_commands.describe(
         ctf_name="CTF名",
         role_color="ロールカラー(任意, #RRGGBB / 候補あり)",
     )
-    async def create(
+    async def open(
         self,
         interaction: discord.Interaction,
         ctf_name: str,
@@ -1104,8 +1104,8 @@ class CTFRoleCampaigns(
         )
         await interaction.response.send_modal(modal)
 
-    @create.autocomplete("role_color")
-    async def create_role_color_autocomplete(
+    @open.autocomplete("role_color")
+    async def open_role_color_autocomplete(
         self,
         _interaction: discord.Interaction,
         current: str,
