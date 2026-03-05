@@ -7,7 +7,11 @@ from discord.ext import commands
 from ..utils.helpers import logger, send_interaction_message
 
 
-class ManageCogs(commands.Cog):
+class ManageCogs(
+    commands.GroupCog,
+    group_name="cog",
+    group_description="Cogの読み込み関連コマンドです。",
+):
     """Slash commands for loading/unloading/reloading cogs."""
 
     CORE_COGS: ClassVar[set[str]] = {
