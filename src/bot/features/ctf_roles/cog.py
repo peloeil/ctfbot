@@ -3,20 +3,26 @@ from __future__ import annotations
 import asyncio
 import builtins
 import re
-from dataclasses import dataclass
 
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
 from ...cogs._runtime import get_runtime
-from ...errors import ConflictError, RepositoryError
 from ...utils.helpers import (
     logger,
     send_interaction_message,
     send_message_safely,
 )
-from .models import INPUT_DATETIME_PLACEHOLDER, CampaignDraft, CTFRoleCampaign
+from .archive_flow import archive_campaign
+from .models import (
+    INPUT_DATETIME_PLACEHOLDER,
+    CampaignDraft,
+    CloseCampaignReport,
+    CTFRoleCampaign,
+)
+from .open_create_flow import handle_create_modal_submit
+from .start_close_flow import close_campaign, start_campaign
 
 REACTION_EMOJI = "✅"
 LIST_LIMIT = 20
@@ -40,14 +46,6 @@ ROLE_COLOR_SUGGESTIONS: tuple[tuple[str, str], ...] = (
     ("⬜ White", "#f3f4f6"),
     ("⬛ Gray", "#6b7280"),
 )
-
-
-@dataclass(frozen=True, slots=True)
-class CloseCampaignReport:
-    was_closed: bool
-    archive_at_unix: int | None = None
-    snapshot_member_count: int | None = None
-    warnings: tuple[str, ...] = ()
 
 
 class CTFRoleCreateModal(discord.ui.Modal, title="CTF Role 募集作成"):
@@ -105,6 +103,8 @@ class CTFRoleCampaigns(
     group_name="ctfteam",
     group_description="CTF参加ロール募集を管理します。",
 ):
+    REACTION_EMOJI = REACTION_EMOJI
+
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.runtime = get_runtime(bot)
@@ -853,108 +853,13 @@ class CTFRoleCampaigns(
         self,
         campaign: CTFRoleCampaign,
     ) -> CloseCampaignReport:
-        close_result = await asyncio.to_thread(
-            self.usecase.close_campaign,
-            campaign_id=campaign.id,
-        )
-        if not close_result.was_closed:
-            return CloseCampaignReport(was_closed=False)
-
-        warnings: list[str] = []
-        guild = self.bot.get_guild(campaign.guild_id)
-        if guild is None:
-            warnings.append("guild_not_found")
-            return CloseCampaignReport(
-                was_closed=True,
-                archive_at_unix=close_result.archive_at_unix,
-                warnings=tuple(warnings),
-            )
-
-        role = await self._resolve_role(guild, campaign.role_id)
-        snapshot_count, snapshot_saved = await self._record_members_on_close(
-            guild=guild,
-            campaign=campaign,
-            role=role,
-            archive_at_unix=close_result.archive_at_unix,
-        )
-        if not snapshot_saved:
-            warnings.append("member_snapshot_failed")
-
-        message_closed = await self._mark_campaign_message_closed(
-            guild,
-            campaign,
-            archive_at_unix=close_result.archive_at_unix,
-        )
-        if not message_closed:
-            warnings.append("message_update_failed")
-
-        voice_deleted = await self._delete_voice_channel(
-            guild=guild,
-            campaign=campaign,
-            reason="CTF campaign closed",
-        )
-        if not voice_deleted:
-            warnings.append("voice_delete_failed")
-
-        return CloseCampaignReport(
-            was_closed=True,
-            archive_at_unix=close_result.archive_at_unix,
-            snapshot_member_count=snapshot_count,
-            warnings=tuple(warnings),
-        )
+        return await close_campaign(self, campaign)
 
     async def _start_campaign(
         self,
         campaign: CTFRoleCampaign,
     ) -> tuple[bool, tuple[str, ...]]:
-        warnings: list[str] = []
-
-        guild = self.bot.get_guild(campaign.guild_id)
-        if guild is None:
-            warnings.append("guild_not_found")
-            marked = await asyncio.to_thread(
-                self.usecase.mark_campaign_started,
-                campaign_id=campaign.id,
-            )
-            if not marked:
-                warnings.append("start_state_update_failed")
-            return False, tuple(warnings)
-
-        role = await self._resolve_role(guild, campaign.role_id)
-        if role is None:
-            warnings.append("role_not_found")
-            marked = await asyncio.to_thread(
-                self.usecase.mark_campaign_started,
-                campaign_id=campaign.id,
-            )
-            if not marked:
-                warnings.append("start_state_update_failed")
-            return False, tuple(warnings)
-
-        _member_count, announced = await self._send_start_announcement(
-            guild=guild,
-            campaign=campaign,
-            role=role,
-        )
-        if not announced:
-            warnings.append("start_announce_failed")
-            marked = await asyncio.to_thread(
-                self.usecase.mark_campaign_started,
-                campaign_id=campaign.id,
-            )
-            if not marked:
-                warnings.append("start_state_update_failed")
-            return False, tuple(warnings)
-
-        marked = await asyncio.to_thread(
-            self.usecase.mark_campaign_started,
-            campaign_id=campaign.id,
-        )
-        if not marked:
-            warnings.append("start_state_update_failed")
-            return False, tuple(warnings)
-
-        return True, ()
+        return await start_campaign(self, campaign)
 
     async def _archive_campaign(
         self,
@@ -962,47 +867,7 @@ class CTFRoleCampaigns(
         *,
         reason: str,
     ) -> tuple[bool, tuple[str, ...]]:
-        warnings: list[str] = []
-
-        guild = self.bot.get_guild(campaign.guild_id)
-        if guild is None:
-            return False, ("guild_not_found",)
-
-        role = await self._resolve_role(guild, campaign.role_id)
-        archived = await self._archive_discussion_channel(
-            guild=guild,
-            campaign=campaign,
-            role=role,
-            reason=reason,
-        )
-        if not archived:
-            warnings.append("discussion_archive_failed")
-            return False, tuple(warnings)
-
-        voice_deleted = await self._delete_voice_channel(
-            guild=guild,
-            campaign=campaign,
-            reason=reason,
-        )
-        if not voice_deleted:
-            warnings.append("voice_delete_failed")
-            return False, tuple(warnings)
-
-        if role is not None:
-            try:
-                await role.delete(reason=reason)
-            except (discord.Forbidden, discord.HTTPException):
-                logger.warning("Failed to delete role for archive: %s", campaign.id)
-                return False, ("role_delete_failed",)
-
-        marked = await asyncio.to_thread(
-            self.usecase.mark_campaign_archived,
-            campaign_id=campaign.id,
-        )
-        if not marked:
-            return False, ("archive_state_update_failed",)
-
-        return True, ()
+        return await archive_campaign(self, campaign, reason=reason)
 
     async def _handle_reaction_event(
         self, payload: discord.RawReactionActionEvent, *, add_role: bool
@@ -1121,188 +986,14 @@ class CTFRoleCampaigns(
         start_at_raw: str,
         end_at_raw: str,
     ) -> None:
-        if interaction.guild is None:
-            await send_interaction_message(
-                interaction,
-                "このコマンドはサーバー内でのみ使用できます。",
-                ephemeral=True,
-            )
-            return
-
-        guild = interaction.guild
-
-        await interaction.response.defer(ephemeral=True, thinking=True)
-
-        validation = await asyncio.to_thread(
-            self.usecase.validate_campaign_draft,
-            guild_id=guild.id,
-            created_by=interaction.user.id,
+        await handle_create_modal_submit(
+            self,
+            interaction,
             ctf_name=ctf_name,
+            role_color_value=role_color_value,
             start_at_raw=start_at_raw,
             end_at_raw=end_at_raw,
         )
-        if not validation.is_valid or validation.draft is None:
-            await interaction.followup.send(validation.error_message, ephemeral=True)
-            return
-
-        draft = validation.draft
-        announce_channel = self._resolve_role_announce_channel(guild)
-        if announce_channel is None:
-            await interaction.followup.send(
-                "`role` という名前のテキストチャンネルが見つかりません。"
-                "募集メッセージの投稿先として `#role` を作成してください。",
-                ephemeral=True,
-            )
-            return
-
-        discussion_channel: discord.TextChannel | None = None
-        voice_channel: discord.VoiceChannel | None = None
-        role: discord.Role | None = None
-        message: discord.Message | None = None
-        campaign: CTFRoleCampaign | None = None
-        create_warnings: builtins.list[str] = []
-
-        try:
-            role_color = (
-                discord.Color(role_color_value)
-                if role_color_value is not None
-                else discord.Color.default()
-            )
-            role = await guild.create_role(
-                name=draft.ctf_name,
-                color=role_color,
-                mentionable=True,
-                reason=f"CTF role campaign created by {interaction.user.id}",
-            )
-            creator_member = (
-                interaction.user
-                if isinstance(interaction.user, discord.Member)
-                else None
-            )
-            discussion_channel = await self._create_ctf_discussion_channel(
-                guild=guild,
-                draft=draft,
-                role=role,
-                creator=creator_member,
-                creator_id=interaction.user.id,
-            )
-            voice_channel = await self._create_ctf_voice_channel(
-                guild=guild,
-                draft=draft,
-                role=role,
-                creator=creator_member,
-                creator_id=interaction.user.id,
-            )
-            content = self._build_recruitment_message(
-                draft=draft,
-                role=role,
-                discussion_channel=discussion_channel,
-            )
-            message = await send_message_safely(announce_channel, content=content)
-            if message is None:
-                raise RuntimeError("Failed to send recruitment message.")
-            await message.add_reaction(REACTION_EMOJI)
-
-            campaign = await asyncio.to_thread(
-                self.usecase.create_campaign,
-                guild_id=guild.id,
-                channel_id=announce_channel.id,
-                message_id=message.id,
-                role_id=role.id,
-                discussion_channel_id=discussion_channel.id,
-                voice_channel_id=(
-                    voice_channel.id if voice_channel is not None else None
-                ),
-                created_by=interaction.user.id,
-                draft=draft,
-            )
-            if self.usecase.is_campaign_started(campaign):
-                started, warnings = await self._start_campaign(campaign)
-                if not started:
-                    create_warnings.extend(warnings)
-        except ConflictError:
-            await self._cleanup_created_resources(
-                discussion_channel=discussion_channel,
-                voice_channel=voice_channel,
-                role=role,
-                message=message,
-            )
-            await interaction.followup.send(
-                "同名の active 募集が既に存在するため作成できませんでした。"
-                "別名を使うか既存募集を close してください。",
-                ephemeral=True,
-            )
-            return
-        except RepositoryError:
-            await self._cleanup_created_resources(
-                discussion_channel=discussion_channel,
-                voice_channel=voice_channel,
-                role=role,
-                message=message,
-            )
-            logger.exception("Repository error while creating CTF role campaign")
-            await interaction.followup.send(
-                "募集の保存中にエラーが発生しました。",
-                ephemeral=True,
-            )
-            return
-        except discord.Forbidden:
-            await self._cleanup_created_resources(
-                discussion_channel=discussion_channel,
-                voice_channel=voice_channel,
-                role=role,
-                message=message,
-            )
-            await interaction.followup.send(
-                "Botの権限不足で募集作成に失敗しました。"
-                "Manage Roles / Manage Channels / Add Reactions "
-                "権限を確認してください。",
-                ephemeral=True,
-            )
-            return
-        except discord.HTTPException:
-            logger.exception("Discord API error while creating CTF role campaign")
-            await self._cleanup_created_resources(
-                discussion_channel=discussion_channel,
-                voice_channel=voice_channel,
-                role=role,
-                message=message,
-            )
-            await interaction.followup.send(
-                "募集作成中に Discord API エラーが発生しました。",
-                ephemeral=True,
-            )
-            return
-        except Exception:
-            logger.exception("Unexpected error while creating CTF role campaign")
-            await self._cleanup_created_resources(
-                discussion_channel=discussion_channel,
-                voice_channel=voice_channel,
-                role=role,
-                message=message,
-            )
-            await interaction.followup.send(
-                "募集作成中にエラーが発生しました。",
-                ephemeral=True,
-            )
-            return
-
-        assert message is not None
-        assert discussion_channel is not None
-        assert voice_channel is not None
-        summary = (
-            "募集を作成しました: "
-            f"{message.jump_url}\n"
-            f"募集投稿先: {announce_channel.mention}\n"
-            f"CTFチャンネル: {discussion_channel.mention}\n"
-            f"Voiceチャンネル: {voice_channel.mention}"
-        )
-        if create_warnings:
-            summary += (
-                "\nただし開始通知の後処理に失敗しました: "
-                + ", ".join(create_warnings)
-            )
-        await interaction.followup.send(summary, ephemeral=True)
 
     @app_commands.command(name="list", description="CTF募集一覧を表示します。")
     @app_commands.describe(status="表示対象(default: active)")

@@ -41,6 +41,14 @@ class CampaignCloseResult:
 
 
 @dataclass(frozen=True, slots=True)
+class CloseCampaignReport:
+    was_closed: bool
+    archive_at_unix: int | None = None
+    snapshot_member_count: int | None = None
+    warnings: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class CampaignDraft:
     ctf_name: str
     start_at_unix: int
