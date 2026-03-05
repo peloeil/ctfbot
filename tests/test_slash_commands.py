@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 
+from discord import app_commands
 from discord.ext import commands
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -12,6 +13,7 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+from bot.cogs.help_command import HelpCommand  # noqa: E402
 from bot.cogs.perms_debug import PermissionsDebug  # noqa: E402
 from bot.cogs.times_channels import TimesChannels  # noqa: E402
 
@@ -74,9 +76,98 @@ class _FakeGuild:
         self.categories = categories
 
 
+class _FakeAppCommandTree:
+    def __init__(
+        self,
+        *,
+        global_commands: list[app_commands.Command | app_commands.Group] | None = None,
+        guild_commands: list[app_commands.Command | app_commands.Group] | None = None,
+    ) -> None:
+        self._global_commands = global_commands or []
+        self._guild_commands = guild_commands or []
+
+    def get_commands(
+        self,
+        *,
+        guild: object | None = None,
+        type: object | None = None,
+    ) -> list[app_commands.Command | app_commands.Group]:
+        _ = type
+        if guild is None:
+            return list(self._global_commands)
+        return list(self._guild_commands)
+
+
 class _FakeBot:
-    def __init__(self) -> None:
+    def __init__(self, *, tree: _FakeAppCommandTree | None = None) -> None:
         self.user = type("BotUser", (), {"id": 999})()
+        self.tree = tree or _FakeAppCommandTree()
+
+
+def _build_echo_command() -> app_commands.Command:
+    @app_commands.command(name="echo", description="メッセージを送信します。")
+    async def echo(interaction: object, message: str) -> None:
+        _ = interaction, message
+
+    return echo
+
+
+def _build_ctf_role_group() -> app_commands.Group:
+    class _CTFRoleGroup(
+        app_commands.Group,
+        name="ctf-role",
+        description="CTF参加ロール募集を管理します。",
+    ):
+        @app_commands.command(
+            name="create",
+            description="CTF募集メッセージを作成します。",
+        )
+        async def create(self, interaction: object) -> None:
+            _ = interaction
+
+    return _CTFRoleGroup()
+
+
+class HelpCommandTests(unittest.IsolatedAsyncioTestCase):
+    async def test_help_lists_global_and_guild_slash_commands(self) -> None:
+        tree = _FakeAppCommandTree(
+            global_commands=[_build_echo_command()],
+            guild_commands=[_build_ctf_role_group()],
+        )
+        bot = cast(commands.Bot, _FakeBot(tree=tree))
+        cog = HelpCommand(bot)
+        interaction: Any = SimpleNamespace(guild=SimpleNamespace(id=123))
+
+        with patch(
+            "bot.cogs.help_command.send_interaction_message",
+            new=AsyncMock(),
+        ) as send_mock:
+            await HelpCommand.help.callback(cog, interaction)
+
+        await_args = send_mock.await_args
+        assert await_args is not None
+        sent_content = await_args.args[1]
+        self.assertIn("利用可能なスラッシュコマンド", sent_content)
+        self.assertIn("/echo", sent_content)
+        self.assertIn("/ctf-role create", sent_content)
+        self.assertTrue(await_args.kwargs["ephemeral"])
+
+    async def test_help_shows_empty_message_when_no_slash_commands(self) -> None:
+        tree = _FakeAppCommandTree(global_commands=[], guild_commands=[])
+        bot = cast(commands.Bot, _FakeBot(tree=tree))
+        cog = HelpCommand(bot)
+        interaction: Any = SimpleNamespace(guild=None)
+
+        with patch(
+            "bot.cogs.help_command.send_interaction_message",
+            new=AsyncMock(),
+        ) as send_mock:
+            await HelpCommand.help.callback(cog, interaction)
+
+        await_args = send_mock.await_args
+        assert await_args is not None
+        sent_content = await_args.args[1]
+        self.assertIn("利用可能なスラッシュコマンドはありません。", sent_content)
 
 
 class PermissionsDebugTests(unittest.IsolatedAsyncioTestCase):
