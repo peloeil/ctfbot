@@ -11,7 +11,7 @@ CTF サーバー向け Discord bot です。
 - AlpacaHack の週次 solve サマリ通知（登録ユーザー対象、毎週日曜）
 - AlpacaHack ユーザー管理 (`/alpaca add`, `/alpaca del`, `/alpaca list`)
 - AlpacaHack スコア表示 (`/alpaca solve`)
-- Slash コマンド管理 (`/help`, `/cog sync|load|unload|reload`, `/message echo|pin|unpin`, `/perms`, `/times create`)
+- Slash コマンド管理 (`/help`, `/cog sync|load|unload|reload`, `/message echo|pin|unpin`, `/perms`)
 - Bot の接続状態通知（任意）
 
 ## 参加ガイド
@@ -62,15 +62,16 @@ src/
 
 ## セットアップ
 
-### Discord Bot の設定（従来手順）
+### Discord Bot の設定
 
 1. 自分が管理者で、他の人に迷惑のかからない Discord サーバー（自分のみがメンバーのサーバーなど）を用意します。
 2. Discord Developers Portal で Discord bot を作成し、名前を設定します。
 3. `cp .env.example .env` を実行し、`.env` 内の `DISCORD_TOKEN` を実際のトークンに置き換えます。
-4. `BOT_CHANNEL_ID` を bot の定期メッセージ送信先チャンネル ID に設定します。
+4. `BOT_CHANNEL_ID` を CTFtime の定期メッセージ送信先チャンネル ID に設定します。
+   AlpacaHack の週次通知は `ctf` カテゴリ配下の `#alpacahack` に送信されます。
 5. `.env` は commit に含めないでください。
 
-### Discord Bot の権限設定（従来手順）
+### Discord Bot の権限設定
 
 1. Bot 公開設定（Public Bot）は運用方針に応じて設定します。
 2. Privileged Gateway Intents は `MESSAGE CONTENT INTENT` と `SERVER MEMBERS INTENT` を有効にします。
@@ -103,7 +104,7 @@ cp .env.example .env
 
 主要オプション:
 
-- `BOT_CHANNEL_ID`: 定期通知先チャンネル
+- `BOT_CHANNEL_ID`: CTFtime の定期通知先チャンネル
 - `BOT_STATUS_CHANNEL_ID`: 起動/再接続/終了通知先チャンネル（任意）
 - `TIMEZONE`: 例 `Asia/Tokyo`
 - `DATABASE_PATH`: SQLite ファイルパス
@@ -123,14 +124,6 @@ uv run ty check
 uv run python -m unittest discover -s tests -v
 ```
 
-## チーム開発ルール
-
-1. 依存方向は `cog -> usecase -> service/repository -> db` に固定します。
-2. `src/bot/cogs/` から `src/bot/db/` を直接 import しません。機能本体は `src/bot/features/` で実装します。
-3. 新機能は `src/bot/features/<feature>/` に追加します。
-4. 例外は `bot.errors` の型を使って層ごとに扱いを明確にします。
-5. 境界違反は `tests/test_architecture.py` で検出されます。
-
 ## CI
 
 GitHub Actions の `CI` ワークフローで以下を実行します。
@@ -139,25 +132,7 @@ GitHub Actions の `CI` ワークフローで以下を実行します。
 2. `uv run ty check`
 3. `uv run python -m unittest discover -s tests -v`
 
-## 開発時の反映手順（bot を止めない運用）
+## 開発ノート
 
-1. Cog ファイルを変更したら `/cog reload name:<cog名>` を実行する
-2. Slash コマンド定義を変更したら `/cog reload name:<cog名>` の後に `/cog sync` を実行する
-3. `config.py`、`.env`、共通モジュールの変更時は bot を再起動する
-
-## 権限モデルのメモ（このサーバー向け）
-
-1. `/message pin` と `/message unpin` は、実行ユーザーに `Manage Messages` は不要  
-実行対象チャンネルを「閲覧 + 投稿」できれば実行可能です。
-2. `/ctftime` も同様に、実行チャンネルを「閲覧 + 投稿」できれば実行可能です。
-3. `/cog sync`, `/cog load`, `/cog unload`, `/cog reload` は `Manage Server` 権限が必要です。
-4. bot アカウント側には、`/message pin` `/message unpin` を動かすために `Manage Messages` 権限が必要です。
-5. `/ctfteam open` には、bot アカウント側で `Manage Roles` / `Manage Channels` / `Add Reactions` が必要です。
-6. `/times create` には、bot アカウント側で `times` カテゴリに対する `Manage Channels` が必要です。
-
-## 新しい機能を足すとき
-
-1. `src/bot/features/<feature>/` に `cog.py`, `usecase.py`, `service.py`（必要なら `repository.py`, `models.py`）を追加する。
-2. 起動時に自動ロードしたい場合は `src/bot/cogs_loader.py` の `DEFAULT_EXTENSIONS` に追加する。
-3. Slash コマンドを追加した場合は `/cog sync` で反映する。
-4. `tests/` にユニットテストと `tests/test_architecture.py` の境界ルールに沿ったテストを追加する。
+- 実装方針、アーキテクチャ制約、権限モデル、機能追加手順は [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md) を参照してください。
+- コマンド変更の反映は、`/cog reload` 後に `/cog sync` を実行してください。
