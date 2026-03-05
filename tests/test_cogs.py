@@ -127,6 +127,27 @@ class CogTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("取得失敗 0 人", description)
         await fake_bot.close()
 
+    def test_alpacahack_find_target_channel_in_ctf_category(self):
+        target_channel = SimpleNamespace(name="alpacahack")
+        ctf_category = SimpleNamespace(
+            name="ctf",
+            text_channels=[SimpleNamespace(name="general"), target_channel],
+        )
+        guild = SimpleNamespace(categories=[ctf_category])
+
+        resolved = Alpacahack._find_alpacahack_channel(guild)
+
+        self.assertIs(resolved, target_channel)
+
+    def test_alpacahack_find_target_channel_ignores_other_categories(self):
+        target_channel = SimpleNamespace(name="alpacahack")
+        misc_category = SimpleNamespace(name="misc", text_channels=[target_channel])
+        guild = SimpleNamespace(categories=[misc_category])
+
+        resolved = Alpacahack._find_alpacahack_channel(guild)
+
+        self.assertIsNone(resolved)
+
     async def test_alpacahack_embed_builder_shows_failed_users(self):
         runtime = self._build_runtime()
         fake_bot = _FakeBot(runtime)
