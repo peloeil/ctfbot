@@ -111,7 +111,7 @@ class TestAlpacaHackService(unittest.TestCase):
             "bot.features.alpacahack.service.requests.get", return_value=response
         ):
             solves = self.service.get_weekly_solve_challenges(
-                "eno1220", reference_date=date(2026, 3, 5)
+                "test-user", reference_date=date(2026, 3, 5)
             )
 
         self.assertEqual(solves, ["daily-one", "daily-two"])
