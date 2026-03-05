@@ -3,6 +3,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 import discord
@@ -43,6 +44,47 @@ class CTFRoleUseCaseTests(unittest.TestCase):
 
         self.assertFalse(result.is_valid)
         self.assertIn("YYYY-MM-DD HH:MM", result.error_message)
+
+    def test_validate_campaign_draft_propagates_unexpected_start_parse_error(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            usecase, _service = self._build_usecase(str(Path(tmpdir) / "ctfbot.db"))
+            with (
+                patch.object(
+                    usecase._service,
+                    "parse_local_datetime",
+                    side_effect=RuntimeError("boom"),
+                ),
+                self.assertRaises(RuntimeError),
+            ):
+                usecase.validate_campaign_draft(
+                    guild_id=1,
+                    created_by=10,
+                    ctf_name="TSG CTF",
+                    start_at_raw="2026-03-04 21:00",
+                    end_at_raw="",
+                )
+
+    def test_validate_campaign_draft_propagates_unexpected_end_parse_error(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            usecase, _service = self._build_usecase(str(Path(tmpdir) / "ctfbot.db"))
+            start_at = datetime.datetime(
+                2026, 3, 4, 21, 0, tzinfo=ZoneInfo("Asia/Tokyo")
+            )
+            with (
+                patch.object(
+                    usecase._service,
+                    "parse_local_datetime",
+                    side_effect=[start_at, RuntimeError("boom")],
+                ),
+                self.assertRaises(RuntimeError),
+            ):
+                usecase.validate_campaign_draft(
+                    guild_id=1,
+                    created_by=10,
+                    ctf_name="TSG CTF",
+                    start_at_raw="2026-03-04 21:00",
+                    end_at_raw="2026-03-04 22:00",
+                )
 
     def test_create_find_and_close_campaign(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
