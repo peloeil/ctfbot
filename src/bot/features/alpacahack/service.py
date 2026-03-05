@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import re
 from dataclasses import dataclass
 from zoneinfo import ZoneInfo
 
@@ -14,6 +15,9 @@ from ...utils.helpers import logger
 ALPACAHACK_BASE_URL = "https://alpacahack.com/users/"
 REQUEST_TIMEOUT_SECONDS = 10
 UTC = ZoneInfo("UTC")
+ARIA_LABEL_DATETIME_PATTERN = re.compile(
+    r"(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,9 +130,18 @@ class AlpacaHackService:
         if not isinstance(raw_value, str) or not raw_value:
             return None
 
-        normalized = raw_value.strip().removesuffix(" UTC")
+        match = ARIA_LABEL_DATETIME_PATTERN.search(raw_value.strip())
+        if match is None:
+            return None
+
+        normalized = f"{match.group(1)} {match.group(2)}"
+        date_format = (
+            "%Y-%m-%d %H:%M:%S"
+            if normalized.count(":") == 2
+            else "%Y-%m-%d %H:%M"
+        )
         try:
-            naive = datetime.datetime.strptime(normalized, "%Y-%m-%d %H:%M")
+            naive = datetime.datetime.strptime(normalized, date_format)
         except ValueError:
             return None
 
