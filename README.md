@@ -11,7 +11,7 @@ CTF サーバー向け Discord bot です。
 - AlpacaHack の週次 solve サマリ通知（登録ユーザー対象、毎週日曜）
 - AlpacaHack ユーザー管理 (`!add_alpaca`, `!del_alpaca`, `!show_alpaca`)
 - AlpacaHack スコア表示 (`!show_alpaca_score`)
-- Slash コマンド管理 (`/sync`, `/load`, `/unload`, `/reload`, `/pin`, `/unpin`, `/perms`, `/create-times`)
+- Slash コマンド管理 (`/help`, `/sync`, `/load`, `/unload`, `/reload`, `/pin`, `/unpin`, `/perms`, `/create-times`)
 - Bot の接続状態通知（任意）
 
 ## 参加ガイド
