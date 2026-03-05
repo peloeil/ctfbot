@@ -79,6 +79,43 @@ class TestAlpacaHackService(unittest.TestCase):
 
         self.assertEqual(solves, ["weekly-one"])
 
+    def test_get_weekly_solve_challenges_supports_gmt_label(self):
+        html = """
+        <html>
+          <body>
+            <p>SOLVED CHALLENGES</p>
+            <div>
+              <table>
+                <tbody>
+                  <tr>
+                    <td><a>daily-one</a></td>
+                    <td><p>1</p></td>
+                    <td><span aria-label="2026-03-04 19:11 GMT+0"></span></td>
+                  </tr>
+                  <tr>
+                    <td><a>daily-two</a></td>
+                    <td><p>1</p></td>
+                    <td><span aria-label="2026-03-04 19:03:30 GMT+0"></span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </body>
+        </html>
+        """
+        response = Mock()
+        response.content = html.encode("utf-8")
+        response.raise_for_status.return_value = None
+
+        with patch(
+            "bot.features.alpacahack.service.requests.get", return_value=response
+        ):
+            solves = self.service.get_weekly_solve_challenges(
+                "eno1220", reference_date=date(2026, 3, 5)
+            )
+
+        self.assertEqual(solves, ["daily-one", "daily-two"])
+
 
 class TestDatabaseAndUseCase(unittest.TestCase):
     def setUp(self):
