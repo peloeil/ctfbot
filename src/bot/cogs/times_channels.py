@@ -7,7 +7,11 @@ from discord.ext import commands
 from ..utils.helpers import logger, send_interaction_message
 
 
-class TimesChannels(commands.Cog):
+class TimesChannels(
+    commands.GroupCog,
+    group_name="times",
+    group_description="timesカテゴリの管理コマンドです。",
+):
     """Slash command for creating channels in times category."""
 
     CHANNEL_NAME_SEPARATOR_REGEX = re.compile(r"[,、\n]+")
@@ -70,7 +74,7 @@ class TimesChannels(commands.Cog):
             return None
 
     @app_commands.command(
-        name="create-times",
+        name="create",
         description="timesカテゴリにテキストチャンネルを作成します。",
     )
     @app_commands.describe(
@@ -144,7 +148,7 @@ class TimesChannels(commands.Cog):
                 created_channel = await times_category.create_text_channel(
                     channel_name,
                     reason=(
-                        f"Created by /create-times requested by {interaction.user.id}"
+                        f"Created by /times create requested by {interaction.user.id}"
                     ),
                 )
             except (discord.Forbidden, discord.HTTPException):
