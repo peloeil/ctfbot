@@ -4,12 +4,13 @@ import asyncio
 import datetime
 
 import discord
+from discord import app_commands
 from discord.ext import commands, tasks
 
 from ...cogs._runtime import get_runtime
 from ...discord_gateway import DiscordGateway
 from ...errors import ExternalAPIError
-from ...utils.helpers import logger, send_message_safely
+from ...utils.helpers import logger, send_interaction_message, send_message_safely
 from .models import CTFEvent
 
 
@@ -140,17 +141,31 @@ class CTFTimeNotifications(commands.Cog):
         )
         return embed
 
-    @commands.command(name="ctf")
-    async def manual_ctf_check(self, ctx: commands.Context) -> None:
-        if not self._can_operate_in_channel(ctx.author, ctx.channel):
-            await send_message_safely(
-                ctx.channel,
-                content="このチャンネルを閲覧・投稿できるメンバーのみ利用できます。",
+    @app_commands.command(name="ctf", description="CTFtimeの予定を手動で取得します。")
+    async def manual_ctf_check(self, interaction: discord.Interaction) -> None:
+        target_channel = interaction.channel
+        if not isinstance(target_channel, (discord.TextChannel, discord.Thread)):
+            await send_interaction_message(
+                interaction,
+                "このコマンドはテキストチャンネルまたはスレッドで利用できます。",
+                ephemeral=True,
             )
             return
 
-        await send_message_safely(ctx.channel, content="🔄 CTF情報を取得中...")
-        await self.send_upcoming_ctfs(target_channel=ctx.channel)
+        if not self._can_operate_in_channel(interaction.user, target_channel):
+            await send_interaction_message(
+                interaction,
+                "このチャンネルを閲覧・投稿できるメンバーのみ利用できます。",
+                ephemeral=True,
+            )
+            return
+
+        await send_interaction_message(
+            interaction,
+            "🔄 CTF情報を取得中...",
+            ephemeral=False,
+        )
+        await self.send_upcoming_ctfs(target_channel=target_channel)
 
 
 async def setup(bot: commands.Bot) -> None:

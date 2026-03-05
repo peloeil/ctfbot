@@ -3,6 +3,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from zoneinfo import ZoneInfo
 
@@ -55,18 +56,23 @@ class CogTests(unittest.IsolatedAsyncioTestCase):
         with patch("discord.ext.tasks.Loop.start", return_value=None):
             cog = CTFTimeNotifications(fake_bot)
 
-        ctx = type("Ctx", (), {"author": object(), "channel": object()})()
+        class _FakeTextChannel:
+            pass
+
+        interaction = SimpleNamespace(user=object(), channel=_FakeTextChannel())
         with (
+            patch("bot.features.ctftime.cog.discord.TextChannel", _FakeTextChannel),
             patch.object(cog, "_can_operate_in_channel", return_value=False),
             patch(
-                "bot.features.ctftime.cog.send_message_safely", new=AsyncMock()
+                "bot.features.ctftime.cog.send_interaction_message", new=AsyncMock()
             ) as send_mock,
         ):
-            await CTFTimeNotifications.manual_ctf_check.callback(cog, ctx)
+            await CTFTimeNotifications.manual_ctf_check.callback(cog, interaction)
 
         send_mock.assert_awaited_once_with(
-            ctx.channel,
-            content="このチャンネルを閲覧・投稿できるメンバーのみ利用できます。",
+            interaction,
+            "このチャンネルを閲覧・投稿できるメンバーのみ利用できます。",
+            ephemeral=True,
         )
         await fake_bot.close()
 
@@ -76,18 +82,26 @@ class CogTests(unittest.IsolatedAsyncioTestCase):
         with patch("discord.ext.tasks.Loop.start", return_value=None):
             cog = CTFTimeNotifications(fake_bot)
 
-        ctx = type("Ctx", (), {"author": object(), "channel": object()})()
+        class _FakeTextChannel:
+            pass
+
+        interaction = SimpleNamespace(user=object(), channel=_FakeTextChannel())
         with (
+            patch("bot.features.ctftime.cog.discord.TextChannel", _FakeTextChannel),
             patch.object(cog, "_can_operate_in_channel", return_value=True),
             patch.object(cog, "send_upcoming_ctfs", new=AsyncMock()) as fetch_mock,
             patch(
-                "bot.features.ctftime.cog.send_message_safely", new=AsyncMock()
+                "bot.features.ctftime.cog.send_interaction_message", new=AsyncMock()
             ) as send_mock,
         ):
-            await CTFTimeNotifications.manual_ctf_check.callback(cog, ctx)
+            await CTFTimeNotifications.manual_ctf_check.callback(cog, interaction)
 
-        send_mock.assert_awaited_once_with(ctx.channel, content="🔄 CTF情報を取得中...")
-        fetch_mock.assert_awaited_once_with(target_channel=ctx.channel)
+        send_mock.assert_awaited_once_with(
+            interaction,
+            "🔄 CTF情報を取得中...",
+            ephemeral=False,
+        )
+        fetch_mock.assert_awaited_once_with(target_channel=interaction.channel)
         await fake_bot.close()
 
     async def test_alpacahack_embed_builder(self):
