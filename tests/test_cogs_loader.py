@@ -42,6 +42,7 @@ class CogsLoaderTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch.object(cogs_loader, "DEFAULT_EXTENSIONS", extensions),
+            patch.object(cogs_loader.logger, "exception"),
             self.assertRaises(RuntimeError) as raised,
         ):
             await cogs_loader.load_cogs(bot)
