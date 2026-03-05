@@ -179,11 +179,11 @@ class Alpacahack(commands.Cog):
         await self.bot.wait_until_ready()
 
     @app_commands.command(
-        name="add_alpaca",
+        name="alpaca_add",
         description="AlpacaHackユーザーを登録します。",
     )
     @app_commands.describe(name="登録するユーザー名")
-    async def add_alpaca(self, interaction: discord.Interaction, name: str) -> None:
+    async def alpaca_add(self, interaction: discord.Interaction, name: str) -> None:
         result = await asyncio.to_thread(self.usecase.add_user, name)
         await send_interaction_message(
             interaction,
@@ -192,11 +192,11 @@ class Alpacahack(commands.Cog):
         )
 
     @app_commands.command(
-        name="del_alpaca",
+        name="alpaca_del",
         description="AlpacaHackユーザーの登録を削除します。",
     )
     @app_commands.describe(name="削除するユーザー名")
-    async def del_alpaca(self, interaction: discord.Interaction, name: str) -> None:
+    async def alpaca_del(self, interaction: discord.Interaction, name: str) -> None:
         result = await asyncio.to_thread(self.usecase.delete_user, name)
         await send_interaction_message(
             interaction,
@@ -205,10 +205,10 @@ class Alpacahack(commands.Cog):
         )
 
     @app_commands.command(
-        name="show_alpaca",
+        name="alpaca_list",
         description="登録済みのAlpacaHackユーザー一覧を表示します。",
     )
-    async def show_alpaca(self, interaction: discord.Interaction) -> None:
+    async def alpaca_list(self, interaction: discord.Interaction) -> None:
         usernames = await asyncio.to_thread(self.usecase.list_usernames)
         if not usernames:
             await send_interaction_message(
@@ -226,10 +226,10 @@ class Alpacahack(commands.Cog):
         )
 
     @app_commands.command(
-        name="show_alpaca_score",
+        name="alpaca_solve",
         description="AlpacaHackの今週のsolve状況を表示します。",
     )
-    async def show_alpaca_score(self, interaction: discord.Interaction) -> None:
+    async def alpaca_solve(self, interaction: discord.Interaction) -> None:
         if not interaction.response.is_done():
             await interaction.response.defer(thinking=True)
         today = datetime.datetime.now(self.settings.tzinfo).date()

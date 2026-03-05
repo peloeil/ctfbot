@@ -9,8 +9,8 @@ CTF サーバー向け Discord bot です。
 - CTF ロール募集管理（`/ctf-role create|list|close`、`#role` で募集、`ctf` カテゴリへ専用チャンネル作成、リアクション連動ロール付与、終了/アーカイブ自動処理、ロール色指定）
 - times カテゴリのチャンネル作成 (`/create-times`)
 - AlpacaHack の週次 solve サマリ通知（登録ユーザー対象、毎週日曜）
-- AlpacaHack ユーザー管理 (`/add_alpaca`, `/del_alpaca`, `/show_alpaca`)
-- AlpacaHack スコア表示 (`/show_alpaca_score`)
+- AlpacaHack ユーザー管理 (`/alpaca_add`, `/alpaca_del`, `/alpaca_list`)
+- AlpacaHack スコア表示 (`/alpaca_solve`)
 - Slash コマンド管理 (`/help`, `/sync`, `/load`, `/unload`, `/reload`, `/pin`, `/unpin`, `/perms`, `/create-times`)
 - Bot の接続状態通知（任意）
 
