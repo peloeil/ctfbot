@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock, patch
 from zoneinfo import ZoneInfo
 
@@ -135,7 +136,7 @@ class CogTests(unittest.IsolatedAsyncioTestCase):
         )
         guild = SimpleNamespace(categories=[ctf_category])
 
-        resolved = Alpacahack._find_alpacahack_channel(guild)
+        resolved = Alpacahack._find_alpacahack_channel(cast(discord.Guild, guild))
 
         self.assertIs(resolved, target_channel)
 
@@ -144,7 +145,7 @@ class CogTests(unittest.IsolatedAsyncioTestCase):
         misc_category = SimpleNamespace(name="misc", text_channels=[target_channel])
         guild = SimpleNamespace(categories=[misc_category])
 
-        resolved = Alpacahack._find_alpacahack_channel(guild)
+        resolved = Alpacahack._find_alpacahack_channel(cast(discord.Guild, guild))
 
         self.assertIsNone(resolved)
 
