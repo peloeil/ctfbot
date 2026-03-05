@@ -27,6 +27,12 @@ class SolveRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class WeeklySolveFetchResult:
+    challenges: list[str]
+    fetch_failed: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class AlpacaHackService:
     timezone: datetime.tzinfo
     base_url: str = ALPACAHACK_BASE_URL
@@ -43,12 +49,24 @@ class AlpacaHackService:
     def get_weekly_solve_challenges(
         self, user: str, reference_date: datetime.date | None = None
     ) -> list[str]:
+        return self.collect_weekly_solve_result(
+            user=user,
+            reference_date=reference_date,
+        ).challenges
+
+    def collect_weekly_solve_result(
+        self, user: str, reference_date: datetime.date | None = None
+    ) -> WeeklySolveFetchResult:
         today = reference_date or datetime.datetime.now(self.timezone).date()
         week_start, _ = self.get_week_range(today)
 
-        records = self._get_solve_records(user)
+        try:
+            records = self._get_solve_records(user)
+        except ExternalAPIError:
+            logger.warning("Failed to fetch weekly solve records for user: %s", user)
+            return WeeklySolveFetchResult(challenges=[], fetch_failed=True)
         if not records:
-            return []
+            return WeeklySolveFetchResult(challenges=[])
 
         challenges: list[str] = []
         seen: set[str] = set()
@@ -60,53 +78,49 @@ class AlpacaHackService:
                 continue
             seen.add(record.challenge)
             challenges.append(record.challenge)
-        return challenges
+        return WeeklySolveFetchResult(challenges=challenges)
 
     def _get_solve_records(self, user: str) -> list[SolveRecord]:
-        try:
-            logger.info("Fetching weekly solve records for user: %s", user)
-            soup = self._fetch_user_page(user)
-            tbody = self._extract_solved_challenges_tbody(soup)
-            if not isinstance(tbody, element.Tag):
-                return []
-
-            records: list[SolveRecord] = []
-            for row in tbody.find_all("tr"):
-                if not isinstance(row, element.Tag):
-                    continue
-                columns = row.find_all("td")
-                if len(columns) < 3:
-                    continue
-
-                challenge_cell = columns[0]
-                solved_at_cell = columns[2]
-                if not isinstance(challenge_cell, element.Tag):
-                    continue
-                if not isinstance(solved_at_cell, element.Tag):
-                    continue
-
-                challenge_tag = challenge_cell.find("a")
-                solved_at_tag = solved_at_cell.find("span")
-                if not isinstance(challenge_tag, element.Tag):
-                    continue
-                if not isinstance(solved_at_tag, element.Tag):
-                    continue
-
-                solved_at = self._parse_aria_label_to_local_datetime(
-                    solved_at_tag.get("aria-label")
-                )
-                if solved_at is None:
-                    continue
-
-                challenge = challenge_tag.get_text(strip=True)
-                if not challenge:
-                    continue
-                records.append(SolveRecord(challenge=challenge, solved_at=solved_at))
-
-            return records
-        except ExternalAPIError:
-            logger.exception("Failed to fetch weekly solve records for user: %s", user)
+        logger.info("Fetching weekly solve records for user: %s", user)
+        soup = self._fetch_user_page(user)
+        tbody = self._extract_solved_challenges_tbody(soup)
+        if not isinstance(tbody, element.Tag):
             return []
+
+        records: list[SolveRecord] = []
+        for row in tbody.find_all("tr"):
+            if not isinstance(row, element.Tag):
+                continue
+            columns = row.find_all("td")
+            if len(columns) < 3:
+                continue
+
+            challenge_cell = columns[0]
+            solved_at_cell = columns[2]
+            if not isinstance(challenge_cell, element.Tag):
+                continue
+            if not isinstance(solved_at_cell, element.Tag):
+                continue
+
+            challenge_tag = challenge_cell.find("a")
+            solved_at_tag = solved_at_cell.find("span")
+            if not isinstance(challenge_tag, element.Tag):
+                continue
+            if not isinstance(solved_at_tag, element.Tag):
+                continue
+
+            solved_at = self._parse_aria_label_to_local_datetime(
+                solved_at_tag.get("aria-label")
+            )
+            if solved_at is None:
+                continue
+
+            challenge = challenge_tag.get_text(strip=True)
+            if not challenge:
+                continue
+            records.append(SolveRecord(challenge=challenge, solved_at=solved_at))
+
+        return records
 
     def _extract_solved_challenges_tbody(
         self, soup: BeautifulSoup

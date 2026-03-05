@@ -13,9 +13,13 @@ if str(SRC_ROOT) not in sys.path:
 
 from bot.db.connection import DatabaseConnectionFactory  # noqa: E402
 from bot.db.migrations import apply_migrations  # noqa: E402
+from bot.errors import ExternalAPIError  # noqa: E402
 from bot.features.alpacahack.models import UserMutationStatus  # noqa: E402
 from bot.features.alpacahack.repository import AlpacaHackUserRepository  # noqa: E402
-from bot.features.alpacahack.service import AlpacaHackService  # noqa: E402
+from bot.features.alpacahack.service import (  # noqa: E402
+    AlpacaHackService,
+    WeeklySolveFetchResult,
+)
 from bot.features.alpacahack.usecase import AlpacaHackUseCase  # noqa: E402
 from bot.utils.helpers import chunk_message, format_code_block  # noqa: E402
 
@@ -116,6 +120,19 @@ class TestAlpacaHackService(unittest.TestCase):
 
         self.assertEqual(solves, ["daily-one", "daily-two"])
 
+    def test_collect_weekly_solve_result_marks_fetch_failure(self):
+        with patch(
+            "bot.features.alpacahack.service.AlpacaHackService._get_solve_records",
+            side_effect=ExternalAPIError("boom"),
+        ), patch("bot.features.alpacahack.service.logger.warning"):
+            result = self.service.collect_weekly_solve_result(
+                "alice",
+                reference_date=date(2026, 3, 4),
+            )
+
+        self.assertTrue(result.fetch_failed)
+        self.assertEqual(result.challenges, [])
+
 
 class TestDatabaseAndUseCase(unittest.TestCase):
     def setUp(self):
@@ -160,6 +177,36 @@ class TestDatabaseAndUseCase(unittest.TestCase):
             usecase.add_user("alice")
             duplicate = usecase.add_user("alice")
             self.assertEqual(duplicate.status, UserMutationStatus.ALREADY_EXISTS)
+
+    def test_collect_weekly_summary_tracks_failed_users(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            connection_factory = DatabaseConnectionFactory(
+                database_path=str(Path(tmp_dir) / "alpaca.db")
+            )
+            apply_migrations(connection_factory)
+            repository = AlpacaHackUserRepository(connection_factory=connection_factory)
+            service = AlpacaHackService(timezone=self.timezone)
+            usecase = AlpacaHackUseCase(
+                repository=repository,
+                service=service,
+                request_interval_seconds=0,
+                sleep_fn=lambda _seconds: None,
+            )
+            usecase.add_user("alice")
+
+            with patch(
+                "bot.features.alpacahack.service."
+                "AlpacaHackService.collect_weekly_solve_result",
+                return_value=WeeklySolveFetchResult(
+                    challenges=[],
+                    fetch_failed=True,
+                ),
+            ):
+                summary = usecase.collect_weekly_summary(date(2026, 3, 4))
+
+        self.assertEqual(summary.total_users, 1)
+        self.assertEqual(summary.weekly_solves, {})
+        self.assertEqual(summary.failed_users, ["alice"])
 
 
 if __name__ == "__main__":

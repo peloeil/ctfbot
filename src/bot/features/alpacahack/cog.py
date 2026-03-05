@@ -60,6 +60,18 @@ class Alpacahack(
         return joined
 
     @staticmethod
+    def _format_failed_users(users: list[str], max_items: int = 20) -> str:
+        if not users:
+            return "-"
+        lines = [f"- {name}" for name in users[:max_items]]
+        if len(users) > max_items:
+            lines.append(f"... and {len(users) - max_items} more")
+        joined = "\n".join(lines)
+        if len(joined) > 1024:
+            return f"{joined[:1020]}..."
+        return joined
+
+    @staticmethod
     def _to_user_message(result: UserMutationResult) -> str:
         if result.status == UserMutationStatus.INVALID_NAME:
             return "ユーザー名が空です。"
@@ -76,12 +88,14 @@ class Alpacahack(
     def _build_weekly_summary_embed(self, summary: WeeklySolveSummary) -> discord.Embed:
         total_solves = sum(len(items) for items in summary.weekly_solves.values())
         solved_users = len(summary.weekly_solves)
+        failed_users = len(summary.failed_users)
 
         embed = discord.Embed(
             title="🦙 AlpacaHack 今週の solve",
             description=(
                 f"{summary.week_start:%Y-%m-%d} 〜 {summary.week_end:%Y-%m-%d}\n"
-                f"{solved_users}/{summary.total_users} 人, {total_solves} solves"
+                f"{solved_users}/{summary.total_users} 人, {total_solves} solves, "
+                f"取得失敗 {failed_users} 人"
             ),
             color=discord.Color.orange(),
             timestamp=datetime.datetime.now(self.settings.tzinfo),
@@ -93,6 +107,12 @@ class Alpacahack(
                 value="今週の solve はまだありません。",
                 inline=False,
             )
+            if summary.failed_users:
+                embed.add_field(
+                    name="取得失敗ユーザー",
+                    value=self._format_failed_users(summary.failed_users),
+                    inline=False,
+                )
             return embed
 
         sorted_rows = sorted(
@@ -101,17 +121,27 @@ class Alpacahack(
             reverse=True,
         )
 
-        for username, solves in sorted_rows[:25]:
+        max_user_fields = 24 if summary.failed_users else 25
+        for username, solves in sorted_rows[:max_user_fields]:
             embed.add_field(
                 name=username,
                 value=self._format_solve_list(solves),
                 inline=False,
             )
 
-        if len(sorted_rows) > 25:
+        if summary.failed_users:
+            embed.add_field(
+                name="取得失敗ユーザー",
+                value=self._format_failed_users(summary.failed_users),
+                inline=False,
+            )
+
+        if len(sorted_rows) > max_user_fields:
             embed.set_footer(
                 text=(
-                    f"+ {len(sorted_rows) - 25} users are omitted due to Discord limits"
+                    "+ "
+                    f"{len(sorted_rows) - max_user_fields} users are omitted due to "
+                    "Discord limits"
                 )
             )
 

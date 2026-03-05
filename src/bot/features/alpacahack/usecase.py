@@ -16,6 +16,7 @@ class WeeklySolveSummary:
     week_end: datetime.date
     total_users: int
     weekly_solves: dict[str, list[str]]
+    failed_users: list[str]
 
 
 class AlpacaHackUseCase:
@@ -49,12 +50,15 @@ class AlpacaHackUseCase:
         users = self._repository.list_usernames()
 
         weekly_solves: dict[str, list[str]] = {}
+        failed_users: list[str] = []
         for username in users:
-            solves = self._service.get_weekly_solve_challenges(
+            result = self._service.collect_weekly_solve_result(
                 username, reference_date=today
             )
-            if solves:
-                weekly_solves[username] = solves
+            if result.fetch_failed:
+                failed_users.append(username)
+            elif result.challenges:
+                weekly_solves[username] = result.challenges
             if self._request_interval_seconds > 0:
                 self._sleep(self._request_interval_seconds)
 
@@ -63,4 +67,5 @@ class AlpacaHackUseCase:
             week_end=week_end,
             total_users=len(users),
             weekly_solves=weekly_solves,
+            failed_users=failed_users,
         )

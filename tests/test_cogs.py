@@ -118,10 +118,34 @@ class CogTests(unittest.IsolatedAsyncioTestCase):
                 "alice": ["web-100", "pwn-200"],
                 "bob": ["crypto-100"],
             },
+            failed_users=[],
         )
         embed = cog._build_weekly_summary_embed(summary)
         self.assertEqual(embed.title, "🦙 AlpacaHack 今週の solve")
         self.assertEqual(len(embed.fields), 2)
+        description = embed.description or ""
+        self.assertIn("取得失敗 0 人", description)
+        await fake_bot.close()
+
+    async def test_alpacahack_embed_builder_shows_failed_users(self):
+        runtime = self._build_runtime()
+        fake_bot = _FakeBot(runtime)
+        with patch("discord.ext.tasks.Loop.start", return_value=None):
+            cog = Alpacahack(fake_bot)
+
+        summary = WeeklySolveSummary(
+            week_start=datetime.date(2026, 3, 2),
+            week_end=datetime.date(2026, 3, 8),
+            total_users=2,
+            weekly_solves={"alice": ["web-100"]},
+            failed_users=["bob"],
+        )
+        embed = cog._build_weekly_summary_embed(summary)
+        description = embed.description or ""
+        self.assertIn("取得失敗 1 人", description)
+        self.assertEqual(embed.fields[-1].name, "取得失敗ユーザー")
+        value = embed.fields[-1].value or ""
+        self.assertIn("bob", value)
         await fake_bot.close()
 
 
