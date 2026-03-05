@@ -21,7 +21,11 @@ from .usecase import WeeklySolveSummary
 WEEKLY_NOTIFICATION_WEEKDAY = 6  # 0=Mon ... 6=Sun
 
 
-class Alpacahack(commands.Cog):
+class Alpacahack(
+    commands.GroupCog,
+    group_name="alpaca",
+    group_description="AlpacaHack関連コマンドです。",
+):
     """Commands and scheduled notifications for AlpacaHack users."""
 
     def __init__(self, bot: commands.Bot) -> None:
@@ -179,7 +183,7 @@ class Alpacahack(commands.Cog):
         await self.bot.wait_until_ready()
 
     @app_commands.command(
-        name="alpaca-add",
+        name="add",
         description="AlpacaHackユーザーを登録します。",
     )
     @app_commands.describe(name="登録するユーザー名")
@@ -192,7 +196,7 @@ class Alpacahack(commands.Cog):
         )
 
     @app_commands.command(
-        name="alpaca-del",
+        name="del",
         description="AlpacaHackユーザーの登録を削除します。",
     )
     @app_commands.describe(name="削除するユーザー名")
@@ -205,7 +209,7 @@ class Alpacahack(commands.Cog):
         )
 
     @app_commands.command(
-        name="alpaca-list",
+        name="list",
         description="登録済みのAlpacaHackユーザー一覧を表示します。",
     )
     async def alpaca_list(self, interaction: discord.Interaction) -> None:
@@ -226,7 +230,7 @@ class Alpacahack(commands.Cog):
         )
 
     @app_commands.command(
-        name="alpaca-solve",
+        name="solve",
         description="AlpacaHackの今週のsolve状況を表示します。",
     )
     async def alpaca_solve(self, interaction: discord.Interaction) -> None:
