@@ -115,14 +115,14 @@ def _build_echo_command() -> app_commands.Command:
 def _build_ctf_role_group() -> app_commands.Group:
     class _CTFRoleGroup(
         app_commands.Group,
-        name="ctf-role",
+        name="ctfteam",
         description="CTF参加ロール募集を管理します。",
     ):
         @app_commands.command(
-            name="create",
+            name="open",
             description="CTF募集メッセージを作成します。",
         )
-        async def create(self, interaction: object) -> None:
+        async def open(self, interaction: object) -> None:
             _ = interaction
 
     return _CTFRoleGroup()
@@ -149,7 +149,7 @@ class HelpCommandTests(unittest.IsolatedAsyncioTestCase):
         sent_content = await_args.args[1]
         self.assertIn("利用可能なスラッシュコマンド", sent_content)
         self.assertIn("/echo", sent_content)
-        self.assertIn("/ctf-role create", sent_content)
+        self.assertIn("/ctfteam open", sent_content)
         self.assertTrue(await_args.kwargs["ephemeral"])
 
     async def test_help_shows_empty_message_when_no_slash_commands(self) -> None:
@@ -213,7 +213,7 @@ class PermissionsDebugTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Channel Permissions", sent_content)
         self.assertIn("Manage Roles", sent_content)
         self.assertIn("Add Reactions", sent_content)
-        self.assertNotIn("/ctf-role create", sent_content)
+        self.assertNotIn("/ctfteam open", sent_content)
 
     async def test_perms_shows_disabled_permissions(self) -> None:
         bot = cast(commands.Bot, _FakeBot())
@@ -256,7 +256,7 @@ class PermissionsDebugTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("❌ Add Reactions", sent_content)
         self.assertIn("Manage Channels", sent_content)
         self.assertIn("Add Reactions", sent_content)
-        self.assertNotIn("/ctf-role create", sent_content)
+        self.assertNotIn("/ctfteam open", sent_content)
 
 
 class TimesChannelsTests(unittest.IsolatedAsyncioTestCase):
