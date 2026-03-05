@@ -12,6 +12,7 @@ class ManageCogs(commands.Cog):
 
     CORE_COGS: ClassVar[set[str]] = {
         "manage_cogs",
+        "help_command",
         "message_tools",
         "perms_debug",
         "times_channels",
