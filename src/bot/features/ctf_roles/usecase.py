@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ...errors import ServiceError
 from .models import (
     CampaignCloseResult,
     CampaignDraft,
@@ -57,7 +58,7 @@ class CTFRoleUseCase:
 
         try:
             start_at = self._service.parse_local_datetime(start_at_raw)
-        except Exception:
+        except ServiceError:
             return CampaignDraftValidation(
                 is_valid=False,
                 error_message=(
@@ -71,7 +72,7 @@ class CTFRoleUseCase:
         if normalized_end:
             try:
                 end_at = self._service.parse_local_datetime(normalized_end)
-            except Exception:
+            except ServiceError:
                 return CampaignDraftValidation(
                     is_valid=False,
                     error_message=(
