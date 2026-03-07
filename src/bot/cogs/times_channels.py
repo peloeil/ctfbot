@@ -77,9 +77,7 @@ class TimesChannels(
         name="create",
         description="timesカテゴリにテキストチャンネルを作成します。",
     )
-    @app_commands.describe(
-        names="作成するチャンネル名(カンマ/改行区切りで複数指定可)"
-    )
+    @app_commands.describe(names="作成するチャンネル名(カンマ/改行区切りで複数指定可)")
     async def create_times(self, interaction: discord.Interaction, names: str) -> None:
         if interaction.guild is None:
             await send_interaction_message(

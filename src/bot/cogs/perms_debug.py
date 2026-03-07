@@ -87,12 +87,10 @@ class PermissionsDebug(commands.Cog):
         }
 
         guild_lines = [
-            f"- {self._format_perm(ok)} {name}"
-            for name, ok in guild_checks.items()
+            f"- {self._format_perm(ok)} {name}" for name, ok in guild_checks.items()
         ]
         channel_lines = [
-            f"- {self._format_perm(ok)} {name}"
-            for name, ok in channel_checks.items()
+            f"- {self._format_perm(ok)} {name}" for name, ok in channel_checks.items()
         ]
 
         content = "\n".join(
