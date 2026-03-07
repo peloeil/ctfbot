@@ -134,9 +134,7 @@ class CTFRoleCampaigns(
         return permissions.view_channel and permissions.send_messages
 
     @staticmethod
-    def _can_close_campaign(
-        user: discord.abc.User, campaign: CTFRoleCampaign
-    ) -> bool:
+    def _can_close_campaign(user: discord.abc.User, campaign: CTFRoleCampaign) -> bool:
         if user.id == campaign.created_by:
             return True
         if not isinstance(user, discord.Member):
@@ -333,8 +331,7 @@ class CTFRoleCampaigns(
             return None, ""
         if len(normalized) != 6 or not re.fullmatch(r"[0-9a-f]{6}", normalized):
             return None, (
-                "ロールカラーは 6 桁の16進数で入力してください。"
-                "(例: #ff6600)"
+                "ロールカラーは 6 桁の16進数で入力してください。(例: #ff6600)"
             )
         return int(normalized, 16), ""
 
@@ -626,9 +623,7 @@ class CTFRoleCampaigns(
         mention_chunks = self._split_member_mentions(members)
         for index, mention_chunk in enumerate(mention_chunks, start=1):
             suffix = (
-                ""
-                if len(mention_chunks) == 1
-                else f" ({index}/{len(mention_chunks)})"
+                "" if len(mention_chunks) == 1 else f" ({index}/{len(mention_chunks)})"
             )
             content = (
                 f"🚩 **{campaign.ctf_name} が開始しました。**\n"
@@ -675,9 +670,7 @@ class CTFRoleCampaigns(
         archive_text = self.usecase.format_unix_datetime(archive_at_unix)
         for index, member_chunk in enumerate(member_chunks, start=1):
             suffix = (
-                ""
-                if len(member_chunks) == 1
-                else f" ({index}/{len(member_chunks)})"
+                "" if len(member_chunks) == 1 else f" ({index}/{len(member_chunks)})"
             )
             content = (
                 f"🏁 **{campaign.ctf_name} は終了しました。**\n"

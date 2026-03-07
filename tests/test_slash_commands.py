@@ -24,8 +24,11 @@ class _FakeTextChannel:
         *,
         view_channel: bool,
         send_messages: bool,
+        send_messages_in_threads: bool,
+        read_message_history: bool,
         add_reactions: bool,
-        manage_messages: bool,
+        pin_messages: bool,
+        manage_channels: bool,
     ) -> None:
         self.mention = "#ctf-test"
         self._perms = type(
@@ -34,8 +37,11 @@ class _FakeTextChannel:
             {
                 "view_channel": view_channel,
                 "send_messages": send_messages,
+                "send_messages_in_threads": send_messages_in_threads,
+                "read_message_history": read_message_history,
                 "add_reactions": add_reactions,
-                "manage_messages": manage_messages,
+                "pin_messages": pin_messages,
+                "manage_channels": manage_channels,
             },
         )()
 
@@ -180,8 +186,11 @@ class PermissionsDebugTests(unittest.IsolatedAsyncioTestCase):
             channel=_FakeTextChannel(
                 view_channel=True,
                 send_messages=True,
+                send_messages_in_threads=True,
+                read_message_history=True,
                 add_reactions=True,
-                manage_messages=True,
+                pin_messages=True,
+                manage_channels=True,
             ),
         )
 
@@ -189,8 +198,6 @@ class PermissionsDebugTests(unittest.IsolatedAsyncioTestCase):
             mention="<@999>",
             guild_permissions=SimpleNamespace(
                 manage_roles=True,
-                manage_channels=True,
-                manage_messages=True,
             ),
             top_role=SimpleNamespace(name="bot", position=8),
         )
@@ -213,6 +220,8 @@ class PermissionsDebugTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Channel Permissions", sent_content)
         self.assertIn("Manage Roles", sent_content)
         self.assertIn("Add Reactions", sent_content)
+        self.assertIn("Pin Messages", sent_content)
+        self.assertIn("Send Messages in Threads", sent_content)
         self.assertNotIn("/ctfteam open", sent_content)
 
     async def test_perms_shows_disabled_permissions(self) -> None:
@@ -224,8 +233,11 @@ class PermissionsDebugTests(unittest.IsolatedAsyncioTestCase):
             channel=_FakeTextChannel(
                 view_channel=True,
                 send_messages=True,
+                send_messages_in_threads=False,
+                read_message_history=False,
                 add_reactions=False,
-                manage_messages=False,
+                pin_messages=False,
+                manage_channels=False,
             ),
         )
 
@@ -233,8 +245,6 @@ class PermissionsDebugTests(unittest.IsolatedAsyncioTestCase):
             mention="<@999>",
             guild_permissions=SimpleNamespace(
                 manage_roles=True,
-                manage_channels=False,
-                manage_messages=True,
             ),
             top_role=SimpleNamespace(name="bot", position=8),
         )
@@ -254,6 +264,8 @@ class PermissionsDebugTests(unittest.IsolatedAsyncioTestCase):
         sent_content = await_args.args[1]
         self.assertIn("❌ Manage Channels", sent_content)
         self.assertIn("❌ Add Reactions", sent_content)
+        self.assertIn("❌ Pin Messages", sent_content)
+        self.assertIn("❌ Send Messages in Threads", sent_content)
         self.assertIn("Manage Channels", sent_content)
         self.assertIn("Add Reactions", sent_content)
         self.assertNotIn("/ctfteam open", sent_content)

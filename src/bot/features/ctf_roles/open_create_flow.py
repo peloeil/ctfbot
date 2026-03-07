@@ -193,7 +193,7 @@ async def handle_create_modal_submit(
         f"Voiceチャンネル: {voice_channel.mention}"
     )
     if create_warnings:
-        summary += (
-            "\nただし開始通知の後処理に失敗しました: " + ", ".join(create_warnings)
+        summary += "\nただし開始通知の後処理に失敗しました: " + ", ".join(
+            create_warnings
         )
     await interaction.followup.send(summary, ephemeral=True)

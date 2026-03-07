@@ -334,9 +334,7 @@ class CTFRoleCampaignRepository:
             else CampaignStatus.CLOSED
         )
 
-        end_at_unix = (
-            int(cast(int, typed_row[7])) if typed_row[7] is not None else None
-        )
+        end_at_unix = int(cast(int, typed_row[7])) if typed_row[7] is not None else None
         start_notified_at_unix = (
             int(cast(int, typed_row[11])) if typed_row[11] is not None else None
         )
