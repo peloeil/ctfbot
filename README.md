@@ -33,19 +33,37 @@ cp .env.example .env
 uv run python src/main.py
 ```
 
+## Discord Developer Portal の設定
+
+### 1. Installation
+
+- `Guild Install` を有効にします
+- `User Install` は不要です
+- `Install Link` を `None` にします
+
+### 2. OAuth2
+
+- scope として `bot` と `applications.commands` を使います
+- 生成された URL から bot をインストールします
+
+### 3. Bot
+
+- 公開 Bot をオフにします。
+- Bot token を発行して `.env` の `DISCORD_TOKEN` に設定します
+- `Server Members Intent` を有効にします
+- `Message Content Intent` を有効にします
+
 ## Discord 側の前提
 
-- `MESSAGE CONTENT INTENT` を有効にする
-- `SERVER MEMBERS INTENT` を有効にする
 - 全機能を使う場合、bot には少なくとも次を付与する
-  - `View Channel`（チャンネルを表示）
   - `Send Messages`（メッセージを送る）
   - `Send Messages in Threads`（Threadsでメッセージを送る）
   - `Read Message History`（メッセージ履歴を読む）
+  - `View Channel`（チャンネルを表示）
+  - `Manage Channels`（チャンネルの管理）
   - `Add Reactions`（リアクションを付ける）
   - `Pin Messages`（メッセージをピン留め）
   - `Manage Roles`（ロールの管理）
-  - `Manage Channels`（チャンネルの管理）
 - `Manage Roles` を使う機能のために、bot のロールは作成・付与対象のロールより上位に置く
 
 ## 運用メモ
