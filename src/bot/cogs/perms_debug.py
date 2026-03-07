@@ -76,14 +76,15 @@ class PermissionsDebug(commands.Cog):
 
         guild_checks = {
             "Manage Roles": guild_perms.manage_roles,
-            "Manage Channels": guild_perms.manage_channels,
-            "Manage Messages": guild_perms.manage_messages,
         }
         channel_checks = {
             "View Channel": channel_perms.view_channel,
             "Send Messages": channel_perms.send_messages,
+            "Send Messages in Threads": channel_perms.send_messages_in_threads,
+            "Read Message History": channel_perms.read_message_history,
             "Add Reactions": channel_perms.add_reactions,
-            "Manage Messages": channel_perms.manage_messages,
+            "Pin Messages": channel_perms.pin_messages,
+            "Manage Channels": channel_perms.manage_channels,
         }
 
         guild_lines = [
