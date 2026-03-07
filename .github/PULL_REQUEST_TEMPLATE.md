@@ -1,29 +1,17 @@
-<!-- I want to review in Japanese. -->
+<!-- レビューは日本語を想定しています。不要なセクションは削除してください。 -->
 
-## 概要 / Overview
+## 概要
 
-<!-- PRの概要を記載 -->
-- xxxxxx
+- 
 
-## 👏 解決する issue / Resolved Issues
+## 変更内容
 
-<!-- このPRでCloseするissueを記載 -->
-- close #0
+- 
 
-## 📝 関連する issue / Related Issues
+## 確認内容
 
-<!-- 関連するissueを記載 -->
-- #0
+- 
 
-<!-- for GitHub Copilot review rule -->
-<!--
-レビューする際には、以下のprefixをつけてください
-[must] -> 必須の変更
-[imo] -> 自分の意見だとこうだけど修正必須ではない
-[nits] -> ささいな指摘
-[info] -> 情報提供
-[ask] -> 質問
--->
-<!-- for GitHub Copilot review  rule-->
+## 補足
 
-<!-- I want to review in Japanese. -->
+- 
