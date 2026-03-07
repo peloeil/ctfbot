@@ -16,3 +16,9 @@ class UserMutationStatus(Enum):
 class UserMutationResult:
     status: UserMutationStatus
     normalized_name: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class SolvedChallenge:
+    name: str
+    url: str | None = None

@@ -18,6 +18,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from bot.config import Settings  # noqa: E402
 from bot.features.alpacahack.cog import Alpacahack  # noqa: E402
+from bot.features.alpacahack.models import SolvedChallenge  # noqa: E402
 from bot.features.alpacahack.usecase import WeeklySolveSummary  # noqa: E402
 from bot.features.ctftime.cog import CTFTimeNotifications  # noqa: E402
 from bot.runtime import build_runtime  # noqa: E402
@@ -116,8 +117,22 @@ class CogTests(unittest.IsolatedAsyncioTestCase):
             week_end=datetime.date(2026, 3, 8),
             total_users=2,
             weekly_solves={
-                "alice": ["web-100", "pwn-200"],
-                "bob": ["crypto-100"],
+                "alice": [
+                    SolvedChallenge(
+                        name="web-100",
+                        url="https://alpacahack.com/challenges/web-100",
+                    ),
+                    SolvedChallenge(
+                        name="pwn-200",
+                        url="https://alpacahack.com/challenges/pwn-200",
+                    ),
+                ],
+                "bob": [
+                    SolvedChallenge(
+                        name="crypto-100",
+                        url="https://alpacahack.com/challenges/crypto-100",
+                    )
+                ],
             },
             failed_users=[],
         )
@@ -126,6 +141,11 @@ class CogTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(embed.fields), 2)
         description = embed.description or ""
         self.assertIn("取得失敗 0 人", description)
+        value = embed.fields[0].value or ""
+        self.assertIn(
+            "[web-100](https://alpacahack.com/challenges/web-100)",
+            value,
+        )
         await fake_bot.close()
 
     def test_alpacahack_find_target_channel_in_ctf_category(self):
@@ -159,7 +179,14 @@ class CogTests(unittest.IsolatedAsyncioTestCase):
             week_start=datetime.date(2026, 3, 2),
             week_end=datetime.date(2026, 3, 8),
             total_users=2,
-            weekly_solves={"alice": ["web-100"]},
+            weekly_solves={
+                "alice": [
+                    SolvedChallenge(
+                        name="web-100",
+                        url="https://alpacahack.com/challenges/web-100",
+                    )
+                ]
+            },
             failed_users=["bob"],
         )
         embed = cog._build_weekly_summary_embed(summary)

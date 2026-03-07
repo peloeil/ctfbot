@@ -5,7 +5,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from .models import UserMutationResult
+from .models import SolvedChallenge, UserMutationResult
 from .repository import AlpacaHackUserRepository
 from .service import AlpacaHackService
 
@@ -15,7 +15,7 @@ class WeeklySolveSummary:
     week_start: datetime.date
     week_end: datetime.date
     total_users: int
-    weekly_solves: dict[str, list[str]]
+    weekly_solves: dict[str, list[SolvedChallenge]]
     failed_users: list[str]
 
 
@@ -49,7 +49,7 @@ class AlpacaHackUseCase:
         week_start, week_end = self._service.get_week_range(today)
         users = self._repository.list_usernames()
 
-        weekly_solves: dict[str, list[str]] = {}
+        weekly_solves: dict[str, list[SolvedChallenge]] = {}
         failed_users: list[str] = []
         for username in users:
             result = self._service.collect_weekly_solve_result(

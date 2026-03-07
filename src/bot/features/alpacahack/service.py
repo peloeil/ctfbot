@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import re
 from dataclasses import dataclass
+from urllib.parse import urljoin
 from zoneinfo import ZoneInfo
 
 import requests
@@ -11,8 +12,10 @@ from requests import RequestException
 
 from ...errors import ExternalAPIError
 from ...utils.helpers import logger
+from .models import SolvedChallenge
 
-ALPACAHACK_BASE_URL = "https://alpacahack.com/users/"
+ALPACAHACK_SITE_URL = "https://alpacahack.com/"
+ALPACAHACK_BASE_URL = urljoin(ALPACAHACK_SITE_URL, "users/")
 REQUEST_TIMEOUT_SECONDS = 10
 UTC = ZoneInfo("UTC")
 ARIA_LABEL_DATETIME_PATTERN = re.compile(
@@ -22,19 +25,20 @@ ARIA_LABEL_DATETIME_PATTERN = re.compile(
 
 @dataclass(frozen=True, slots=True)
 class SolveRecord:
-    challenge: str
+    challenge: SolvedChallenge
     solved_at: datetime.datetime
 
 
 @dataclass(frozen=True, slots=True)
 class WeeklySolveFetchResult:
-    challenges: list[str]
+    challenges: list[SolvedChallenge]
     fetch_failed: bool = False
 
 
 @dataclass(frozen=True, slots=True)
 class AlpacaHackService:
     timezone: datetime.tzinfo
+    site_url: str = ALPACAHACK_SITE_URL
     base_url: str = ALPACAHACK_BASE_URL
     request_timeout_seconds: int = REQUEST_TIMEOUT_SECONDS
 
@@ -49,10 +53,13 @@ class AlpacaHackService:
     def get_weekly_solve_challenges(
         self, user: str, reference_date: datetime.date | None = None
     ) -> list[str]:
-        return self.collect_weekly_solve_result(
-            user=user,
-            reference_date=reference_date,
-        ).challenges
+        return [
+            challenge.name
+            for challenge in self.collect_weekly_solve_result(
+                user=user,
+                reference_date=reference_date,
+            ).challenges
+        ]
 
     def collect_weekly_solve_result(
         self, user: str, reference_date: datetime.date | None = None
@@ -68,15 +75,16 @@ class AlpacaHackService:
         if not records:
             return WeeklySolveFetchResult(challenges=[])
 
-        challenges: list[str] = []
+        challenges: list[SolvedChallenge] = []
         seen: set[str] = set()
         for record in records:
             solved_date = record.solved_at.date()
             if solved_date < week_start or solved_date > today:
                 continue
-            if record.challenge in seen:
+            challenge_key = record.challenge.url or record.challenge.name
+            if challenge_key in seen:
                 continue
-            seen.add(record.challenge)
+            seen.add(challenge_key)
             challenges.append(record.challenge)
         return WeeklySolveFetchResult(challenges=challenges)
 
@@ -115,10 +123,18 @@ class AlpacaHackService:
             if solved_at is None:
                 continue
 
-            challenge = challenge_tag.get_text(strip=True)
-            if not challenge:
+            challenge_name = challenge_tag.get_text(strip=True)
+            if not challenge_name:
                 continue
-            records.append(SolveRecord(challenge=challenge, solved_at=solved_at))
+            records.append(
+                SolveRecord(
+                    challenge=SolvedChallenge(
+                        name=challenge_name,
+                        url=self._resolve_challenge_url(challenge_tag.get("href")),
+                    ),
+                    solved_at=solved_at,
+                )
+            )
 
         return records
 
@@ -150,9 +166,7 @@ class AlpacaHackService:
 
         normalized = f"{match.group(1)} {match.group(2)}"
         date_format = (
-            "%Y-%m-%d %H:%M:%S"
-            if normalized.count(":") == 2
-            else "%Y-%m-%d %H:%M"
+            "%Y-%m-%d %H:%M:%S" if normalized.count(":") == 2 else "%Y-%m-%d %H:%M"
         )
         try:
             naive = datetime.datetime.strptime(normalized, date_format)
@@ -160,6 +174,14 @@ class AlpacaHackService:
             return None
 
         return naive.replace(tzinfo=UTC).astimezone(self.timezone)
+
+    def _resolve_challenge_url(self, raw_value: object) -> str | None:
+        if not isinstance(raw_value, str):
+            return None
+        href = raw_value.strip()
+        if not href:
+            return None
+        return urljoin(self.site_url, href)
 
     def _fetch_user_page(self, user: str) -> BeautifulSoup:
         try:

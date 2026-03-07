@@ -14,7 +14,10 @@ if str(SRC_ROOT) not in sys.path:
 from bot.db.connection import DatabaseConnectionFactory  # noqa: E402
 from bot.db.migrations import apply_migrations  # noqa: E402
 from bot.errors import ExternalAPIError  # noqa: E402
-from bot.features.alpacahack.models import UserMutationStatus  # noqa: E402
+from bot.features.alpacahack.models import (  # noqa: E402
+    SolvedChallenge,
+    UserMutationStatus,
+)
 from bot.features.alpacahack.repository import AlpacaHackUserRepository  # noqa: E402
 from bot.features.alpacahack.service import (  # noqa: E402
     AlpacaHackService,
@@ -55,12 +58,12 @@ class TestAlpacaHackService(unittest.TestCase):
               <table>
                 <tbody>
                   <tr>
-                    <td><a>weekly-one</a></td>
+                    <td><a href="/challenges/weekly-one">weekly-one</a></td>
                     <td><p>1</p></td>
                     <td><span aria-label="2026-03-03 10:00 UTC"></span></td>
                   </tr>
                   <tr>
-                    <td><a>old-one</a></td>
+                    <td><a href="/challenges/old-one">old-one</a></td>
                     <td><p>1</p></td>
                     <td><span aria-label="2026-02-28 23:00 UTC"></span></td>
                   </tr>
@@ -92,12 +95,12 @@ class TestAlpacaHackService(unittest.TestCase):
               <table>
                 <tbody>
                   <tr>
-                    <td><a>daily-one</a></td>
+                    <td><a href="/challenges/daily-one">daily-one</a></td>
                     <td><p>1</p></td>
                     <td><span aria-label="2026-03-04 19:11 GMT+0"></span></td>
                   </tr>
                   <tr>
-                    <td><a>daily-two</a></td>
+                    <td><a href="/challenges/daily-two">daily-two</a></td>
                     <td><p>1</p></td>
                     <td><span aria-label="2026-03-04 19:03:30 GMT+0"></span></td>
                   </tr>
@@ -120,11 +123,51 @@ class TestAlpacaHackService(unittest.TestCase):
 
         self.assertEqual(solves, ["daily-one", "daily-two"])
 
-    def test_collect_weekly_solve_result_marks_fetch_failure(self):
+    def test_collect_weekly_solve_result_includes_challenge_links(self):
+        html = """
+        <html>
+          <body>
+            <p>SOLVED CHALLENGES</p>
+            <div>
+              <table>
+                <tbody>
+                  <tr>
+                    <td><a href="/challenges/web-100">web-100</a></td>
+                    <td><p>1</p></td>
+                    <td><span aria-label="2026-03-04 19:11 GMT+0"></span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </body>
+        </html>
+        """
+        response = Mock()
+        response.content = html.encode("utf-8")
+        response.raise_for_status.return_value = None
+
         with patch(
-            "bot.features.alpacahack.service.AlpacaHackService._get_solve_records",
-            side_effect=ExternalAPIError("boom"),
-        ), patch("bot.features.alpacahack.service.logger.warning"):
+            "bot.features.alpacahack.service.requests.get", return_value=response
+        ):
+            result = self.service.collect_weekly_solve_result(
+                "test-user", reference_date=date(2026, 3, 5)
+            )
+
+        self.assertEqual(len(result.challenges), 1)
+        self.assertEqual(result.challenges[0].name, "web-100")
+        self.assertEqual(
+            result.challenges[0].url,
+            "https://alpacahack.com/challenges/web-100",
+        )
+
+    def test_collect_weekly_solve_result_marks_fetch_failure(self):
+        with (
+            patch(
+                "bot.features.alpacahack.service.AlpacaHackService._get_solve_records",
+                side_effect=ExternalAPIError("boom"),
+            ),
+            patch("bot.features.alpacahack.service.logger.warning"),
+        ):
             result = self.service.collect_weekly_solve_result(
                 "alice",
                 reference_date=date(2026, 3, 4),
@@ -177,6 +220,46 @@ class TestDatabaseAndUseCase(unittest.TestCase):
             usecase.add_user("alice")
             duplicate = usecase.add_user("alice")
             self.assertEqual(duplicate.status, UserMutationStatus.ALREADY_EXISTS)
+
+    def test_collect_weekly_summary_includes_challenge_links(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            connection_factory = DatabaseConnectionFactory(
+                database_path=str(Path(tmp_dir) / "alpaca.db")
+            )
+            apply_migrations(connection_factory)
+            repository = AlpacaHackUserRepository(connection_factory=connection_factory)
+            service = AlpacaHackService(timezone=self.timezone)
+            usecase = AlpacaHackUseCase(
+                repository=repository,
+                service=service,
+                request_interval_seconds=0,
+                sleep_fn=lambda _seconds: None,
+            )
+            usecase.add_user("alice")
+
+            with patch(
+                "bot.features.alpacahack.service."
+                "AlpacaHackService.collect_weekly_solve_result",
+                return_value=WeeklySolveFetchResult(
+                    challenges=[
+                        SolvedChallenge(
+                            name="web-100",
+                            url="https://alpacahack.com/challenges/web-100",
+                        )
+                    ],
+                    fetch_failed=False,
+                ),
+            ):
+                summary = usecase.collect_weekly_summary(date(2026, 3, 4))
+
+        self.assertEqual(summary.total_users, 1)
+        self.assertEqual(len(summary.weekly_solves["alice"]), 1)
+        self.assertEqual(summary.weekly_solves["alice"][0].name, "web-100")
+        self.assertEqual(
+            summary.weekly_solves["alice"][0].url,
+            "https://alpacahack.com/challenges/web-100",
+        )
+        self.assertEqual(summary.failed_users, [])
 
     def test_collect_weekly_summary_tracks_failed_users(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
