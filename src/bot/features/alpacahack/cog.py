@@ -14,7 +14,7 @@ from ...utils.helpers import (
     send_interaction_message,
     send_message_safely,
 )
-from .models import UserMutationResult, UserMutationStatus
+from .models import SolvedChallenge, UserMutationResult, UserMutationStatus
 from .usecase import WeeklySolveSummary
 
 WEEKLY_NOTIFICATION_WEEKDAY = 6  # 0=Mon ... 6=Sun
@@ -69,30 +69,60 @@ class Alpacahack(
         return None
 
     @staticmethod
-    def _format_solve_list(solves: list[str], max_items: int = 12) -> str:
-        if not solves:
-            return "今週の solve はありません。"
+    def _format_lines(
+        entries: list[str],
+        *,
+        empty_message: str,
+        max_items: int,
+    ) -> str:
+        if not entries:
+            return empty_message
 
-        lines = [f"- {name}" for name in solves[:max_items]]
-        if len(solves) > max_items:
-            lines.append(f"... and {len(solves) - max_items} more")
+        max_length = 1024
+        lines: list[str] = []
+        for entry in entries[:max_items]:
+            if len("\n".join([*lines, entry])) > max_length:
+                if not lines:
+                    return (
+                        f"{entry[: max_length - 3]}..."
+                        if len(entry) > max_length
+                        else entry
+                    )
+                break
+            lines.append(entry)
 
-        joined = "\n".join(lines)
-        if len(joined) > 1024:
-            return f"{joined[:1020]}..."
-        return joined
+        omitted = len(entries) - len(lines)
+        if omitted > 0:
+            overflow = f"... and {omitted} more"
+            if len("\n".join([*lines, overflow])) <= max_length:
+                lines.append(overflow)
+
+        return "\n".join(lines)
+
+    @staticmethod
+    def _format_solve_entry(solve: SolvedChallenge) -> str:
+        name = discord.utils.escape_markdown(solve.name, as_needed=True)
+        if solve.url:
+            return f"- [{name}]({solve.url})"
+        return f"- {name}"
+
+    @classmethod
+    def _format_solve_list(
+        cls, solves: list[SolvedChallenge], max_items: int = 12
+    ) -> str:
+        return cls._format_lines(
+            [cls._format_solve_entry(solve) for solve in solves],
+            empty_message="今週の solve はありません。",
+            max_items=max_items,
+        )
 
     @staticmethod
     def _format_failed_users(users: list[str], max_items: int = 20) -> str:
-        if not users:
-            return "-"
-        lines = [f"- {name}" for name in users[:max_items]]
-        if len(users) > max_items:
-            lines.append(f"... and {len(users) - max_items} more")
-        joined = "\n".join(lines)
-        if len(joined) > 1024:
-            return f"{joined[:1020]}..."
-        return joined
+        return Alpacahack._format_lines(
+            [f"- {name}" for name in users],
+            empty_message="-",
+            max_items=max_items,
+        )
 
     @staticmethod
     def _to_user_message(result: UserMutationResult) -> str:
