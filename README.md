@@ -39,12 +39,12 @@ uv run python src/main.py
 - `SERVER MEMBERS INTENT` を有効にする
 - 全機能を使う場合、bot には少なくとも次を付与する
   - `View Channel`（チャンネルを表示）
-  - `Send Messages`（メッセージを送信）
-  - `Send Messages in Threads`（スレッド内でメッセージを送信）
+  - `Send Messages`（メッセージを送る）
+  - `Send Messages in Threads`（Threadsでメッセージを送る）
   - `Read Message History`（メッセージ履歴を読む）
-  - `Add Reactions`（リアクションを追加）
+  - `Add Reactions`（リアクションを付ける）
   - `Pin Messages`（メッセージをピン留め）
-  - `Manage Roles`（ロール管理）
+  - `Manage Roles`（ロールの管理）
   - `Manage Channels`（チャンネルの管理）
 - `Manage Roles` を使う機能のために、bot のロールは作成・付与対象のロールより上位に置く
 
