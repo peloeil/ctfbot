@@ -128,9 +128,10 @@ uv run python -m unittest discover -s tests -v
 
 GitHub Actions の `CI` ワークフローで以下を実行します。
 
-1. `uv run ruff check src tests`
-2. `uv run ty check`
-3. `uv run python -m unittest discover -s tests -v`
+1. `uv run ruff format --check src tests`
+2. `uv run ruff check src tests`
+3. `uv run ty check`
+4. `uv run python -m unittest discover -s tests -v`
 
 ## 開発ノート
 
