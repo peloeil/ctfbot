@@ -166,9 +166,7 @@ class AlpacaHackService:
 
         normalized = f"{match.group(1)} {match.group(2)}"
         date_format = (
-            "%Y-%m-%d %H:%M:%S"
-            if normalized.count(":") == 2
-            else "%Y-%m-%d %H:%M"
+            "%Y-%m-%d %H:%M:%S" if normalized.count(":") == 2 else "%Y-%m-%d %H:%M"
         )
         try:
             naive = datetime.datetime.strptime(normalized, date_format)

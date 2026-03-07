@@ -161,10 +161,13 @@ class TestAlpacaHackService(unittest.TestCase):
         )
 
     def test_collect_weekly_solve_result_marks_fetch_failure(self):
-        with patch(
-            "bot.features.alpacahack.service.AlpacaHackService._get_solve_records",
-            side_effect=ExternalAPIError("boom"),
-        ), patch("bot.features.alpacahack.service.logger.warning"):
+        with (
+            patch(
+                "bot.features.alpacahack.service.AlpacaHackService._get_solve_records",
+                side_effect=ExternalAPIError("boom"),
+            ),
+            patch("bot.features.alpacahack.service.logger.warning"),
+        ):
             result = self.service.collect_weekly_solve_result(
                 "alice",
                 reference_date=date(2026, 3, 4),
@@ -252,6 +255,10 @@ class TestDatabaseAndUseCase(unittest.TestCase):
         self.assertEqual(summary.total_users, 1)
         self.assertEqual(len(summary.weekly_solves["alice"]), 1)
         self.assertEqual(summary.weekly_solves["alice"][0].name, "web-100")
+        self.assertEqual(
+            summary.weekly_solves["alice"][0].url,
+            "https://alpacahack.com/challenges/web-100",
+        )
         self.assertEqual(summary.failed_users, [])
 
     def test_collect_weekly_summary_tracks_failed_users(self):
