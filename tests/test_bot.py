@@ -159,6 +159,7 @@ class TestAlpacaHackService(unittest.TestCase):
             result.challenges[0].url,
             "https://alpacahack.com/challenges/web-100",
         )
+
     def test_collect_weekly_solve_result_marks_fetch_failure(self):
         with (
             patch(
