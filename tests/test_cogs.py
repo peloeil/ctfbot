@@ -18,9 +18,14 @@ if str(SRC_ROOT) not in sys.path:
 
 from bot.config import Settings  # noqa: E402
 from bot.features.alpacahack.cog import Alpacahack  # noqa: E402
-from bot.features.alpacahack.models import SolvedChallenge  # noqa: E402
+from bot.features.alpacahack.models import (  # noqa: E402
+    SolvedChallenge,
+    UserMutationResult,
+    UserMutationStatus,
+)
 from bot.features.alpacahack.usecase import WeeklySolveSummary  # noqa: E402
 from bot.features.ctftime.cog import CTFTimeNotifications  # noqa: E402
+from bot.features.ctftime.models import CTFEvent  # noqa: E402
 from bot.runtime import build_runtime  # noqa: E402
 
 
@@ -195,6 +200,80 @@ class CogTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(embed.fields[-1].name, "取得失敗ユーザー")
         value = embed.fields[-1].value or ""
         self.assertIn("bob", value)
+        await fake_bot.close()
+
+    async def test_ctftime_embed_builder_uses_discord_timestamps(self):
+        runtime = self._build_runtime()
+        fake_bot = _FakeBot(runtime)
+        with patch("discord.ext.tasks.Loop.start", return_value=None):
+            cog = CTFTimeNotifications(fake_bot)
+
+        event = CTFEvent(
+            title="Example CTF",
+            start=datetime.datetime(2026, 3, 14, 9, 0, tzinfo=ZoneInfo("Asia/Tokyo")),
+            finish=datetime.datetime(2026, 3, 15, 9, 0, tzinfo=ZoneInfo("Asia/Tokyo")),
+            ctftime_url="https://ctftime.org/event/1",
+        )
+
+        embed = cog._build_events_embed([event])
+
+        self.assertEqual(len(embed.fields), 1)
+        value = embed.fields[0].value or ""
+        self.assertIn("<t:", value)
+        self.assertIn("(<t:", value)
+        self.assertNotIn("Asia/Tokyo", value)
+        await fake_bot.close()
+
+    async def test_alpacahack_add_replies_ephemerally_in_japanese(self):
+        runtime = self._build_runtime()
+        fake_bot = _FakeBot(runtime)
+        with patch("discord.ext.tasks.Loop.start", return_value=None):
+            cog = Alpacahack(fake_bot)
+
+        interaction = SimpleNamespace()
+        result = UserMutationResult(
+            status=UserMutationStatus.CREATED,
+            normalized_name="alice",
+        )
+        with (
+            patch.object(cog.usecase, "add_user", return_value=result),
+            patch(
+                "bot.features.alpacahack.cog.send_interaction_message",
+                new=AsyncMock(),
+            ) as send_mock,
+        ):
+            await Alpacahack.alpaca_add.callback(cog, interaction, "alice")
+
+        send_mock.assert_awaited_once_with(
+            interaction,
+            "`alice` を登録しました。",
+            ephemeral=True,
+        )
+        await fake_bot.close()
+
+    async def test_alpacahack_list_replies_ephemerally_with_header(self):
+        runtime = self._build_runtime()
+        fake_bot = _FakeBot(runtime)
+        with patch("discord.ext.tasks.Loop.start", return_value=None):
+            cog = Alpacahack(fake_bot)
+
+        interaction = SimpleNamespace()
+        with (
+            patch.object(cog.usecase, "list_usernames", return_value=["alice", "bob"]),
+            patch(
+                "bot.features.alpacahack.cog.send_interaction_message",
+                new=AsyncMock(),
+            ) as send_mock,
+        ):
+            await Alpacahack.alpaca_list.callback(cog, interaction)
+
+        await_args = send_mock.await_args
+        assert await_args is not None
+        self.assertEqual(await_args.args[0], interaction)
+        self.assertIn("登録済みAlpacaHackユーザー", await_args.args[1])
+        self.assertIn("- alice", await_args.args[1])
+        self.assertIn("- bob", await_args.args[1])
+        self.assertTrue(await_args.kwargs["ephemeral"])
         await fake_bot.close()
 
 

@@ -3,6 +3,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
@@ -17,7 +18,11 @@ from bot.db.connection import DatabaseConnectionFactory  # noqa: E402
 from bot.db.migrations import apply_migrations  # noqa: E402
 from bot.errors import RepositoryError  # noqa: E402
 from bot.features.ctf_roles.cog import CTFRoleCampaigns  # noqa: E402
-from bot.features.ctf_roles.models import CampaignDraft, CampaignStatus  # noqa: E402
+from bot.features.ctf_roles.models import (  # noqa: E402
+    CampaignDraft,
+    CampaignStatus,
+    CTFRoleCampaign,
+)
 from bot.features.ctf_roles.repository import CTFRoleCampaignRepository  # noqa: E402
 from bot.features.ctf_roles.service import CTFRoleService  # noqa: E402
 from bot.features.ctf_roles.usecase import CTFRoleUseCase  # noqa: E402
@@ -360,6 +365,57 @@ class CTFRoleCogHelperTests(unittest.TestCase):
         self.assertIn(bot_member, overwrites)
         self.assertEqual(overwrites[bot_member].view_channel, True)
         self.assertEqual(overwrites[bot_member].send_messages, True)
+
+    def test_service_formats_discord_timestamp_with_relative(self) -> None:
+        service = CTFRoleService(timezone=ZoneInfo("Asia/Tokyo"))
+
+        formatted = service.format_unix_with_relative(1_700_000_000)
+
+        self.assertEqual(
+            formatted,
+            "<t:1700000000:f> (<t:1700000000:R>)",
+        )
+
+    def test_build_campaign_list_embed_contains_links_and_mentions(self) -> None:
+        cog = object.__new__(CTFRoleCampaigns)
+        cog.usecase = SimpleNamespace(
+            format_unix_datetime_with_relative=lambda value: (
+                f"<t:{value}:f> (<t:{value}:R>)"
+            )
+        )
+        campaign = CTFRoleCampaign(
+            id=1,
+            guild_id=10,
+            channel_id=100,
+            message_id=200,
+            role_id=300,
+            ctf_name="SECCON CTF",
+            start_at_unix=1_700_000_000,
+            end_at_unix=1_700_003_600,
+            status=CampaignStatus.ACTIVE,
+            created_by=400,
+            created_at_unix=1_699_999_000,
+            discussion_channel_id=500,
+            voice_channel_id=600,
+        )
+
+        embed = cog._build_campaign_list_embed([campaign], selected_status="active")
+
+        self.assertEqual(embed.title, "CTF募集一覧 (募集中)")
+        self.assertEqual(len(embed.fields), 1)
+        field = embed.fields[0]
+        self.assertEqual(field.name, "1. SECCON CTF")
+        self.assertIn("状態: **募集中**", field.value)
+        self.assertIn(
+            "[メッセージへ移動](https://discord.com/channels/10/100/200)",
+            field.value,
+        )
+        self.assertIn("(<#100>)", field.value)
+        self.assertIn("議論: <#500>", field.value)
+        self.assertIn("VC: <#600>", field.value)
+        self.assertIn("ロール: <@&300>", field.value)
+        self.assertIn("作成者: <@400>", field.value)
+        self.assertIn("<t:1700000000:f> (<t:1700000000:R>)", field.value)
 
 
 if __name__ == "__main__":
