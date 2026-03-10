@@ -9,7 +9,6 @@ from discord.ext import commands, tasks
 
 from ...cogs._runtime import get_runtime
 from ...utils.helpers import (
-    format_code_block,
     logger,
     send_interaction_message,
     send_message_safely,
@@ -74,11 +73,11 @@ class Alpacahack(
         *,
         empty_message: str,
         max_items: int,
+        max_length: int = 1024,
     ) -> str:
         if not entries:
             return empty_message
 
-        max_length = 1024
         lines: list[str] = []
         for entry in entries[:max_items]:
             if len("\n".join([*lines, entry])) > max_length:
@@ -93,7 +92,7 @@ class Alpacahack(
 
         omitted = len(entries) - len(lines)
         if omitted > 0:
-            overflow = f"... and {omitted} more"
+            overflow = f"... 他 {omitted} 件"
             if len("\n".join([*lines, overflow])) <= max_length:
                 lines.append(overflow)
 
@@ -125,18 +124,35 @@ class Alpacahack(
         )
 
     @staticmethod
+    def _format_username_entry(username: str) -> str:
+        escaped = discord.utils.escape_markdown(username, as_needed=True)
+        return f"- {escaped}"
+
+    @classmethod
+    def _format_username_list(cls, usernames: list[str]) -> str:
+        header = "登録済みAlpacaHackユーザー"
+        available_length = 1900 - len(header) - 1
+        body = cls._format_lines(
+            [cls._format_username_entry(username) for username in usernames],
+            empty_message="誰も登録されていません。",
+            max_items=len(usernames),
+            max_length=available_length,
+        )
+        return f"{header}\n{body}"
+
+    @staticmethod
     def _to_user_message(result: UserMutationResult) -> str:
         if result.status == UserMutationStatus.INVALID_NAME:
             return "ユーザー名が空です。"
         if result.status == UserMutationStatus.CREATED:
-            return f"User '{result.normalized_name}' added."
+            return f"`{result.normalized_name}` を登録しました。"
         if result.status == UserMutationStatus.ALREADY_EXISTS:
-            return f"User '{result.normalized_name}' is already registered."
+            return f"`{result.normalized_name}` は既に登録されています。"
         if result.status == UserMutationStatus.DELETED:
-            return f"Deleted user: {result.normalized_name}"
+            return f"`{result.normalized_name}` の登録を削除しました。"
         if result.status == UserMutationStatus.NOT_FOUND:
-            return f"No user: {result.normalized_name}"
-        return "Unknown result."
+            return f"`{result.normalized_name}` は登録されていません。"
+        return "不明な結果です。"
 
     def _build_weekly_summary_embed(self, summary: WeeklySolveSummary) -> discord.Embed:
         total_solves = sum(len(items) for items in summary.weekly_solves.values())
@@ -192,9 +208,7 @@ class Alpacahack(
         if len(sorted_rows) > max_user_fields:
             embed.set_footer(
                 text=(
-                    "+ "
-                    f"{len(sorted_rows) - max_user_fields} users are omitted due to "
-                    "Discord limits"
+                    f"Discord上限のため他 {len(sorted_rows) - max_user_fields} 人を省略"
                 )
             )
 
@@ -213,7 +227,7 @@ class Alpacahack(
         if summary.total_users == 0:
             if notify_if_no_users:
                 await send_message_safely(
-                    target_channel, content="誰も登録されていません"
+                    target_channel, content="誰も登録されていません。"
                 )
             return
 
@@ -234,8 +248,8 @@ class Alpacahack(
             if notify_if_no_users:
                 await send_interaction_message(
                     interaction,
-                    "誰も登録されていません",
-                    ephemeral=False,
+                    "誰も登録されていません。",
+                    ephemeral=True,
                 )
             return
 
@@ -275,7 +289,7 @@ class Alpacahack(
         await send_interaction_message(
             interaction,
             self._to_user_message(result),
-            ephemeral=False,
+            ephemeral=True,
         )
 
     @app_commands.command(
@@ -288,7 +302,7 @@ class Alpacahack(
         await send_interaction_message(
             interaction,
             self._to_user_message(result),
-            ephemeral=False,
+            ephemeral=True,
         )
 
     @app_commands.command(
@@ -300,16 +314,15 @@ class Alpacahack(
         if not usernames:
             await send_interaction_message(
                 interaction,
-                "誰も登録されていません",
-                ephemeral=False,
+                "誰も登録されていません。",
+                ephemeral=True,
             )
             return
 
-        user_list = "\n".join(usernames)
         await send_interaction_message(
             interaction,
-            format_code_block(user_list),
-            ephemeral=False,
+            self._format_username_list(usernames),
+            ephemeral=True,
         )
 
     @app_commands.command(
