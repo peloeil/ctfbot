@@ -1,3 +1,4 @@
+import datetime
 import logging
 
 import discord
@@ -72,6 +73,26 @@ async def send_interaction_message(
         )
     except discord.HTTPException:
         logger.exception("Failed to send interaction response")
+
+
+def format_discord_timestamp(
+    value: int | float | datetime.datetime | None,
+    *,
+    style: str = "f",
+) -> str:
+    """Format a value as a Discord timestamp token."""
+    if value is None:
+        return "-"
+
+    if isinstance(value, datetime.datetime):
+        normalized = value
+        if normalized.tzinfo is None:
+            normalized = normalized.replace(tzinfo=datetime.UTC)
+        unix = int(normalized.astimezone(datetime.UTC).timestamp())
+    else:
+        unix = int(value)
+
+    return f"<t:{unix}:{style}>"
 
 
 def format_code_block(content: str, language: str = "") -> str:
