@@ -20,7 +20,6 @@ class SettingsTests(unittest.TestCase):
                 "DISCORD_TOKEN": "token",
                 "TIMEZONE": "Asia/Tokyo",
                 "DATABASE_PATH": str(db_path),
-                "COMMAND_PREFIX": "!",
             }
 
             settings = bot.config.load_settings(environ=env)

@@ -92,7 +92,6 @@ def _read_database_path(environ: Mapping[str, str]) -> str:
 @dataclass(frozen=True, slots=True)
 class Settings:
     discord_token: str
-    command_prefix: str
     bot_channel_id: int
     bot_status_channel_id: int
     timezone: str
@@ -127,11 +126,8 @@ def load_settings(
             f"DATABASE_PATH directory does not exist: {database_parent}"
         )
 
-    command_prefix = env.get("COMMAND_PREFIX", "!").strip() or "!"
-
     return Settings(
         discord_token=_read_required_str(env, "DISCORD_TOKEN"),
-        command_prefix=command_prefix,
         bot_channel_id=_read_int(env, "BOT_CHANNEL_ID", min_value=0),
         bot_status_channel_id=_read_int(env, "BOT_STATUS_CHANNEL_ID", min_value=0),
         timezone=timezone,

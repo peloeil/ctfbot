@@ -25,7 +25,6 @@ class RuntimeProviderTests(unittest.TestCase):
         tz = ZoneInfo("Asia/Tokyo")
         return Settings(
             discord_token="token",
-            command_prefix="!",
             bot_channel_id=0,
             bot_status_channel_id=0,
             timezone="Asia/Tokyo",

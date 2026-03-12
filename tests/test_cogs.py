@@ -32,7 +32,7 @@ from bot.runtime import build_runtime  # noqa: E402
 class _FakeBot(commands.Bot):
     def __init__(self, runtime):
         intents = discord.Intents.none()
-        super().__init__(command_prefix="!", intents=intents)
+        super().__init__(command_prefix=commands.when_mentioned, intents=intents)
         self.runtime = runtime
 
 
@@ -42,7 +42,6 @@ class CogTests(unittest.IsolatedAsyncioTestCase):
             timezone = ZoneInfo("Asia/Tokyo")
             settings = Settings(
                 discord_token="token",
-                command_prefix="!",
                 bot_channel_id=123,
                 bot_status_channel_id=0,
                 timezone="Asia/Tokyo",
