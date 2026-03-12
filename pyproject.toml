@@ -3,23 +3,23 @@ name = "ctfbot"
 version = "0.1.0"
 description = "discord bot for CTF"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
-    "beautifulsoup4>=4.13.4",
-    "discord-py>=2.6.3",
-    "python-dotenv>=1.0.1",
-    "requests>=2.32.3",
+    "beautifulsoup4>=4.14.3",
+    "discord-py>=2.7.1",
+    "python-dotenv>=1.2.2",
+    "requests>=2.32.5",
 ]
 
 [dependency-groups]
 dev = [
-    "ruff==0.15.4",
-    "ty==0.0.20",
+    "ruff==0.15.5",
+    "ty==0.0.22",
 ]
 
 [tool.ruff]
 # Target Python version
-target-version = "py312"
+target-version = "py314"
 
 # Line length and indentation
 line-length = 88
@@ -76,4 +76,4 @@ line-ending = "auto"
 [tool.ty.environment]
 root = ["./src"]
 python = "./.venv"
-python-version = "3.12"
+python-version = "3.14"
