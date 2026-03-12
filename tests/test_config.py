@@ -15,7 +15,7 @@ from bot.errors import ConfigurationError  # noqa: E402
 class SettingsTests(unittest.TestCase):
     def test_load_settings_from_explicit_mapping(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / "alpaca.db"
+            db_path = Path(tmpdir) / "ctfbot.db"
             env = {
                 "DISCORD_TOKEN": "token",
                 "TIMEZONE": "Asia/Tokyo",
@@ -37,9 +37,18 @@ class SettingsTests(unittest.TestCase):
                 "23:00",
             )
 
+    def test_default_database_path_is_ctfbot_db(self):
+        env = {
+            "DISCORD_TOKEN": "token",
+            "TIMEZONE": "Asia/Tokyo",
+        }
+
+        settings = bot.config.load_settings(environ=env)
+        self.assertEqual(settings.database_path, "ctfbot.db")
+
     def test_invalid_timezone_raises_error(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / "alpaca.db"
+            db_path = Path(tmpdir) / "ctfbot.db"
             env = {
                 "DISCORD_TOKEN": "token",
                 "TIMEZONE": "Invalid/Timezone",
@@ -51,7 +60,7 @@ class SettingsTests(unittest.TestCase):
 
     def test_invalid_clock_time_raises_error(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / "alpaca.db"
+            db_path = Path(tmpdir) / "ctfbot.db"
             env = {
                 "DISCORD_TOKEN": "token",
                 "TIMEZONE": "Asia/Tokyo",
@@ -64,7 +73,7 @@ class SettingsTests(unittest.TestCase):
 
     def test_negative_bot_channel_id_raises_error(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / "alpaca.db"
+            db_path = Path(tmpdir) / "ctfbot.db"
             env = {
                 "DISCORD_TOKEN": "token",
                 "TIMEZONE": "Asia/Tokyo",
@@ -77,7 +86,7 @@ class SettingsTests(unittest.TestCase):
 
     def test_non_positive_ctftime_window_days_raises_error(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / "alpaca.db"
+            db_path = Path(tmpdir) / "ctfbot.db"
             env = {
                 "DISCORD_TOKEN": "token",
                 "TIMEZONE": "Asia/Tokyo",
@@ -90,7 +99,7 @@ class SettingsTests(unittest.TestCase):
 
     def test_non_positive_ctftime_event_limit_raises_error(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / "alpaca.db"
+            db_path = Path(tmpdir) / "ctfbot.db"
             env = {
                 "DISCORD_TOKEN": "token",
                 "TIMEZONE": "Asia/Tokyo",

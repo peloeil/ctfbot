@@ -184,7 +184,7 @@ class TestDatabaseAndUseCase(unittest.TestCase):
     def test_insert_and_delete_user(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             connection_factory = DatabaseConnectionFactory(
-                database_path=str(Path(tmp_dir) / "alpaca.db")
+                database_path=str(Path(tmp_dir) / "ctfbot.db")
             )
             apply_migrations(connection_factory)
             repository = AlpacaHackUserRepository(connection_factory=connection_factory)
@@ -206,7 +206,7 @@ class TestDatabaseAndUseCase(unittest.TestCase):
     def test_insert_duplicate_user(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             connection_factory = DatabaseConnectionFactory(
-                database_path=str(Path(tmp_dir) / "alpaca.db")
+                database_path=str(Path(tmp_dir) / "ctfbot.db")
             )
             apply_migrations(connection_factory)
             repository = AlpacaHackUserRepository(connection_factory=connection_factory)
@@ -224,7 +224,7 @@ class TestDatabaseAndUseCase(unittest.TestCase):
     def test_collect_weekly_summary_includes_challenge_links(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             connection_factory = DatabaseConnectionFactory(
-                database_path=str(Path(tmp_dir) / "alpaca.db")
+                database_path=str(Path(tmp_dir) / "ctfbot.db")
             )
             apply_migrations(connection_factory)
             repository = AlpacaHackUserRepository(connection_factory=connection_factory)
@@ -264,7 +264,7 @@ class TestDatabaseAndUseCase(unittest.TestCase):
     def test_collect_weekly_summary_tracks_failed_users(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             connection_factory = DatabaseConnectionFactory(
-                database_path=str(Path(tmp_dir) / "alpaca.db")
+                database_path=str(Path(tmp_dir) / "ctfbot.db")
             )
             apply_migrations(connection_factory)
             repository = AlpacaHackUserRepository(connection_factory=connection_factory)

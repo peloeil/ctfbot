@@ -48,7 +48,7 @@ class CogTests(unittest.IsolatedAsyncioTestCase):
                 timezone="Asia/Tokyo",
                 tzinfo=timezone,
                 log_level="INFO",
-                database_path=str(Path(tmpdir) / "alpaca.db"),
+                database_path=str(Path(tmpdir) / "ctfbot.db"),
                 alpacahack_solve_time=datetime.time(23, 0, tzinfo=timezone),
                 ctftime_notification_time=datetime.time(9, 0, tzinfo=timezone),
                 ctftime_window_days=14,

@@ -11,6 +11,8 @@ from dotenv import load_dotenv
 
 from .errors import ConfigurationError
 
+DEFAULT_DATABASE_PATH = "ctfbot.db"
+
 
 def _read_required_str(environ: Mapping[str, str], name: str) -> str:
     value = environ.get(name, "").strip()
@@ -80,6 +82,13 @@ def _read_clock_time(
     return datetime.time(hour=hour, minute=minute, tzinfo=tzinfo)
 
 
+def _read_database_path(environ: Mapping[str, str]) -> str:
+    raw_value = environ.get("DATABASE_PATH")
+    if raw_value is not None and raw_value.strip():
+        return raw_value.strip()
+    return DEFAULT_DATABASE_PATH
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     discord_token: str
@@ -111,7 +120,7 @@ def load_settings(
     except ZoneInfoNotFoundError as exc:
         raise ConfigurationError(f"TIMEZONE is invalid: {timezone!r}") from exc
 
-    database_path = env.get("DATABASE_PATH", "alpaca.db").strip() or "alpaca.db"
+    database_path = _read_database_path(env)
     database_parent = Path(database_path).expanduser().resolve().parent
     if not database_parent.exists():
         raise ConfigurationError(
