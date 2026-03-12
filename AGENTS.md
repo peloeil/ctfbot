@@ -14,6 +14,10 @@
 - background task は cog の `__init__` で開始し、`cog_unload()` で必ず cancel する
 - 内部例外は `bot.errors` を使い、ユーザー向けメッセージは日本語を基本にする
 - README / docs / 実装に差分がある場合は `src/` と `tests/` を source of truth とし、特に `tests/` を優先する
+- current-only: 実装は常に current 仕様のみを前提にする
+- 旧名称・旧設定・旧データ形式・旧 schema を本体コードで扱わない
+- alias、互換レイヤー、自動移行を本体コードに入れない
+- 旧資産の移行が必要でも、起動時や通常フローに組み込まず、手動スクリプトや手順として分離する
 - slash command を変更したら `/cog reload <name>` の後に `/cog sync` を行う
 
 ## 最初に見る場所
@@ -27,8 +31,9 @@
 
 ## 実装上の要点
 
-- `build_connection_factory()` は起動時に migration を適用する
-- schema 変更時は `src/bot/db/migrations.py` の `MIGRATIONS` に末尾追加し、既存 migration を並べ替えたり書き換えたりしない
+- `build_connection_factory()` は起動時に current schema を初期化または検証する
+- schema 変更時は `src/bot/db/migrations.py` の current schema 定義と `CURRENT_SCHEMA_VERSION` を更新する
+- schema 変更に伴う旧 DB 対応は本体コードに入れず、`scripts/` または手順書に分離する
 - Discord 送信は `send_interaction_message(...)` と `send_message_safely(...)` を優先する
 - logging は `ctfbot` logger を使う
 

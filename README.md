@@ -72,7 +72,8 @@ uv run python src/main.py
 - AlpacaHack の週次通知先は `ctf` カテゴリ配下の `#alpacahack`
 - 接続状態通知は `BOT_STATUS_CHANNEL_ID` を設定した場合のみ送信
 - 設定項目の一覧は `.env.example` と `src/bot/config.py` を参照
-- 旧 `ctf_role_campaign` を使っている DB は、bot 起動前に `python scripts/migrate_ctf_team_db.py <db_path> [--rename-to ctfbot.db]` を手動実行して移行する
+- DB schema は current-only。schema version が current と一致しない DB は起動時に拒否される
+- 旧 `ctf_role_campaign` を使っている DB は、bot 起動前に `python scripts/migrate_ctf_team_db.py <db_path> [--rename-to ctfbot.db]` を手動実行して current schema に変換する
 
 ## ドキュメントの役割
 
