@@ -5,7 +5,13 @@ import sqlite3
 import sys
 from pathlib import Path
 
-TARGET_USER_VERSION = 7
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = REPO_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from bot.db.migrations import CURRENT_SCHEMA_SQL, CURRENT_SCHEMA_VERSION  # noqa: E402
+
 LEGACY_TABLE_NAME = "ctf_role_campaign"
 CURRENT_TABLE_NAME = "ctf_team_campaign"
 LEGACY_INDEX_NAMES = (
@@ -13,27 +19,13 @@ LEGACY_INDEX_NAMES = (
     "idx_ctf_role_campaign_status_end",
     "idx_ctf_role_campaign_guild_status_created",
 )
-CURRENT_INDEX_STATEMENTS = (
-    """
-    CREATE INDEX IF NOT EXISTS idx_ctf_team_campaign_message
-        ON ctf_team_campaign (guild_id, channel_id, message_id, status)
-    """,
-    """
-    CREATE INDEX IF NOT EXISTS idx_ctf_team_campaign_status_end
-        ON ctf_team_campaign (status, end_at_unix)
-    """,
-    """
-    CREATE INDEX IF NOT EXISTS idx_ctf_team_campaign_guild_status_created
-        ON ctf_team_campaign (guild_id, status, created_at_unix)
-    """,
-)
 
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Rename the legacy ctf_role_campaign table to ctf_team_campaign and "
-            "optionally rename the SQLite database file."
+            "Convert a legacy ctf_role_campaign database to the current schema "
+            "and optionally rename the SQLite database file."
         )
     )
     parser.add_argument("db_path", help="Path to the SQLite database file to migrate.")
@@ -93,10 +85,9 @@ def migrate_database(db_path: Path) -> None:
 
         for index_name in LEGACY_INDEX_NAMES:
             conn.execute(f"DROP INDEX IF EXISTS {index_name}")
-        for statement in CURRENT_INDEX_STATEMENTS:
-            conn.execute(statement)
+        conn.executescript(CURRENT_SCHEMA_SQL)
 
-        conn.execute(f"PRAGMA user_version = {TARGET_USER_VERSION}")
+        conn.execute(f"PRAGMA user_version = {CURRENT_SCHEMA_VERSION}")
         conn.commit()
 
 

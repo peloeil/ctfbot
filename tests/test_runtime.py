@@ -39,7 +39,7 @@ class RuntimeProviderTests(unittest.TestCase):
             ctftime_user_agent="ctfbot-test/1.0",
         )
 
-    def test_build_connection_factory_applies_migrations(self):
+    def test_build_connection_factory_initializes_current_schema(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             settings = self._settings(str(Path(tmpdir) / "ctfbot.db"))
             factory = build_connection_factory(settings)

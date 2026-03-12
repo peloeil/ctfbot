@@ -15,7 +15,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from bot.db.connection import DatabaseConnectionFactory  # noqa: E402
-from bot.db.migrations import apply_migrations  # noqa: E402
+from bot.db.migrations import ensure_current_schema  # noqa: E402
 from bot.errors import RepositoryError  # noqa: E402
 from bot.features.ctf_team.cog import CTFTeamCampaigns  # noqa: E402
 from bot.features.ctf_team.models import (  # noqa: E402
@@ -31,7 +31,7 @@ from bot.features.ctf_team.usecase import CTFTeamUseCase  # noqa: E402
 class CTFTeamUseCaseTests(unittest.TestCase):
     def _build_usecase(self, db_path: str) -> tuple[CTFTeamUseCase, CTFTeamService]:
         factory = DatabaseConnectionFactory(database_path=db_path)
-        apply_migrations(factory)
+        ensure_current_schema(factory)
         repository = CTFTeamCampaignRepository(connection_factory=factory)
         service = CTFTeamService(timezone=ZoneInfo("Asia/Tokyo"))
         return CTFTeamUseCase(repository=repository, service=service), service

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from .config import Settings
 from .db.connection import DatabaseConnectionFactory
-from .db.migrations import apply_migrations
+from .db.migrations import ensure_current_schema
 from .features.alpacahack.repository import AlpacaHackUserRepository
 from .features.alpacahack.service import AlpacaHackService
 from .features.alpacahack.usecase import AlpacaHackUseCase
@@ -37,7 +37,7 @@ class CTFTeamComponents:
 
 def build_connection_factory(settings: Settings) -> DatabaseConnectionFactory:
     factory = DatabaseConnectionFactory(database_path=settings.database_path)
-    apply_migrations(factory)
+    ensure_current_schema(factory)
     return factory
 
 

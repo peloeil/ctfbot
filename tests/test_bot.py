@@ -12,7 +12,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from bot.db.connection import DatabaseConnectionFactory  # noqa: E402
-from bot.db.migrations import apply_migrations  # noqa: E402
+from bot.db.migrations import ensure_current_schema  # noqa: E402
 from bot.errors import ExternalAPIError  # noqa: E402
 from bot.features.alpacahack.models import (  # noqa: E402
     SolvedChallenge,
@@ -186,7 +186,7 @@ class TestDatabaseAndUseCase(unittest.TestCase):
             connection_factory = DatabaseConnectionFactory(
                 database_path=str(Path(tmp_dir) / "ctfbot.db")
             )
-            apply_migrations(connection_factory)
+            ensure_current_schema(connection_factory)
             repository = AlpacaHackUserRepository(connection_factory=connection_factory)
             usecase = AlpacaHackUseCase(
                 repository=repository,
@@ -208,7 +208,7 @@ class TestDatabaseAndUseCase(unittest.TestCase):
             connection_factory = DatabaseConnectionFactory(
                 database_path=str(Path(tmp_dir) / "ctfbot.db")
             )
-            apply_migrations(connection_factory)
+            ensure_current_schema(connection_factory)
             repository = AlpacaHackUserRepository(connection_factory=connection_factory)
             usecase = AlpacaHackUseCase(
                 repository=repository,
@@ -226,7 +226,7 @@ class TestDatabaseAndUseCase(unittest.TestCase):
             connection_factory = DatabaseConnectionFactory(
                 database_path=str(Path(tmp_dir) / "ctfbot.db")
             )
-            apply_migrations(connection_factory)
+            ensure_current_schema(connection_factory)
             repository = AlpacaHackUserRepository(connection_factory=connection_factory)
             service = AlpacaHackService(timezone=self.timezone)
             usecase = AlpacaHackUseCase(
@@ -266,7 +266,7 @@ class TestDatabaseAndUseCase(unittest.TestCase):
             connection_factory = DatabaseConnectionFactory(
                 database_path=str(Path(tmp_dir) / "ctfbot.db")
             )
-            apply_migrations(connection_factory)
+            ensure_current_schema(connection_factory)
             repository = AlpacaHackUserRepository(connection_factory=connection_factory)
             service = AlpacaHackService(timezone=self.timezone)
             usecase = AlpacaHackUseCase(

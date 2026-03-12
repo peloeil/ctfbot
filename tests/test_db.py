@@ -15,7 +15,10 @@ from bot.db.connection import (  # noqa: E402
     SQLITE_CONNECTION_PRAGMAS,
     DatabaseConnectionFactory,
 )
-from bot.db.migrations import MIGRATIONS, apply_migrations  # noqa: E402
+from bot.db.migrations import (  # noqa: E402
+    CURRENT_SCHEMA_VERSION,
+    ensure_current_schema,
+)
 from bot.errors import RepositoryError  # noqa: E402
 
 
@@ -41,12 +44,12 @@ class DatabaseConnectionTests(unittest.TestCase):
 
 
 class DatabaseMigrationTests(unittest.TestCase):
-    def test_apply_migrations_sets_schema_version(self) -> None:
+    def test_ensure_current_schema_initializes_empty_database(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "ctfbot.db"
             factory = DatabaseConnectionFactory(database_path=str(db_path))
 
-            apply_migrations(factory)
+            ensure_current_schema(factory)
 
             with factory.connection() as conn:
                 version_row = conn.execute("PRAGMA user_version").fetchone()
@@ -63,12 +66,27 @@ class DatabaseMigrationTests(unittest.TestCase):
                     "WHERE type='table' AND name='ctf_role_campaign'"
                 ).fetchone()
 
-            self.assertEqual(version_row[0], len(MIGRATIONS))
+            self.assertEqual(version_row[0], CURRENT_SCHEMA_VERSION)
             self.assertEqual(alpaca_table_row[0], "alpacahack_user")
             self.assertEqual(ctf_team_table_row[0], "ctf_team_campaign")
             self.assertIsNone(legacy_table_row)
 
-    def test_manual_migration_script_renames_legacy_ctf_role_table(self) -> None:
+    def test_ensure_current_schema_accepts_existing_current_database(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "ctfbot.db"
+            factory = DatabaseConnectionFactory(database_path=str(db_path))
+
+            ensure_current_schema(factory)
+            ensure_current_schema(factory)
+
+            with factory.connection() as conn:
+                version_row = conn.execute("PRAGMA user_version").fetchone()
+
+            self.assertEqual(version_row[0], CURRENT_SCHEMA_VERSION)
+
+    def test_manual_migration_script_converts_legacy_database_to_current_schema(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "ctfbot.db"
             with sqlite3.connect(str(db_path)) as conn:
@@ -139,8 +157,11 @@ class DatabaseMigrationTests(unittest.TestCase):
                         100,
                     ),
                 )
-                conn.execute("PRAGMA user_version = 7")
                 conn.commit()
+
+            factory = DatabaseConnectionFactory(database_path=str(db_path))
+            with self.assertRaises(RepositoryError):
+                ensure_current_schema(factory)
 
             script_path = REPO_ROOT / "scripts" / "migrate_ctf_team_db.py"
             completed = subprocess.run(
@@ -157,6 +178,10 @@ class DatabaseMigrationTests(unittest.TestCase):
                     "FROM ctf_team_campaign"
                 ).fetchone()
                 version_row = conn.execute("PRAGMA user_version").fetchone()
+                alpaca_table_row = conn.execute(
+                    "SELECT name FROM sqlite_master "
+                    "WHERE type='table' AND name='alpacahack_user'"
+                ).fetchone()
                 legacy_table_row = conn.execute(
                     "SELECT name FROM sqlite_master "
                     "WHERE type='table' AND name='ctf_role_campaign'"
@@ -170,22 +195,61 @@ class DatabaseMigrationTests(unittest.TestCase):
                 }
 
             self.assertEqual(migrated_row, ("Legacy CTF", 10, 800))
-            self.assertEqual(version_row[0], len(MIGRATIONS))
+            self.assertEqual(version_row[0], CURRENT_SCHEMA_VERSION)
+            self.assertEqual(alpaca_table_row[0], "alpacahack_user")
             self.assertIsNone(legacy_table_row)
             self.assertIn("idx_ctf_team_campaign_message", index_names)
             self.assertIn("idx_ctf_team_campaign_status_end", index_names)
             self.assertIn("idx_ctf_team_campaign_guild_status_created", index_names)
 
-    def test_apply_migrations_rejects_newer_schema_version(self) -> None:
+            ensure_current_schema(factory)
+
+    def test_ensure_current_schema_rejects_unversioned_non_empty_database(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "ctfbot.db"
             with sqlite3.connect(str(db_path)) as conn:
-                conn.execute(f"PRAGMA user_version = {len(MIGRATIONS) + 1}")
+                conn.execute("CREATE TABLE unexpected_table (id INTEGER PRIMARY KEY)")
                 conn.commit()
 
             factory = DatabaseConnectionFactory(database_path=str(db_path))
             with self.assertRaises(RepositoryError):
-                apply_migrations(factory)
+                ensure_current_schema(factory)
+
+    def test_ensure_current_schema_rejects_unsupported_schema_version(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "ctfbot.db"
+            with sqlite3.connect(str(db_path)) as conn:
+                conn.execute(f"PRAGMA user_version = {CURRENT_SCHEMA_VERSION + 1}")
+                conn.commit()
+
+            factory = DatabaseConnectionFactory(database_path=str(db_path))
+            with self.assertRaises(RepositoryError):
+                ensure_current_schema(factory)
+
+    def test_ensure_current_schema_rejects_current_version_with_wrong_columns(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "ctfbot.db"
+            with sqlite3.connect(str(db_path)) as conn:
+                conn.executescript(
+                    """
+                    CREATE TABLE alpacahack_user (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL UNIQUE
+                    );
+                    CREATE TABLE ctf_team_campaign (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        guild_id INTEGER NOT NULL
+                    );
+                    """
+                )
+                conn.execute(f"PRAGMA user_version = {CURRENT_SCHEMA_VERSION}")
+                conn.commit()
+
+            factory = DatabaseConnectionFactory(database_path=str(db_path))
+            with self.assertRaises(RepositoryError):
+                ensure_current_schema(factory)
 
 
 if __name__ == "__main__":
