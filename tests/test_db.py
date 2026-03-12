@@ -1,4 +1,5 @@
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -67,14 +68,36 @@ class DatabaseMigrationTests(unittest.TestCase):
             self.assertEqual(ctf_team_table_row[0], "ctf_team_campaign")
             self.assertIsNone(legacy_table_row)
 
-    def test_apply_migrations_renames_legacy_ctf_role_table(self) -> None:
+    def test_manual_migration_script_renames_legacy_ctf_role_table(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "ctfbot.db"
             with sqlite3.connect(str(db_path)) as conn:
-                for version, statement in enumerate(MIGRATIONS[:-1], start=1):
-                    conn.executescript(statement)
-                    conn.execute(f"PRAGMA user_version = {version}")
-
+                conn.executescript(
+                    """
+                    CREATE TABLE ctf_role_campaign (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        guild_id INTEGER NOT NULL,
+                        channel_id INTEGER NOT NULL,
+                        message_id INTEGER NOT NULL,
+                        role_id INTEGER NOT NULL,
+                        ctf_name TEXT NOT NULL,
+                        start_at_unix INTEGER NOT NULL,
+                        end_at_unix INTEGER,
+                        status TEXT NOT NULL CHECK (status IN ('active', 'closed')),
+                        created_by INTEGER NOT NULL,
+                        created_at_unix INTEGER NOT NULL,
+                        closed_at_unix INTEGER,
+                        discussion_channel_id INTEGER,
+                        archive_at_unix INTEGER,
+                        archived_at_unix INTEGER,
+                        start_notified_at_unix INTEGER,
+                        voice_channel_id INTEGER,
+                        UNIQUE (guild_id, message_id)
+                    );
+                    CREATE INDEX idx_ctf_role_campaign_message
+                        ON ctf_role_campaign (guild_id, channel_id, message_id, status);
+                    """
+                )
                 conn.execute(
                     """
                     INSERT INTO ctf_role_campaign (
@@ -116,16 +139,24 @@ class DatabaseMigrationTests(unittest.TestCase):
                         100,
                     ),
                 )
+                conn.execute("PRAGMA user_version = 7")
                 conn.commit()
 
-            factory = DatabaseConnectionFactory(database_path=str(db_path))
-            apply_migrations(factory)
+            script_path = REPO_ROOT / "scripts" / "migrate_ctf_team_db.py"
+            completed = subprocess.run(
+                [sys.executable, str(script_path), str(db_path)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
 
-            with factory.connection() as conn:
+            with sqlite3.connect(str(db_path)) as conn:
                 migrated_row = conn.execute(
                     "SELECT ctf_name, channel_id, archive_at_unix "
                     "FROM ctf_team_campaign"
                 ).fetchone()
+                version_row = conn.execute("PRAGMA user_version").fetchone()
                 legacy_table_row = conn.execute(
                     "SELECT name FROM sqlite_master "
                     "WHERE type='table' AND name='ctf_role_campaign'"
@@ -139,6 +170,7 @@ class DatabaseMigrationTests(unittest.TestCase):
                 }
 
             self.assertEqual(migrated_row, ("Legacy CTF", 10, 800))
+            self.assertEqual(version_row[0], len(MIGRATIONS))
             self.assertIsNone(legacy_table_row)
             self.assertIn("idx_ctf_team_campaign_message", index_names)
             self.assertIn("idx_ctf_team_campaign_status_end", index_names)

@@ -13,7 +13,7 @@ MIGRATIONS: tuple[str, ...] = (
     )
     """,
     """
-    CREATE TABLE IF NOT EXISTS ctf_role_campaign (
+    CREATE TABLE IF NOT EXISTS ctf_team_campaign (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         guild_id INTEGER NOT NULL,
         channel_id INTEGER NOT NULL,
@@ -28,44 +28,32 @@ MIGRATIONS: tuple[str, ...] = (
         closed_at_unix INTEGER,
         UNIQUE (guild_id, message_id)
     );
-    CREATE INDEX IF NOT EXISTS idx_ctf_role_campaign_message
-        ON ctf_role_campaign (guild_id, channel_id, message_id, status);
-    CREATE INDEX IF NOT EXISTS idx_ctf_role_campaign_status_end
-        ON ctf_role_campaign (status, end_at_unix);
-    CREATE INDEX IF NOT EXISTS idx_ctf_role_campaign_guild_status_created
-        ON ctf_role_campaign (guild_id, status, created_at_unix);
-    """,
-    """
-    ALTER TABLE ctf_role_campaign
-    ADD COLUMN discussion_channel_id INTEGER
-    """,
-    """
-    ALTER TABLE ctf_role_campaign
-    ADD COLUMN archive_at_unix INTEGER
-    """,
-    """
-    ALTER TABLE ctf_role_campaign
-    ADD COLUMN archived_at_unix INTEGER
-    """,
-    """
-    ALTER TABLE ctf_role_campaign
-    ADD COLUMN start_notified_at_unix INTEGER
-    """,
-    """
-    ALTER TABLE ctf_role_campaign
-    ADD COLUMN voice_channel_id INTEGER
-    """,
-    """
-    ALTER TABLE ctf_role_campaign RENAME TO ctf_team_campaign;
-    DROP INDEX IF EXISTS idx_ctf_role_campaign_message;
-    DROP INDEX IF EXISTS idx_ctf_role_campaign_status_end;
-    DROP INDEX IF EXISTS idx_ctf_role_campaign_guild_status_created;
     CREATE INDEX IF NOT EXISTS idx_ctf_team_campaign_message
         ON ctf_team_campaign (guild_id, channel_id, message_id, status);
     CREATE INDEX IF NOT EXISTS idx_ctf_team_campaign_status_end
         ON ctf_team_campaign (status, end_at_unix);
     CREATE INDEX IF NOT EXISTS idx_ctf_team_campaign_guild_status_created
         ON ctf_team_campaign (guild_id, status, created_at_unix);
+    """,
+    """
+    ALTER TABLE ctf_team_campaign
+    ADD COLUMN discussion_channel_id INTEGER
+    """,
+    """
+    ALTER TABLE ctf_team_campaign
+    ADD COLUMN archive_at_unix INTEGER
+    """,
+    """
+    ALTER TABLE ctf_team_campaign
+    ADD COLUMN archived_at_unix INTEGER
+    """,
+    """
+    ALTER TABLE ctf_team_campaign
+    ADD COLUMN start_notified_at_unix INTEGER
+    """,
+    """
+    ALTER TABLE ctf_team_campaign
+    ADD COLUMN voice_channel_id INTEGER
     """,
 )
 
