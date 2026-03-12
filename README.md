@@ -51,7 +51,6 @@ uv run python src/main.py
 - 公開 Bot をオフにします。
 - Bot token を発行して `.env` の `DISCORD_TOKEN` に設定します
 - `Server Members Intent` を有効にします
-- `Message Content Intent` を有効にします
 
 ## Discord 側の前提
 
