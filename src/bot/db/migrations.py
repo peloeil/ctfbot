@@ -6,6 +6,11 @@ from ..errors import RepositoryError
 from .connection import DatabaseConnectionFactory
 
 CURRENT_SCHEMA_VERSION = 7
+LEGACY_CTF_TEAM_MIGRATION_HINT = (
+    "If this database still uses the legacy ctf_role_campaign schema, "
+    "run scripts/migrate_ctf_team_db.py before startup; otherwise recreate the "
+    "database."
+)
 CURRENT_SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS alpacahack_user (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,7 +77,7 @@ def ensure_current_schema(factory: DatabaseConnectionFactory) -> None:
             if _has_user_defined_objects(conn):
                 raise RepositoryError(
                     "Database schema version is missing or unsupported. "
-                    "Use a manual migration script or recreate the database."
+                    f"{LEGACY_CTF_TEAM_MIGRATION_HINT}"
                 )
             conn.executescript(CURRENT_SCHEMA_SQL)
             _set_user_version(conn, CURRENT_SCHEMA_VERSION)
@@ -82,7 +87,8 @@ def ensure_current_schema(factory: DatabaseConnectionFactory) -> None:
         if current_version != CURRENT_SCHEMA_VERSION:
             raise RepositoryError(
                 "Database schema version is unsupported. "
-                f"Expected {CURRENT_SCHEMA_VERSION}, found {current_version}."
+                f"Expected {CURRENT_SCHEMA_VERSION}, found {current_version}. "
+                f"{LEGACY_CTF_TEAM_MIGRATION_HINT}"
             )
 
         _validate_current_schema(conn)
@@ -105,15 +111,34 @@ def _validate_current_schema(conn: sqlite3.Connection) -> None:
     for table_name, expected_columns in EXPECTED_TABLE_COLUMNS.items():
         actual_columns = _read_table_columns(conn, table_name)
         if actual_columns != expected_columns:
+            missing_columns = [
+                column for column in expected_columns if column not in actual_columns
+            ]
+            unexpected_columns = [
+                column for column in actual_columns if column not in expected_columns
+            ]
+            diff_parts: list[str] = []
+            if missing_columns:
+                diff_parts.append(f"missing: {', '.join(missing_columns)}")
+            if unexpected_columns:
+                diff_parts.append(f"unexpected: {', '.join(unexpected_columns)}")
+            if not diff_parts:
+                diff_parts.append("column order differs")
             raise RepositoryError(
-                f"Database schema for {table_name} does not match the current schema."
+                f"Database schema for {table_name} does not match the current schema. "
+                f"Expected columns: {expected_columns}. "
+                f"Found: {actual_columns}. "
+                f"{'; '.join(diff_parts)}. "
+                f"{LEGACY_CTF_TEAM_MIGRATION_HINT}"
             )
 
 
 def _read_table_columns(conn: sqlite3.Connection, table_name: str) -> tuple[str, ...]:
     rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
     if not rows:
-        raise RepositoryError(f"Required table is missing: {table_name}")
+        raise RepositoryError(
+            f"Required table is missing: {table_name}. {LEGACY_CTF_TEAM_MIGRATION_HINT}"
+        )
     return tuple(str(row[1]) for row in rows)
 
 

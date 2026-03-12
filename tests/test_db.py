@@ -17,6 +17,7 @@ from bot.db.connection import (  # noqa: E402
 )
 from bot.db.migrations import (  # noqa: E402
     CURRENT_SCHEMA_VERSION,
+    EXPECTED_TABLE_COLUMNS,
     ensure_current_schema,
 )
 from bot.errors import RepositoryError  # noqa: E402
@@ -204,6 +205,86 @@ class DatabaseMigrationTests(unittest.TestCase):
 
             ensure_current_schema(factory)
 
+    def test_manual_migration_script_adds_missing_legacy_columns(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "ctfbot.db"
+            with sqlite3.connect(str(db_path)) as conn:
+                conn.executescript(
+                    """
+                    CREATE TABLE ctf_role_campaign (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        guild_id INTEGER NOT NULL,
+                        channel_id INTEGER NOT NULL,
+                        message_id INTEGER NOT NULL,
+                        role_id INTEGER NOT NULL,
+                        ctf_name TEXT NOT NULL,
+                        start_at_unix INTEGER NOT NULL,
+                        end_at_unix INTEGER,
+                        status TEXT NOT NULL CHECK (status IN ('active', 'closed')),
+                        created_by INTEGER NOT NULL,
+                        created_at_unix INTEGER NOT NULL,
+                        closed_at_unix INTEGER,
+                        UNIQUE (guild_id, message_id)
+                    );
+                    """
+                )
+                conn.execute(
+                    """
+                    INSERT INTO ctf_role_campaign (
+                        guild_id,
+                        channel_id,
+                        message_id,
+                        role_id,
+                        ctf_name,
+                        start_at_unix,
+                        end_at_unix,
+                        status,
+                        created_by,
+                        created_at_unix,
+                        closed_at_unix
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        1,
+                        10,
+                        20,
+                        30,
+                        "Older Legacy CTF",
+                        1000,
+                        2000,
+                        "closed",
+                        40,
+                        500,
+                        600,
+                    ),
+                )
+                conn.commit()
+
+            script_path = REPO_ROOT / "scripts" / "migrate_ctf_team_db.py"
+            completed = subprocess.run(
+                [sys.executable, str(script_path), str(db_path)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+
+            factory = DatabaseConnectionFactory(database_path=str(db_path))
+            ensure_current_schema(factory)
+
+            with sqlite3.connect(str(db_path)) as conn:
+                version_row = conn.execute("PRAGMA user_version").fetchone()
+                columns = tuple(
+                    row[1]
+                    for row in conn.execute(
+                        "PRAGMA table_info(ctf_team_campaign)"
+                    ).fetchall()
+                )
+
+            self.assertEqual(version_row[0], CURRENT_SCHEMA_VERSION)
+            self.assertEqual(columns, EXPECTED_TABLE_COLUMNS["ctf_team_campaign"])
+
     def test_ensure_current_schema_rejects_unversioned_non_empty_database(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "ctfbot.db"
@@ -223,7 +304,10 @@ class DatabaseMigrationTests(unittest.TestCase):
                 conn.commit()
 
             factory = DatabaseConnectionFactory(database_path=str(db_path))
-            with self.assertRaises(RepositoryError):
+            with self.assertRaisesRegex(
+                RepositoryError,
+                "Expected 7, found 8.*scripts/migrate_ctf_team_db.py",
+            ):
                 ensure_current_schema(factory)
 
     def test_ensure_current_schema_rejects_current_version_with_wrong_columns(
@@ -248,7 +332,10 @@ class DatabaseMigrationTests(unittest.TestCase):
                 conn.commit()
 
             factory = DatabaseConnectionFactory(database_path=str(db_path))
-            with self.assertRaises(RepositoryError):
+            with self.assertRaisesRegex(
+                RepositoryError,
+                "Expected columns: .*discussion_channel_id.*Found: .*guild_id",
+            ):
                 ensure_current_schema(factory)
 
 

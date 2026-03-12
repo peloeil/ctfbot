@@ -10,7 +10,11 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from bot.db.migrations import CURRENT_SCHEMA_SQL, CURRENT_SCHEMA_VERSION  # noqa: E402
+from bot.db.migrations import (  # noqa: E402
+    CURRENT_SCHEMA_SQL,
+    CURRENT_SCHEMA_VERSION,
+    EXPECTED_TABLE_COLUMNS,
+)
 
 LEGACY_TABLE_NAME = "ctf_role_campaign"
 CURRENT_TABLE_NAME = "ctf_team_campaign"
@@ -18,6 +22,13 @@ LEGACY_INDEX_NAMES = (
     "idx_ctf_role_campaign_message",
     "idx_ctf_role_campaign_status_end",
     "idx_ctf_role_campaign_guild_status_created",
+)
+LEGACY_ADDED_COLUMNS = (
+    ("discussion_channel_id", "INTEGER"),
+    ("archive_at_unix", "INTEGER"),
+    ("archived_at_unix", "INTEGER"),
+    ("start_notified_at_unix", "INTEGER"),
+    ("voice_channel_id", "INTEGER"),
 )
 
 
@@ -64,6 +75,33 @@ def _table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
     return row is not None
 
 
+def _read_table_columns(conn: sqlite3.Connection, table_name: str) -> tuple[str, ...]:
+    rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    return tuple(str(row[1]) for row in rows)
+
+
+def _ensure_legacy_added_columns(conn: sqlite3.Connection) -> None:
+    actual_columns = set(_read_table_columns(conn, CURRENT_TABLE_NAME))
+    for column_name, column_type in LEGACY_ADDED_COLUMNS:
+        if column_name in actual_columns:
+            continue
+        conn.execute(
+            f"ALTER TABLE {CURRENT_TABLE_NAME} ADD COLUMN {column_name} {column_type}"
+        )
+        actual_columns.add(column_name)
+
+
+def _validate_current_schema(conn: sqlite3.Connection) -> None:
+    for table_name, expected_columns in EXPECTED_TABLE_COLUMNS.items():
+        actual_columns = _read_table_columns(conn, table_name)
+        if actual_columns == expected_columns:
+            continue
+        raise RuntimeError(
+            f"{table_name} does not match the current schema. "
+            f"Expected columns: {expected_columns}. Found: {actual_columns}."
+        )
+
+
 def migrate_database(db_path: Path) -> None:
     with sqlite3.connect(str(db_path)) as conn:
         has_legacy_table = _table_exists(conn, LEGACY_TABLE_NAME)
@@ -83,9 +121,11 @@ def migrate_database(db_path: Path) -> None:
                 f"ALTER TABLE {LEGACY_TABLE_NAME} RENAME TO {CURRENT_TABLE_NAME}"
             )
 
+        _ensure_legacy_added_columns(conn)
         for index_name in LEGACY_INDEX_NAMES:
             conn.execute(f"DROP INDEX IF EXISTS {index_name}")
         conn.executescript(CURRENT_SCHEMA_SQL)
+        _validate_current_schema(conn)
 
         conn.execute(f"PRAGMA user_version = {CURRENT_SCHEMA_VERSION}")
         conn.commit()
