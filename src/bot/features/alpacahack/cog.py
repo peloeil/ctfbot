@@ -176,12 +176,13 @@ class Alpacahack(
                 value="今週の solve はまだありません。",
                 inline=False,
             )
-            if summary.failed_users:
-                embed.add_field(
-                    name="取得失敗ユーザー",
-                    value=self._format_failed_users(summary.failed_users),
-                    inline=False,
-                )
+            if not summary.failed_users:
+                return embed
+            embed.add_field(
+                name="取得失敗ユーザー",
+                value=self._format_failed_users(summary.failed_users),
+                inline=False,
+            )
             return embed
 
         sorted_rows = sorted(
@@ -224,15 +225,14 @@ class Alpacahack(
         summary = await asyncio.to_thread(
             self.usecase.collect_weekly_summary, period_end
         )
-        if summary.total_users == 0:
-            if notify_if_no_users:
-                await send_message_safely(
-                    target_channel, content="誰も登録されていません。"
-                )
+        if summary.total_users != 0:
+            embed = self._build_weekly_summary_embed(summary)
+            await send_message_safely(target_channel, embed=embed)
             return
 
-        embed = self._build_weekly_summary_embed(summary)
-        await send_message_safely(target_channel, embed=embed)
+        if not notify_if_no_users:
+            return
+        await send_message_safely(target_channel, content="誰も登録されていません。")
 
     async def _send_weekly_summary_interaction(
         self,
@@ -245,12 +245,13 @@ class Alpacahack(
             self.usecase.collect_weekly_summary, period_end
         )
         if summary.total_users == 0:
-            if notify_if_no_users:
-                await send_interaction_message(
-                    interaction,
-                    "誰も登録されていません。",
-                    ephemeral=True,
-                )
+            if not notify_if_no_users:
+                return
+            await send_interaction_message(
+                interaction,
+                "誰も登録されていません。",
+                ephemeral=True,
+            )
             return
 
         embed = self._build_weekly_summary_embed(summary)

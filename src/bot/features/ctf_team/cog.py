@@ -312,14 +312,14 @@ class CTFTeamCampaigns(
         suggestions: builtins.list[app_commands.Choice[str]] = []
 
         for label, value in ROLE_COLOR_SUGGESTIONS:
-            if query:
-                lowered_label = label.lower()
-                if (
-                    query not in lowered_label
-                    and query not in value
-                    and normalized_query not in value[1:]
-                ):
-                    continue
+            lowered_label = label.lower()
+            matches_query = not query or (
+                query in lowered_label
+                or query in value
+                or normalized_query in value[1:]
+            )
+            if not matches_query:
+                continue
             suggestions.append(
                 app_commands.Choice(name=f"{label} ({value})", value=value)
             )

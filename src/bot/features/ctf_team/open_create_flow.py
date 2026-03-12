@@ -11,6 +11,18 @@ from ...utils.helpers import logger, send_interaction_message, send_message_safe
 from .models import CTFTeamCampaign
 
 
+async def _collect_start_warnings(
+    cog: Any, campaign: CTFTeamCampaign
+) -> tuple[str, ...]:
+    if not cog.usecase.is_campaign_started(campaign):
+        return ()
+
+    started, warnings = await cog._start_campaign(campaign)
+    if started:
+        return ()
+    return warnings
+
+
 async def handle_create_modal_submit(
     cog: Any,
     interaction: discord.Interaction,
@@ -111,10 +123,7 @@ async def handle_create_modal_submit(
             created_by=interaction.user.id,
             draft=draft,
         )
-        if cog.usecase.is_campaign_started(campaign):
-            started, warnings = await cog._start_campaign(campaign)
-            if not started:
-                create_warnings.extend(warnings)
+        create_warnings.extend(await _collect_start_warnings(cog, campaign))
     except ConflictError:
         await cog._cleanup_created_resources(
             discussion_channel=discussion_channel,
