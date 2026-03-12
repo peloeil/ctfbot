@@ -10,7 +10,12 @@ from discord.ext import commands, tasks
 from ...cogs._runtime import get_runtime
 from ...discord_gateway import DiscordGateway
 from ...errors import ExternalAPIError
-from ...utils.helpers import logger, send_interaction_message, send_message_safely
+from ...utils.helpers import (
+    format_discord_timestamp,
+    logger,
+    send_interaction_message,
+    send_message_safely,
+)
 from .models import CTFEvent
 
 
@@ -23,9 +28,6 @@ class CTFTimeNotifications(commands.Cog):
         self.settings = self.runtime.settings
         self.usecase = self.runtime.ctftime_usecase
         self.gateway = DiscordGateway(bot, logger)
-        self.timezone_label = getattr(
-            self.settings.tzinfo, "key", self.settings.timezone
-        )
         self.weekly_ctf_notification.change_interval(
             time=self.settings.ctftime_notification_time
         )
@@ -118,12 +120,14 @@ class CTFTimeNotifications(commands.Cog):
         )
 
         for index, event in enumerate(events[:25], start=1):
-            start_time = event.start.strftime("%m/%d %H:%M")
-            end_time = event.finish.strftime("%m/%d %H:%M")
+            start_time = format_discord_timestamp(event.start, style="f")
+            end_time = format_discord_timestamp(event.finish, style="f")
+            start_relative = format_discord_timestamp(event.start, style="R")
+            end_relative = format_discord_timestamp(event.finish, style="R")
             duration_hours = int((event.finish - event.start).total_seconds() / 3600)
             field_value = (
-                f"🕐 **開始**: {start_time} {self.timezone_label}\n"
-                f"🏁 **終了**: {end_time} {self.timezone_label}\n"
+                f"🕐 **開始**: {start_time} ({start_relative})\n"
+                f"🏁 **終了**: {end_time} ({end_relative})\n"
                 f"⏱️ **期間**: {duration_hours}時間\n"
                 f"🔗 [CTFtime]({event.ctftime_url})"
             )

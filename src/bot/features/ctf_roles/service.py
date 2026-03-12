@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 
 from ...errors import ServiceError
+from ...utils.helpers import format_discord_timestamp
 
 INPUT_DATETIME_FORMAT = "%Y-%m-%d %H:%M"
 
@@ -43,7 +44,12 @@ class CTFRoleService:
         utc = datetime.datetime.fromtimestamp(value, tz=datetime.UTC)
         return utc.astimezone(self._timezone)
 
-    def format_unix(self, value: int | None) -> str:
+    def format_unix(self, value: int | None, *, style: str = "f") -> str:
+        return format_discord_timestamp(value, style=style)
+
+    def format_unix_with_relative(self, value: int | None, *, style: str = "f") -> str:
         if value is None:
             return "-"
-        return self.from_unix(value).strftime("%Y-%m-%d %H:%M %Z")
+        absolute = self.format_unix(value, style=style)
+        relative = self.format_unix(value, style="R")
+        return f"{absolute} ({relative})"

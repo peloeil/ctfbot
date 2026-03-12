@@ -239,5 +239,13 @@ class CTFRoleUseCase:
             limit=limit,
         )
 
-    def format_unix_datetime(self, value: int | None) -> str:
-        return self._service.format_unix(value)
+    def format_unix_datetime(self, value: int | None, *, style: str = "f") -> str:
+        return self._service.format_unix(value, style=style)
+
+    def format_unix_datetime_with_relative(
+        self,
+        value: int | None,
+        *,
+        style: str = "f",
+    ) -> str:
+        return self._service.format_unix_with_relative(value, style=style)

@@ -18,6 +18,7 @@ from .archive_flow import archive_campaign
 from .models import (
     INPUT_DATETIME_PLACEHOLDER,
     CampaignDraft,
+    CampaignStatus,
     CloseCampaignReport,
     CTFRoleCampaign,
 )
@@ -29,6 +30,10 @@ LIST_LIMIT = 20
 STATUS_ACTIVE = "active"
 STATUS_CLOSED = "closed"
 STATUS_ALL = "all"
+STATUS_LABELS = {
+    CampaignStatus.ACTIVE: "募集中",
+    CampaignStatus.CLOSED: "終了済み",
+}
 CLOSED_HEADER = "🔒 **この募集は終了しました。**"
 CTF_CATEGORY_NAME = "ctf"
 ARCHIVE_CATEGORY_NAME = "archive"
@@ -667,7 +672,7 @@ class CTFRoleCampaigns(
             key=lambda member: (member.display_name.lower(), member.id),
         )
         member_chunks = self._split_member_mentions(members)
-        archive_text = self.usecase.format_unix_datetime(archive_at_unix)
+        archive_text = self.usecase.format_unix_datetime_with_relative(archive_at_unix)
         for index, member_chunk in enumerate(member_chunks, start=1):
             suffix = (
                 "" if len(member_chunks) == 1 else f" ({index}/{len(member_chunks)})"
@@ -722,11 +727,15 @@ class CTFRoleCampaigns(
         role: discord.Role,
         discussion_channel: discord.TextChannel,
     ) -> str:
-        start_text = self.usecase.format_unix_datetime(draft.start_at_unix)
+        start_text = self.usecase.format_unix_datetime_with_relative(
+            draft.start_at_unix
+        )
         if draft.end_at_unix is None:
             end_text = "常設(手動で /ctfteam close)"
         else:
-            end_text = self.usecase.format_unix_datetime(draft.end_at_unix)
+            end_text = self.usecase.format_unix_datetime_with_relative(
+                draft.end_at_unix
+            )
 
         return (
             f"📣 **{draft.ctf_name}** 参加者募集\n"
@@ -737,29 +746,101 @@ class CTFRoleCampaigns(
             "(終了時刻まで有効)。"
         )
 
-    def _format_campaign_line(self, campaign: CTFRoleCampaign) -> str:
-        start_text = self.usecase.format_unix_datetime(campaign.start_at_unix)
-        end_text = (
-            self.usecase.format_unix_datetime(campaign.end_at_unix)
-            if campaign.end_at_unix is not None
-            else "常設"
-        )
-        archive_text = (
-            self.usecase.format_unix_datetime(campaign.archive_at_unix)
-            if campaign.archive_at_unix is not None
-            else "-"
-        )
-        archived_text = (
-            self.usecase.format_unix_datetime(campaign.archived_at_unix)
-            if campaign.archived_at_unix is not None
-            else "-"
-        )
+    @staticmethod
+    def _build_campaign_jump_url(campaign: CTFRoleCampaign) -> str:
         return (
-            f"- {campaign.ctf_name} | status={campaign.status.value} | "
-            f"start={start_text} | end={end_text} | "
-            f"archive_at={archive_text} | archived_at={archived_text} | "
-            f"by=<@{campaign.created_by}>"
+            "https://discord.com/channels/"
+            f"{campaign.guild_id}/{campaign.channel_id}/{campaign.message_id}"
         )
+
+    @staticmethod
+    def _format_channel_reference(channel_id: int | None) -> str:
+        if channel_id is None:
+            return "-"
+        return f"<#{channel_id}>"
+
+    @staticmethod
+    def _truncate_embed_field_value(value: str, *, max_length: int = 1024) -> str:
+        if len(value) <= max_length:
+            return value
+        return f"{value[: max_length - 3]}..."
+
+    def _format_campaign_field_value(self, campaign: CTFRoleCampaign) -> str:
+        lines = [
+            f"状態: **{STATUS_LABELS.get(campaign.status, campaign.status.value)}**",
+            (
+                "開始: "
+                + self.usecase.format_unix_datetime_with_relative(
+                    campaign.start_at_unix
+                )
+            ),
+            (
+                "終了: "
+                + (
+                    self.usecase.format_unix_datetime_with_relative(
+                        campaign.end_at_unix
+                    )
+                    if campaign.end_at_unix is not None
+                    else "常設"
+                )
+            ),
+            (
+                "募集: "
+                f"[メッセージへ移動]({self._build_campaign_jump_url(campaign)}) "
+                f"({self._format_channel_reference(campaign.channel_id)})"
+            ),
+            f"議論: {self._format_channel_reference(campaign.discussion_channel_id)}",
+            f"VC: {self._format_channel_reference(campaign.voice_channel_id)}",
+            f"ロール: <@&{campaign.role_id}>",
+            f"作成者: <@{campaign.created_by}>",
+        ]
+        if campaign.archive_at_unix is not None:
+            lines.append(
+                "archive予定: "
+                + self.usecase.format_unix_datetime_with_relative(
+                    campaign.archive_at_unix
+                )
+            )
+        if campaign.archived_at_unix is not None:
+            lines.append(
+                "archive完了: "
+                + self.usecase.format_unix_datetime_with_relative(
+                    campaign.archived_at_unix
+                )
+            )
+        return self._truncate_embed_field_value("\n".join(lines))
+
+    def _build_campaign_list_embed(
+        self,
+        campaigns: builtins.list[CTFRoleCampaign],
+        *,
+        selected_status: str,
+    ) -> discord.Embed:
+        title_suffix = {
+            STATUS_ACTIVE: "募集中",
+            STATUS_CLOSED: "終了済み",
+            STATUS_ALL: "全件",
+        }.get(selected_status, selected_status)
+        color = {
+            STATUS_ACTIVE: discord.Color.green(),
+            STATUS_CLOSED: discord.Color.orange(),
+            STATUS_ALL: discord.Color.blurple(),
+        }.get(selected_status, discord.Color.blurple())
+        embed = discord.Embed(
+            title=f"CTF募集一覧 ({title_suffix})",
+            description=(
+                f"{len(campaigns)}件を表示しています。"
+                "時刻は各ユーザーのローカル時刻で表示されます。"
+            ),
+            color=color,
+        )
+        for index, campaign in enumerate(campaigns, start=1):
+            embed.add_field(
+                name=f"{index}. {campaign.ctf_name}",
+                value=self._format_campaign_field_value(campaign),
+                inline=False,
+            )
+        return embed
 
     async def _cleanup_created_resources(
         self,
@@ -828,7 +909,7 @@ class CTFRoleCampaigns(
         if message.content.startswith(CLOSED_HEADER):
             return True
 
-        archive_text = self.usecase.format_unix_datetime(archive_at_unix)
+        archive_text = self.usecase.format_unix_datetime_with_relative(archive_at_unix)
         try:
             await message.edit(
                 content=(
@@ -1025,12 +1106,11 @@ class CTFRoleCampaigns(
             )
             return
 
-        lines = [self._format_campaign_line(campaign) for campaign in campaigns]
-        content = "\n".join(lines)
-        if len(content) > 1900:
-            content = f"{content[:1897]}..."
-
-        await send_interaction_message(interaction, content, ephemeral=True)
+        embed = self._build_campaign_list_embed(
+            campaigns,
+            selected_status=selected_status,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="close", description="CTF募集を終了します。")
     @app_commands.describe(ctf_name="終了対象のCTF名")
@@ -1081,7 +1161,9 @@ class CTFRoleCampaigns(
             )
             return
 
-        archive_text = self.usecase.format_unix_datetime(report.archive_at_unix)
+        archive_text = self.usecase.format_unix_datetime_with_relative(
+            report.archive_at_unix
+        )
         member_count_text = (
             str(report.snapshot_member_count)
             if report.snapshot_member_count is not None
