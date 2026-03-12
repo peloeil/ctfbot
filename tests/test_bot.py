@@ -176,6 +176,36 @@ class TestAlpacaHackService(unittest.TestCase):
         self.assertTrue(result.fetch_failed)
         self.assertEqual(result.challenges, [])
 
+    def test_collect_weekly_solve_result_ignores_legacy_fallback_markup(self):
+        html = """
+        <html>
+          <body>
+            <table>
+              <tbody class="MuiTableBody-root">
+                <tr>
+                  <td><a href="/challenges/legacy-one">legacy-one</a></td>
+                  <td><p>1</p></td>
+                  <td><span aria-label="2026-03-04 19:11 GMT+0"></span></td>
+                </tr>
+              </tbody>
+            </table>
+          </body>
+        </html>
+        """
+        response = Mock()
+        response.content = html.encode("utf-8")
+        response.raise_for_status.return_value = None
+
+        with patch(
+            "bot.features.alpacahack.service.requests.get", return_value=response
+        ):
+            result = self.service.collect_weekly_solve_result(
+                "legacy-user", reference_date=date(2026, 3, 5)
+            )
+
+        self.assertEqual(result.challenges, [])
+        self.assertFalse(result.fetch_failed)
+
 
 class TestDatabaseAndUseCase(unittest.TestCase):
     def setUp(self):
