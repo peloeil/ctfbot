@@ -44,7 +44,7 @@ async def archive_campaign(
     if role is not None:
         try:
             await role.delete(reason=reason)
-        except (discord.Forbidden, discord.HTTPException):
+        except discord.Forbidden, discord.HTTPException:
             logger.warning("Failed to delete role for archive: %s", campaign.id)
             return False, ("role_delete_failed",)
 

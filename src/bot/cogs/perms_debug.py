@@ -23,7 +23,7 @@ class PermissionsDebug(commands.Cog):
             return member
         try:
             return await guild.fetch_member(user_id)
-        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+        except discord.NotFound, discord.Forbidden, discord.HTTPException:
             return None
 
     @app_commands.command(

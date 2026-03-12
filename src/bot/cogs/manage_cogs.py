@@ -34,7 +34,7 @@ class ManageCogs(
             await interaction.response.defer(ephemeral=True, thinking=True)
         except discord.InteractionResponded:
             return
-        except (discord.NotFound, discord.HTTPException):
+        except discord.NotFound, discord.HTTPException:
             logger.warning(
                 "Failed to defer interaction in manage_cogs: id=%s",
                 interaction.id,

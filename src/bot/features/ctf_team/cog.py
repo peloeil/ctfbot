@@ -155,7 +155,7 @@ class CTFTeamCampaigns(
 
         try:
             fetched = await self.bot.fetch_channel(channel_id)
-        except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+        except discord.Forbidden, discord.NotFound, discord.HTTPException:
             return None
 
         if isinstance(fetched, discord.TextChannel):
@@ -171,7 +171,7 @@ class CTFTeamCampaigns(
 
         try:
             fetched = await self.bot.fetch_channel(channel_id)
-        except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+        except discord.Forbidden, discord.NotFound, discord.HTTPException:
             return None
 
         if isinstance(fetched, discord.VoiceChannel):
@@ -187,7 +187,7 @@ class CTFTeamCampaigns(
 
         try:
             roles = await guild.fetch_roles()
-        except (discord.Forbidden, discord.HTTPException):
+        except discord.Forbidden, discord.HTTPException:
             return None
 
         for role in roles:
@@ -203,7 +203,7 @@ class CTFTeamCampaigns(
             return member
         try:
             return await guild.fetch_member(user_id)
-        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+        except discord.NotFound, discord.Forbidden, discord.HTTPException:
             return None
 
     @staticmethod
@@ -853,19 +853,19 @@ class CTFTeamCampaigns(
         if message is not None:
             try:
                 await message.delete()
-            except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+            except discord.Forbidden, discord.NotFound, discord.HTTPException:
                 logger.warning("Failed to clean up recruitment message: %s", message.id)
         if role is not None:
             try:
                 await role.delete(reason="Cleanup after failed campaign creation")
-            except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+            except discord.Forbidden, discord.NotFound, discord.HTTPException:
                 logger.warning("Failed to clean up role: %s", role.id)
         if discussion_channel is not None:
             try:
                 await discussion_channel.delete(
                     reason="Cleanup after failed campaign creation"
                 )
-            except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+            except discord.Forbidden, discord.NotFound, discord.HTTPException:
                 logger.warning(
                     "Failed to clean up discussion channel: %s",
                     discussion_channel.id,
@@ -875,7 +875,7 @@ class CTFTeamCampaigns(
                 await voice_channel.delete(
                     reason="Cleanup after failed campaign creation"
                 )
-            except (discord.Forbidden, discord.NotFound, discord.HTTPException):
+            except discord.Forbidden, discord.NotFound, discord.HTTPException:
                 logger.warning(
                     "Failed to clean up voice channel: %s",
                     voice_channel.id,
@@ -896,7 +896,7 @@ class CTFTeamCampaigns(
             message = await channel.fetch_message(campaign.message_id)
         except discord.NotFound:
             return True
-        except (discord.Forbidden, discord.HTTPException):
+        except discord.Forbidden, discord.HTTPException:
             logger.warning(
                 "Failed to fetch campaign message for close: "
                 "guild=%s channel=%s message=%s",
@@ -918,7 +918,7 @@ class CTFTeamCampaigns(
                     f"{message.content}"
                 )
             )
-        except (discord.Forbidden, discord.HTTPException):
+        except discord.Forbidden, discord.HTTPException:
             logger.warning("Failed to edit campaign close message: %s", message.id)
             return False
         return True

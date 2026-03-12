@@ -19,7 +19,7 @@ class DiscordGateway:
         if channel is None:
             try:
                 channel = await self._bot.fetch_channel(channel_id)
-            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+            except discord.NotFound, discord.Forbidden, discord.HTTPException:
                 self._logger.exception("Failed to resolve channel: %s", channel_id)
                 return None
 

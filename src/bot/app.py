@@ -68,7 +68,7 @@ class CTFBot(commands.Bot):
             return
         try:
             await channel.send(content)
-        except (discord.Forbidden, discord.HTTPException):
+        except discord.Forbidden, discord.HTTPException:
             logger.exception("Failed to send status message")
 
 

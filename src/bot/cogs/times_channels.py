@@ -70,7 +70,7 @@ class TimesChannels(
             return member
         try:
             return await guild.fetch_member(user_id)
-        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+        except discord.NotFound, discord.Forbidden, discord.HTTPException:
             return None
 
     @app_commands.command(
@@ -149,7 +149,7 @@ class TimesChannels(
                         f"Created by /times create requested by {interaction.user.id}"
                     ),
                 )
-            except (discord.Forbidden, discord.HTTPException):
+            except discord.Forbidden, discord.HTTPException:
                 logger.exception(
                     "Failed to create times channel: guild=%s channel=%s",
                     interaction.guild.id,

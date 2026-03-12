@@ -24,7 +24,7 @@ class DatabaseConnectionFactory:
     timeout_seconds: float = DEFAULT_SQLITE_TIMEOUT_SECONDS
 
     @contextmanager
-    def connection(self) -> Generator[sqlite3.Connection, None, None]:
+    def connection(self) -> Generator[sqlite3.Connection]:
         db_path = Path(self.database_path).expanduser().resolve()
         conn: sqlite3.Connection | None = None
         try:
