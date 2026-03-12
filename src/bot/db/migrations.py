@@ -7,7 +7,7 @@ from .connection import DatabaseConnectionFactory
 
 CURRENT_SCHEMA_VERSION = 7
 LEGACY_CTF_TEAM_MIGRATION_HINT = (
-    "If this database still uses the legacy ctf_role_campaign schema, "
+    "If this database still uses a legacy campaign schema, "
     "run scripts/migrate_ctf_team_db.py before startup; otherwise recreate the "
     "database."
 )
