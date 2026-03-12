@@ -8,7 +8,7 @@ from ...utils.helpers import format_discord_timestamp
 INPUT_DATETIME_FORMAT = "%Y-%m-%d %H:%M"
 
 
-class CTFRoleService:
+class CTFTeamService:
     def __init__(self, *, timezone: datetime.tzinfo) -> None:
         self._timezone = timezone
 

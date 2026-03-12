@@ -48,9 +48,9 @@
 - 定期通知先は `ctf` カテゴリ配下の `#alpacahack`
 - ユーザーごとの取得間に短い sleep を入れる前提
 
-### `ctf_roles`
+### `ctf_team`
 
-- 変更前に `tests/test_ctf_roles.py` を確認する
+- 変更前に `tests/test_ctf_team.py` を確認する
 - `/ctfteam open` は role、discussion channel、voice channel、募集 message をまとめて扱う
 - 募集告知は `#role` に投稿する。`#role` が無いと作成できない
 - discussion / voice channel は `ctf` カテゴリ配下に作り、archive 時は `archive` カテゴリへ移動する
@@ -75,8 +75,8 @@
   `uv run python -m unittest tests.test_architecture -v`
 - config / runtime / migration 変更:
   `uv run python -m unittest tests.test_config tests.test_runtime tests.test_db -v`
-- `ctf_roles` 変更:
-  `uv run python -m unittest tests.test_ctf_roles -v`
+- `ctf_team` 変更:
+  `uv run python -m unittest tests.test_ctf_team -v`
 - `ctftime` 変更:
   `uv run python -m unittest tests.test_ctftime_api tests.test_cogs -v`
 - utility cogs 変更:

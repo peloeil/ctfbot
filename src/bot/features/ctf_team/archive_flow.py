@@ -6,12 +6,12 @@ from typing import Any
 import discord
 
 from ...utils.helpers import logger
-from .models import CTFRoleCampaign
+from .models import CTFTeamCampaign
 
 
 async def archive_campaign(
     cog: Any,
-    campaign: CTFRoleCampaign,
+    campaign: CTFTeamCampaign,
     *,
     reason: str,
 ) -> tuple[bool, tuple[str, ...]]:

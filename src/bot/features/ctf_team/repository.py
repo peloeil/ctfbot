@@ -5,7 +5,7 @@ from typing import Any, cast
 
 from ...db.connection import DatabaseConnectionFactory
 from ...errors import ConflictError, RepositoryError
-from .models import CampaignStatus, CTFRoleCampaign
+from .models import CampaignStatus, CTFTeamCampaign
 
 SELECT_COLUMNS = (
     "id, guild_id, channel_id, message_id, role_id, ctf_name, "
@@ -16,7 +16,7 @@ SELECT_COLUMNS = (
 
 
 @dataclass(frozen=True, slots=True)
-class CTFRoleCampaignRepository:
+class CTFTeamCampaignRepository:
     connection_factory: DatabaseConnectionFactory
 
     def count_active_campaigns_by_creator(self, guild_id: int, created_by: int) -> int:
@@ -24,7 +24,7 @@ class CTFRoleCampaignRepository:
             row = conn.execute(
                 """
                 SELECT COUNT(1)
-                FROM ctf_role_campaign
+                FROM ctf_team_campaign
                 WHERE guild_id = ? AND created_by = ? AND status = ?
                 """,
                 (guild_id, created_by, CampaignStatus.ACTIVE.value),
@@ -36,7 +36,7 @@ class CTFRoleCampaignRepository:
             row = conn.execute(
                 """
                 SELECT 1
-                FROM ctf_role_campaign
+                FROM ctf_team_campaign
                 WHERE guild_id = ?
                   AND status = ?
                   AND ctf_name = ? COLLATE NOCASE
@@ -60,12 +60,12 @@ class CTFRoleCampaignRepository:
         end_at_unix: int | None,
         created_by: int,
         created_at_unix: int,
-    ) -> CTFRoleCampaign:
+    ) -> CTFTeamCampaign:
         with self.connection_factory.connection() as conn:
             total_changes_before = conn.total_changes
             cursor = conn.execute(
                 """
-                INSERT INTO ctf_role_campaign (
+                INSERT INTO ctf_team_campaign (
                     guild_id,
                     channel_id,
                     message_id,
@@ -82,7 +82,7 @@ class CTFRoleCampaignRepository:
                 SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                 WHERE NOT EXISTS (
                     SELECT 1
-                    FROM ctf_role_campaign
+                    FROM ctf_team_campaign
                     WHERE guild_id = ?
                       AND status = ?
                       AND ctf_name = ? COLLATE NOCASE
@@ -115,7 +115,7 @@ class CTFRoleCampaignRepository:
                 raise RepositoryError("Failed to resolve inserted campaign id.")
             campaign_id = int(cursor.lastrowid)
 
-        return CTFRoleCampaign(
+        return CTFTeamCampaign(
             id=campaign_id,
             guild_id=guild_id,
             channel_id=channel_id,
@@ -139,12 +139,12 @@ class CTFRoleCampaignRepository:
         guild_id: int,
         channel_id: int,
         message_id: int,
-    ) -> CTFRoleCampaign | None:
+    ) -> CTFTeamCampaign | None:
         with self.connection_factory.connection() as conn:
             row = conn.execute(
                 f"""
                 SELECT {SELECT_COLUMNS}
-                FROM ctf_role_campaign
+                FROM ctf_team_campaign
                 WHERE guild_id = ?
                   AND channel_id = ?
                   AND message_id = ?
@@ -157,12 +157,12 @@ class CTFRoleCampaignRepository:
 
     def find_active_campaign_by_name(
         self, *, guild_id: int, ctf_name: str
-    ) -> CTFRoleCampaign | None:
+    ) -> CTFTeamCampaign | None:
         with self.connection_factory.connection() as conn:
             row = conn.execute(
                 f"""
                 SELECT {SELECT_COLUMNS}
-                FROM ctf_role_campaign
+                FROM ctf_team_campaign
                 WHERE guild_id = ?
                   AND status = ?
                   AND ctf_name = ? COLLATE NOCASE
@@ -175,13 +175,13 @@ class CTFRoleCampaignRepository:
 
     def list_due_campaigns(
         self, *, now_unix: int, limit: int = 20
-    ) -> list[CTFRoleCampaign]:
+    ) -> list[CTFTeamCampaign]:
         safe_limit = max(1, min(limit, 100))
         with self.connection_factory.connection() as conn:
             rows = conn.execute(
                 f"""
                 SELECT {SELECT_COLUMNS}
-                FROM ctf_role_campaign
+                FROM ctf_team_campaign
                 WHERE status = ?
                   AND end_at_unix IS NOT NULL
                   AND end_at_unix <= ?
@@ -194,13 +194,13 @@ class CTFRoleCampaignRepository:
 
     def list_due_starts(
         self, *, now_unix: int, limit: int = 20
-    ) -> list[CTFRoleCampaign]:
+    ) -> list[CTFTeamCampaign]:
         safe_limit = max(1, min(limit, 100))
         with self.connection_factory.connection() as conn:
             rows = conn.execute(
                 f"""
                 SELECT {SELECT_COLUMNS}
-                FROM ctf_role_campaign
+                FROM ctf_team_campaign
                 WHERE status = ?
                   AND start_notified_at_unix IS NULL
                   AND start_at_unix <= ?
@@ -215,7 +215,7 @@ class CTFRoleCampaignRepository:
         with self.connection_factory.connection() as conn:
             cursor = conn.execute(
                 """
-                UPDATE ctf_role_campaign
+                UPDATE ctf_team_campaign
                 SET start_notified_at_unix = ?
                 WHERE id = ?
                   AND status = ?
@@ -240,7 +240,7 @@ class CTFRoleCampaignRepository:
         with self.connection_factory.connection() as conn:
             cursor = conn.execute(
                 """
-                UPDATE ctf_role_campaign
+                UPDATE ctf_team_campaign
                 SET status = ?, closed_at_unix = ?, archive_at_unix = ?
                 WHERE id = ? AND status = ?
                 """,
@@ -257,13 +257,13 @@ class CTFRoleCampaignRepository:
 
     def list_due_archives(
         self, *, now_unix: int, limit: int = 20
-    ) -> list[CTFRoleCampaign]:
+    ) -> list[CTFTeamCampaign]:
         safe_limit = max(1, min(limit, 100))
         with self.connection_factory.connection() as conn:
             rows = conn.execute(
                 f"""
                 SELECT {SELECT_COLUMNS}
-                FROM ctf_role_campaign
+                FROM ctf_team_campaign
                 WHERE status = ?
                   AND archive_at_unix IS NOT NULL
                   AND archived_at_unix IS NULL
@@ -281,7 +281,7 @@ class CTFRoleCampaignRepository:
         with self.connection_factory.connection() as conn:
             cursor = conn.execute(
                 """
-                UPDATE ctf_role_campaign
+                UPDATE ctf_team_campaign
                 SET archived_at_unix = ?
                 WHERE id = ?
                   AND status = ?
@@ -302,12 +302,12 @@ class CTFRoleCampaignRepository:
         guild_id: int,
         status: CampaignStatus | None,
         limit: int = 20,
-    ) -> list[CTFRoleCampaign]:
+    ) -> list[CTFTeamCampaign]:
         safe_limit = max(1, min(limit, 100))
         params: tuple[object, ...]
         query = f"""
             SELECT {SELECT_COLUMNS}
-            FROM ctf_role_campaign
+            FROM ctf_team_campaign
             WHERE guild_id = ?
         """
         params = (guild_id,)
@@ -322,7 +322,7 @@ class CTFRoleCampaignRepository:
         return [campaign for row in rows if (campaign := self._to_campaign(row))]
 
     @staticmethod
-    def _to_campaign(row: tuple[object, ...] | None) -> CTFRoleCampaign | None:
+    def _to_campaign(row: tuple[object, ...] | None) -> CTFTeamCampaign | None:
         if row is None:
             return None
 
@@ -354,7 +354,7 @@ class CTFRoleCampaignRepository:
             int(cast(int, typed_row[16])) if typed_row[16] is not None else None
         )
 
-        return CTFRoleCampaign(
+        return CTFTeamCampaign(
             id=int(cast(int, typed_row[0])),
             guild_id=int(cast(int, typed_row[1])),
             channel_id=int(cast(int, typed_row[2])),

@@ -3,12 +3,12 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from .models import CloseCampaignReport, CTFRoleCampaign
+from .models import CloseCampaignReport, CTFTeamCampaign
 
 
 async def close_campaign(
     cog: Any,
-    campaign: CTFRoleCampaign,
+    campaign: CTFTeamCampaign,
 ) -> CloseCampaignReport:
     close_result = await asyncio.to_thread(
         cog.usecase.close_campaign,
@@ -63,7 +63,7 @@ async def close_campaign(
 
 async def start_campaign(
     cog: Any,
-    campaign: CTFRoleCampaign,
+    campaign: CTFTeamCampaign,
 ) -> tuple[bool, tuple[str, ...]]:
     warnings: list[str] = []
 

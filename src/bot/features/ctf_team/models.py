@@ -13,7 +13,7 @@ INPUT_DATETIME_PLACEHOLDER = "YYYY-MM-DD HH:MM"
 
 
 @dataclass(frozen=True, slots=True)
-class CTFRoleCampaign:
+class CTFTeamCampaign:
     id: int
     guild_id: int
     channel_id: int
