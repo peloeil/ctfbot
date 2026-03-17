@@ -10,9 +10,9 @@ from discord.ext import commands, tasks
 from ...cogs._runtime import get_runtime
 from ...discord_gateway import DiscordGateway
 from ...errors import ExternalAPIError
+from ...log import logger
 from ...utils.helpers import (
     format_discord_timestamp,
-    logger,
     send_interaction_message,
     send_message_safely,
 )

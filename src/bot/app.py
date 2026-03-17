@@ -8,8 +8,9 @@ from discord.ext import commands
 from .cogs_loader import load_cogs
 from .config import Settings, load_settings
 from .discord_gateway import DiscordGateway
+from .log import configure_logging, logger
 from .runtime import BotRuntime, build_runtime
-from .utils.helpers import configure_logging, logger, send_interaction_message
+from .utils.helpers import send_interaction_message
 
 
 class CTFBot(commands.Bot):

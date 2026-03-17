@@ -1,6 +1,6 @@
 from discord.ext import commands
 
-from .utils.helpers import logger
+from .log import logger
 
 DEFAULT_EXTENSIONS = (
     "bot.cogs.manage_cogs",

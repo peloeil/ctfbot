@@ -9,8 +9,8 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from ...cogs._runtime import get_runtime
+from ...log import logger
 from ...utils.helpers import (
-    logger,
     send_interaction_message,
     send_message_safely,
 )

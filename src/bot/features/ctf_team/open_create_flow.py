@@ -7,7 +7,8 @@ from typing import Any
 import discord
 
 from ...errors import ConflictError, RepositoryError
-from ...utils.helpers import logger, send_interaction_message, send_message_safely
+from ...log import logger
+from ...utils.helpers import send_interaction_message, send_message_safely
 from .models import CTFTeamCampaign
 
 

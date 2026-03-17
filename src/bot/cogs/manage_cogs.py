@@ -4,7 +4,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from ..utils.helpers import logger, send_interaction_message
+from ..log import logger
+from ..utils.helpers import send_interaction_message
 
 
 class ManageCogs(

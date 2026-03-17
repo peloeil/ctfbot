@@ -5,7 +5,7 @@ from typing import Any
 
 import discord
 
-from ...utils.helpers import logger
+from ...log import logger
 from .models import CTFTeamCampaign
 
 
