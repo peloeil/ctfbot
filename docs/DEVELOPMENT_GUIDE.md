@@ -10,9 +10,12 @@
 
 ## アーキテクチャ
 
-依存方向は常に次の向きです。
+依存は上位から下位にだけ向けます。
 
-`cog -> usecase -> service/repository -> db`
+- 基本:
+  `cog -> usecase -> repository/integrations/application`
+- `service` は feature 内で再利用する業務操作がある場合のみ、
+  `usecase` と下位層の間に置く
 
 各層の責務:
 
@@ -21,7 +24,12 @@
 - `usecase`
   業務フロー
 - `service`
-  外部 API、HTML 解析、時刻変換などの外部依存
+  feature の業務操作。必要な場合のみ `repository` `integrations` `application`
+  を束ねる
+- `integrations`
+  外部 API、scraping、レスポンス parse などの外部依存
+- `application`
+  I/O を持たない日付判定、正規化、分割、重複除去などの pure logic
 - `repository`
   DB 永続化
 - `db`
@@ -41,23 +49,29 @@ Runtime の組み立て:
 ### 新機能を追加する場合
 
 1. `src/bot/features/<feature>/` を作る
-2. `service.py` と `usecase.py` を先に作る
-3. 必要なら `repository.py` と `models.py` を追加する
-4. `cog.py` で Discord 公開面を実装する
-5. `src/bot/runtime_providers.py` と `src/bot/runtime.py` に配線する
-6. `src/bot/cogs_loader.py` に登録する
-7. 対応するテストを追加する
+2. 必要なら `models.py` と `repository.py` を追加する
+3. 外部 API や scraping があれば `src/bot/integrations/` に切り出す
+4. I/O を持たないロジックがあれば `src/bot/application/` に切り出す
+5. feature 内で再利用する業務操作があれば `service.py` を追加する
+6. `usecase.py` に業務フローを実装する
+7. `cog.py` で Discord 公開面を実装する
+8. `src/bot/runtime_providers.py` と `src/bot/runtime.py` に配線する
+9. `src/bot/cogs_loader.py` に登録する
+10. 対応するテストを追加する
 
 ### 既存機能を変更する場合
 
 - Discord の入出力は `cog` に閉じ込める
-- blocking I/O は `service` または `repository` に閉じ込める
+- blocking I/O は `integrations` `repository` `service` に閉じ込める
+- 外部依存の詳細は `integrations` に閉じ込める
+- I/O を持たないロジックは `application` に寄せる
 - 例外は `bot.errors` の型で表現する
 - slash command を変更したら開発用サーバーで reload と sync を行う
 
 ## テスト方針
 
-- 純粋ロジックは `service` / `usecase` を `unittest` で検証する
+- 純粋ロジックは `application` / `usecase` を `unittest` で検証する
+- 外部依存の parse や API client は `integrations` を `unittest` で検証する
 - DB 変更は一時 DB を使う repository / current schema テストで検証する
 - Discord 側の分岐は `AsyncMock` を使う cog テストで検証する
 - 依存境界は `tests/test_architecture.py` が検知する

@@ -4,13 +4,18 @@
 
 ## Hard Rules
 
-- 依存方向は `cog -> usecase -> service/repository -> db` を維持する
-- `src/bot/cogs/` から `bot.db` / `bot.services` / `bot.application` を直接 import しない
+- 依存は上位から下位にだけ向ける
+- 基本は `cog -> usecase -> repository/integrations/application` とし、`service` は feature 内で再利用する業務操作がある場合のみ `usecase` と下位層の間に置く
+- `src/bot/cogs/` から `bot.db` / `bot.application` を直接 import しない
+- `src/bot/cogs/` から `bot.integrations` を直接 import しない
 - `features/*/cog.py` から `service.py` / `repository.py` を直接 import しない
+- `features/*/cog.py` から `bot.integrations` / `bot.application` を直接 import しない
 - `features/*/usecase.py` では `discord` と `bot.cogs` に依存しない
 - `features/*/repository.py` は persistence 専用に保ち、`discord` を import しない
 - cog 内で service / repository / usecase を直接 new せず、`get_runtime(bot)` 経由で使う
-- `requests` や SQLite などの blocking I/O は service / repository に閉じ込め、cog からは `asyncio.to_thread(...)` で呼ぶ
+- `requests` や SQLite などの blocking I/O は integrations / repository / service に閉じ込め、cog からは `asyncio.to_thread(...)` で呼ぶ
+- 外部 API / scraping / レスポンス parse は `integrations/` に閉じ込める
+- I/O を持たない日付判定・正規化・分割・重複除去は `application/` に置く
 - background task は cog の `__init__` で開始し、`cog_unload()` で必ず cancel する
 - 内部例外は `bot.errors` を使い、ユーザー向けメッセージは日本語を基本にする
 - README / docs / 実装に差分がある場合は `src/` と `tests/` を source of truth とし、特に `tests/` を優先する
