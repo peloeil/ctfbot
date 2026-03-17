@@ -5,13 +5,13 @@ from dataclasses import dataclass
 from .config import Settings
 from .db.connection import DatabaseConnectionFactory
 from .features.alpacahack.repository import AlpacaHackUserRepository
-from .features.alpacahack.service import AlpacaHackService
 from .features.alpacahack.usecase import AlpacaHackUseCase
 from .features.ctf_team.repository import CTFTeamCampaignRepository
 from .features.ctf_team.service import CTFTeamService
 from .features.ctf_team.usecase import CTFTeamUseCase
-from .features.ctftime.service import CTFTimeService
 from .features.ctftime.usecase import CTFTimeUseCase
+from .integrations.alpacahack_scraper import AlpacaHackClient
+from .integrations.ctftime_api import CTFTimeClient
 from .runtime_providers import (
     build_alpacahack_components,
     build_connection_factory,
@@ -25,10 +25,10 @@ class BotRuntime:
     settings: Settings
     connection_factory: DatabaseConnectionFactory
     alpacahack_repository: AlpacaHackUserRepository
-    alpacahack_service: AlpacaHackService
+    alpacahack_client: AlpacaHackClient
     ctf_team_repository: CTFTeamCampaignRepository
     ctf_team_service: CTFTeamService
-    ctftime_service: CTFTimeService
+    ctftime_client: CTFTimeClient
     alpacahack_usecase: AlpacaHackUseCase
     ctf_team_usecase: CTFTeamUseCase
     ctftime_usecase: CTFTimeUseCase
@@ -43,10 +43,10 @@ def build_runtime(settings: Settings) -> BotRuntime:
         settings=settings,
         connection_factory=connection_factory,
         alpacahack_repository=alpacahack.repository,
-        alpacahack_service=alpacahack.service,
+        alpacahack_client=alpacahack.client,
         ctf_team_repository=ctf_team.repository,
         ctf_team_service=ctf_team.service,
-        ctftime_service=ctftime.service,
+        ctftime_client=ctftime.client,
         alpacahack_usecase=alpacahack.usecase,
         ctf_team_usecase=ctf_team.usecase,
         ctftime_usecase=ctftime.usecase,

@@ -58,11 +58,9 @@ class RuntimeProviderTests(unittest.TestCase):
             runtime = build_runtime(settings)
 
             self.assertIs(runtime.settings, settings)
-            self.assertIs(
-                runtime.alpacahack_usecase._service, runtime.alpacahack_service
-            )
+            self.assertIs(runtime.alpacahack_usecase._client, runtime.alpacahack_client)
             self.assertIs(runtime.ctf_team_usecase._service, runtime.ctf_team_service)
-            self.assertIs(runtime.ctftime_usecase._service, runtime.ctftime_service)
+            self.assertIs(runtime.ctftime_usecase._client, runtime.ctftime_client)
 
     def test_feature_provider_factories(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -73,10 +71,12 @@ class RuntimeProviderTests(unittest.TestCase):
             ctftime = build_ctftime_components(settings)
 
             self.assertEqual(alpacahack.usecase.list_usernames(), [])
+            self.assertIs(alpacahack.usecase._client, alpacahack.client)
             self.assertEqual(
                 ctf_team.usecase._service.timezone,
                 settings.tzinfo,
             )
+            self.assertIs(ctftime.usecase._client, ctftime.client)
             self.assertEqual(
                 ctftime.usecase._window_days,
                 settings.ctftime_window_days,

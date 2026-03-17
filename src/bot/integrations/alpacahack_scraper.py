@@ -10,9 +10,9 @@ import requests
 from bs4 import BeautifulSoup, element
 from requests import RequestException
 
-from ...errors import ExternalAPIError
-from ...utils.helpers import logger
-from .models import SolvedChallenge
+from ..application.alpacahack import ChallengeRef, SolveRecord
+from ..errors import ExternalAPIError
+from ..log import logger
 
 ALPACAHACK_SITE_URL = "https://alpacahack.com/"
 ALPACAHACK_BASE_URL = urljoin(ALPACAHACK_SITE_URL, "users/")
@@ -24,71 +24,13 @@ ARIA_LABEL_DATETIME_PATTERN = re.compile(
 
 
 @dataclass(frozen=True, slots=True)
-class SolveRecord:
-    challenge: SolvedChallenge
-    solved_at: datetime.datetime
-
-
-@dataclass(frozen=True, slots=True)
-class WeeklySolveFetchResult:
-    challenges: list[SolvedChallenge]
-    fetch_failed: bool = False
-
-
-@dataclass(frozen=True, slots=True)
-class AlpacaHackService:
+class AlpacaHackClient:
     timezone: datetime.tzinfo
     site_url: str = ALPACAHACK_SITE_URL
     base_url: str = ALPACAHACK_BASE_URL
     request_timeout_seconds: int = REQUEST_TIMEOUT_SECONDS
 
-    def get_week_range(
-        self, reference_date: datetime.date | None = None
-    ) -> tuple[datetime.date, datetime.date]:
-        today = reference_date or datetime.datetime.now(self.timezone).date()
-        week_start = today - datetime.timedelta(days=today.weekday())
-        week_end = week_start + datetime.timedelta(days=6)
-        return week_start, week_end
-
-    def get_weekly_solve_challenges(
-        self, user: str, reference_date: datetime.date | None = None
-    ) -> list[str]:
-        return [
-            challenge.name
-            for challenge in self.collect_weekly_solve_result(
-                user=user,
-                reference_date=reference_date,
-            ).challenges
-        ]
-
-    def collect_weekly_solve_result(
-        self, user: str, reference_date: datetime.date | None = None
-    ) -> WeeklySolveFetchResult:
-        today = reference_date or datetime.datetime.now(self.timezone).date()
-        week_start, _ = self.get_week_range(today)
-
-        try:
-            records = self._get_solve_records(user)
-        except ExternalAPIError:
-            logger.warning("Failed to fetch weekly solve records for user: %s", user)
-            return WeeklySolveFetchResult(challenges=[], fetch_failed=True)
-        if not records:
-            return WeeklySolveFetchResult(challenges=[])
-
-        challenges: list[SolvedChallenge] = []
-        seen: set[str] = set()
-        for record in records:
-            solved_date = record.solved_at.date()
-            if solved_date < week_start or solved_date > today:
-                continue
-            challenge_key = record.challenge.url or record.challenge.name
-            if challenge_key in seen:
-                continue
-            seen.add(challenge_key)
-            challenges.append(record.challenge)
-        return WeeklySolveFetchResult(challenges=challenges)
-
-    def _get_solve_records(self, user: str) -> list[SolveRecord]:
+    def fetch_solve_records(self, user: str) -> list[SolveRecord]:
         logger.info("Fetching weekly solve records for user: %s", user)
         soup = self._fetch_user_page(user)
         tbody = self._extract_solved_challenges_tbody(soup)
@@ -126,9 +68,10 @@ class AlpacaHackService:
             challenge_name = challenge_tag.get_text(strip=True)
             if not challenge_name:
                 continue
+
             records.append(
                 SolveRecord(
-                    challenge=SolvedChallenge(
+                    challenge=ChallengeRef(
                         name=challenge_name,
                         url=self._resolve_challenge_url(challenge_tag.get("href")),
                     ),

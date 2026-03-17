@@ -1,3 +1,4 @@
+import datetime
 import sys
 import tempfile
 import unittest
@@ -6,24 +7,30 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 from zoneinfo import ZoneInfo
 
+import requests
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+from bot.application.alpacahack import (  # noqa: E402
+    ChallengeRef,
+    SolveRecord,
+    get_week_range,
+    select_weekly_solves,
+)
 from bot.db.connection import DatabaseConnectionFactory  # noqa: E402
 from bot.db.migrations import ensure_current_schema  # noqa: E402
 from bot.errors import ExternalAPIError  # noqa: E402
 from bot.features.alpacahack.models import (  # noqa: E402
-    SolvedChallenge,
     UserMutationStatus,
 )
 from bot.features.alpacahack.repository import AlpacaHackUserRepository  # noqa: E402
-from bot.features.alpacahack.service import (  # noqa: E402
-    AlpacaHackService,
-    WeeklySolveFetchResult,
+from bot.features.alpacahack.usecase import (  # noqa: E402
+    AlpacaHackUseCase,
 )
-from bot.features.alpacahack.usecase import AlpacaHackUseCase  # noqa: E402
+from bot.integrations.alpacahack_scraper import AlpacaHackClient  # noqa: E402
 from bot.utils.helpers import chunk_message, format_code_block  # noqa: E402
 
 
@@ -40,53 +47,40 @@ class TestHelpers(unittest.TestCase):
         self.assertEqual(len(chunks[1]), 1000)
 
 
-class TestAlpacaHackService(unittest.TestCase):
-    def setUp(self):
-        self.service = AlpacaHackService(timezone=ZoneInfo("Asia/Tokyo"))
-
+class TestAlpacaHackApplication(unittest.TestCase):
     def test_get_week_range(self):
-        start, end = self.service.get_week_range(date(2026, 3, 4))
+        start, end = get_week_range(date(2026, 3, 4))
         self.assertEqual(start, date(2026, 3, 2))
         self.assertEqual(end, date(2026, 3, 8))
 
-    def test_get_weekly_solve_challenges_filters_by_current_week(self):
-        html = """
-        <html>
-          <body>
-            <p>SOLVED CHALLENGES</p>
-            <div>
-              <table>
-                <tbody>
-                  <tr>
-                    <td><a href="/challenges/weekly-one">weekly-one</a></td>
-                    <td><p>1</p></td>
-                    <td><span aria-label="2026-03-03 10:00 UTC"></span></td>
-                  </tr>
-                  <tr>
-                    <td><a href="/challenges/old-one">old-one</a></td>
-                    <td><p>1</p></td>
-                    <td><span aria-label="2026-02-28 23:00 UTC"></span></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </body>
-        </html>
-        """
-        response = Mock()
-        response.content = html.encode("utf-8")
-        response.raise_for_status.return_value = None
+    def test_select_weekly_solves_filters_by_current_week(self):
+        timezone = ZoneInfo("Asia/Tokyo")
+        solves = select_weekly_solves(
+            [
+                SolveRecord(
+                    challenge=ChallengeRef(name="weekly-one", url=None),
+                    solved_at=datetime.datetime(2026, 3, 3, 19, 0, tzinfo=timezone),
+                ),
+                SolveRecord(
+                    challenge=ChallengeRef(name="old-one", url=None),
+                    solved_at=datetime.datetime(2026, 2, 28, 23, 0, tzinfo=timezone),
+                ),
+                SolveRecord(
+                    challenge=ChallengeRef(name="weekly-one", url=None),
+                    solved_at=datetime.datetime(2026, 3, 4, 10, 0, tzinfo=timezone),
+                ),
+            ],
+            today=date(2026, 3, 4),
+        )
 
-        with patch(
-            "bot.features.alpacahack.service.requests.get", return_value=response
-        ):
-            solves = self.service.get_weekly_solve_challenges(
-                "alice", reference_date=date(2026, 3, 4)
-            )
+        self.assertEqual([solve.name for solve in solves], ["weekly-one"])
 
-        self.assertEqual(solves, ["weekly-one"])
 
-    def test_get_weekly_solve_challenges_supports_gmt_label(self):
+class TestAlpacaHackClient(unittest.TestCase):
+    def setUp(self):
+        self.client = AlpacaHackClient(timezone=ZoneInfo("Asia/Tokyo"))
+
+    def test_fetch_solve_records_supports_gmt_label(self):
         html = """
         <html>
           <body>
@@ -115,15 +109,16 @@ class TestAlpacaHackService(unittest.TestCase):
         response.raise_for_status.return_value = None
 
         with patch(
-            "bot.features.alpacahack.service.requests.get", return_value=response
+            "bot.integrations.alpacahack_scraper.requests.get",
+            return_value=response,
         ):
-            solves = self.service.get_weekly_solve_challenges(
-                "test-user", reference_date=date(2026, 3, 5)
-            )
+            records = self.client.fetch_solve_records("test-user")
 
-        self.assertEqual(solves, ["daily-one", "daily-two"])
+        self.assertEqual(
+            [record.challenge.name for record in records], ["daily-one", "daily-two"]
+        )
 
-    def test_collect_weekly_solve_result_includes_challenge_links(self):
+    def test_fetch_solve_records_includes_challenge_links(self):
         html = """
         <html>
           <body>
@@ -147,36 +142,29 @@ class TestAlpacaHackService(unittest.TestCase):
         response.raise_for_status.return_value = None
 
         with patch(
-            "bot.features.alpacahack.service.requests.get", return_value=response
+            "bot.integrations.alpacahack_scraper.requests.get",
+            return_value=response,
         ):
-            result = self.service.collect_weekly_solve_result(
-                "test-user", reference_date=date(2026, 3, 5)
-            )
+            records = self.client.fetch_solve_records("test-user")
 
-        self.assertEqual(len(result.challenges), 1)
-        self.assertEqual(result.challenges[0].name, "web-100")
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].challenge.name, "web-100")
         self.assertEqual(
-            result.challenges[0].url,
+            records[0].challenge.url,
             "https://alpacahack.com/challenges/web-100",
         )
 
-    def test_collect_weekly_solve_result_marks_fetch_failure(self):
+    def test_fetch_solve_records_raises_on_http_error(self):
         with (
             patch(
-                "bot.features.alpacahack.service.AlpacaHackService._get_solve_records",
-                side_effect=ExternalAPIError("boom"),
+                "bot.integrations.alpacahack_scraper.requests.get",
+                side_effect=requests.RequestException("network error"),
             ),
-            patch("bot.features.alpacahack.service.logger.warning"),
+            self.assertRaises(ExternalAPIError),
         ):
-            result = self.service.collect_weekly_solve_result(
-                "alice",
-                reference_date=date(2026, 3, 4),
-            )
+            self.client.fetch_solve_records("alice")
 
-        self.assertTrue(result.fetch_failed)
-        self.assertEqual(result.challenges, [])
-
-    def test_collect_weekly_solve_result_ignores_legacy_fallback_markup(self):
+    def test_fetch_solve_records_ignores_legacy_fallback_markup(self):
         html = """
         <html>
           <body>
@@ -197,32 +185,41 @@ class TestAlpacaHackService(unittest.TestCase):
         response.raise_for_status.return_value = None
 
         with patch(
-            "bot.features.alpacahack.service.requests.get", return_value=response
+            "bot.integrations.alpacahack_scraper.requests.get",
+            return_value=response,
         ):
-            result = self.service.collect_weekly_solve_result(
-                "legacy-user", reference_date=date(2026, 3, 5)
-            )
+            records = self.client.fetch_solve_records("legacy-user")
 
-        self.assertEqual(result.challenges, [])
-        self.assertFalse(result.fetch_failed)
+        self.assertEqual(records, [])
 
 
 class TestDatabaseAndUseCase(unittest.TestCase):
     def setUp(self):
         self.timezone = ZoneInfo("Asia/Tokyo")
 
+    def _build_usecase(
+        self,
+        *,
+        db_path: str,
+        client: Mock | None = None,
+    ) -> tuple[AlpacaHackUseCase, Mock]:
+        connection_factory = DatabaseConnectionFactory(database_path=db_path)
+        ensure_current_schema(connection_factory)
+        repository = AlpacaHackUserRepository(connection_factory=connection_factory)
+        resolved_client = client or Mock(fetch_solve_records=Mock(return_value=[]))
+        usecase = AlpacaHackUseCase(
+            repository=repository,
+            client=resolved_client,
+            timezone=self.timezone,
+            request_interval_seconds=0,
+            sleep_fn=lambda _seconds: None,
+        )
+        return usecase, resolved_client
+
     def test_insert_and_delete_user(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
-            connection_factory = DatabaseConnectionFactory(
-                database_path=str(Path(tmp_dir) / "ctfbot.db")
-            )
-            ensure_current_schema(connection_factory)
-            repository = AlpacaHackUserRepository(connection_factory=connection_factory)
-            usecase = AlpacaHackUseCase(
-                repository=repository,
-                service=AlpacaHackService(timezone=self.timezone),
-                request_interval_seconds=0,
-                sleep_fn=lambda _seconds: None,
+            usecase, _client = self._build_usecase(
+                db_path=str(Path(tmp_dir) / "ctfbot.db")
             )
 
             added = usecase.add_user("alice")
@@ -235,52 +232,61 @@ class TestDatabaseAndUseCase(unittest.TestCase):
 
     def test_insert_duplicate_user(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
-            connection_factory = DatabaseConnectionFactory(
-                database_path=str(Path(tmp_dir) / "ctfbot.db")
-            )
-            ensure_current_schema(connection_factory)
-            repository = AlpacaHackUserRepository(connection_factory=connection_factory)
-            usecase = AlpacaHackUseCase(
-                repository=repository,
-                service=AlpacaHackService(timezone=self.timezone),
-                request_interval_seconds=0,
-                sleep_fn=lambda _seconds: None,
+            usecase, _client = self._build_usecase(
+                db_path=str(Path(tmp_dir) / "ctfbot.db")
             )
 
             usecase.add_user("alice")
             duplicate = usecase.add_user("alice")
             self.assertEqual(duplicate.status, UserMutationStatus.ALREADY_EXISTS)
 
+    def test_collect_weekly_solve_result_marks_fetch_failure(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            usecase, client = self._build_usecase(
+                db_path=str(Path(tmp_dir) / "ctfbot.db"),
+                client=Mock(
+                    fetch_solve_records=Mock(side_effect=ExternalAPIError("boom"))
+                ),
+            )
+
+            result = usecase.collect_weekly_solve_result(
+                "alice",
+                reference_date=date(2026, 3, 4),
+            )
+
+        self.assertTrue(result.fetch_failed)
+        self.assertEqual(result.challenges, [])
+        client.fetch_solve_records.assert_called_once_with("alice")
+
     def test_collect_weekly_summary_includes_challenge_links(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
-            connection_factory = DatabaseConnectionFactory(
-                database_path=str(Path(tmp_dir) / "ctfbot.db")
+            client = Mock(
+                fetch_solve_records=Mock(
+                    return_value=[
+                        SolveRecord(
+                            challenge=ChallengeRef(
+                                name="web-100",
+                                url="https://alpacahack.com/challenges/web-100",
+                            ),
+                            solved_at=datetime.datetime(
+                                2026,
+                                3,
+                                4,
+                                19,
+                                11,
+                                tzinfo=self.timezone,
+                            ),
+                        )
+                    ]
+                )
             )
-            ensure_current_schema(connection_factory)
-            repository = AlpacaHackUserRepository(connection_factory=connection_factory)
-            service = AlpacaHackService(timezone=self.timezone)
-            usecase = AlpacaHackUseCase(
-                repository=repository,
-                service=service,
-                request_interval_seconds=0,
-                sleep_fn=lambda _seconds: None,
+            usecase, _client = self._build_usecase(
+                db_path=str(Path(tmp_dir) / "ctfbot.db"),
+                client=client,
             )
             usecase.add_user("alice")
 
-            with patch(
-                "bot.features.alpacahack.service."
-                "AlpacaHackService.collect_weekly_solve_result",
-                return_value=WeeklySolveFetchResult(
-                    challenges=[
-                        SolvedChallenge(
-                            name="web-100",
-                            url="https://alpacahack.com/challenges/web-100",
-                        )
-                    ],
-                    fetch_failed=False,
-                ),
-            ):
-                summary = usecase.collect_weekly_summary(date(2026, 3, 4))
+            summary = usecase.collect_weekly_summary(date(2026, 3, 4))
 
         self.assertEqual(summary.total_users, 1)
         self.assertEqual(len(summary.weekly_solves["alice"]), 1)
@@ -293,29 +299,16 @@ class TestDatabaseAndUseCase(unittest.TestCase):
 
     def test_collect_weekly_summary_tracks_failed_users(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
-            connection_factory = DatabaseConnectionFactory(
-                database_path=str(Path(tmp_dir) / "ctfbot.db")
+            client = Mock(
+                fetch_solve_records=Mock(side_effect=ExternalAPIError("boom"))
             )
-            ensure_current_schema(connection_factory)
-            repository = AlpacaHackUserRepository(connection_factory=connection_factory)
-            service = AlpacaHackService(timezone=self.timezone)
-            usecase = AlpacaHackUseCase(
-                repository=repository,
-                service=service,
-                request_interval_seconds=0,
-                sleep_fn=lambda _seconds: None,
+            usecase, _client = self._build_usecase(
+                db_path=str(Path(tmp_dir) / "ctfbot.db"),
+                client=client,
             )
             usecase.add_user("alice")
 
-            with patch(
-                "bot.features.alpacahack.service."
-                "AlpacaHackService.collect_weekly_solve_result",
-                return_value=WeeklySolveFetchResult(
-                    challenges=[],
-                    fetch_failed=True,
-                ),
-            ):
-                summary = usecase.collect_weekly_summary(date(2026, 3, 4))
+            summary = usecase.collect_weekly_summary(date(2026, 3, 4))
 
         self.assertEqual(summary.total_users, 1)
         self.assertEqual(summary.weekly_solves, {})

@@ -37,7 +37,17 @@ def _normalise_import_name(name: str) -> str:
     trimmed = name.lstrip(".")
     if trimmed.startswith("bot."):
         return trimmed
-    if trimmed.startswith(("cogs", "application", "services", "db", "features")):
+    if trimmed.startswith(
+        (
+            "cogs",
+            "application",
+            "services",
+            "db",
+            "features",
+            "integrations",
+            "utils",
+        )
+    ):
         return f"bot.{trimmed}"
     return trimmed
 
@@ -69,6 +79,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 self.assertFalse(_imports_starting_with(imports, "bot.db"))
                 self.assertFalse(_imports_starting_with(imports, "bot.services"))
                 self.assertFalse(_imports_starting_with(imports, "bot.application"))
+                self.assertFalse(_imports_starting_with(imports, "bot.integrations"))
 
     def test_feature_usecases_do_not_depend_on_discord(self):
         for path in (SRC_ROOT / "bot" / "features").glob("*/usecase.py"):
@@ -76,6 +87,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             with self.subTest(path=path.as_posix()):
                 self.assertFalse(_imports_starting_with(imports, "discord"))
                 self.assertFalse(_imports_starting_with(imports, "bot.cogs"))
+                self.assertFalse(_imports_starting_with(imports, "bot.utils.helpers"))
 
     def test_feature_services_do_not_depend_on_cogs(self):
         for path in (SRC_ROOT / "bot" / "features").glob("*/service.py"):
@@ -121,6 +133,33 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                         self.assertFalse(
                             {"service", "repository"} & imported_names,
                         )
+
+    def test_feature_cogs_do_not_depend_on_integrations_or_application(self):
+        for path in (SRC_ROOT / "bot" / "features").glob("*/cog.py"):
+            imports = _load_imports(path)
+            with self.subTest(path=path.as_posix()):
+                self.assertFalse(_imports_starting_with(imports, "bot.integrations"))
+                self.assertFalse(_imports_starting_with(imports, "bot.application"))
+
+    def test_application_code_is_io_free(self):
+        for path in (SRC_ROOT / "bot" / "application").glob("*.py"):
+            imports = _load_imports(path)
+            with self.subTest(path=path.as_posix()):
+                self.assertFalse(_imports_starting_with(imports, "discord"))
+                self.assertFalse(_imports_starting_with(imports, "requests"))
+                self.assertFalse(_imports_starting_with(imports, "bot.cogs"))
+                self.assertFalse(_imports_starting_with(imports, "bot.db"))
+                self.assertFalse(_imports_starting_with(imports, "bot.features"))
+                self.assertFalse(_imports_starting_with(imports, "bot.utils.helpers"))
+
+    def test_integrations_do_not_depend_on_discord_or_cogs(self):
+        for path in (SRC_ROOT / "bot" / "integrations").glob("*.py"):
+            imports = _load_imports(path)
+            with self.subTest(path=path.as_posix()):
+                self.assertFalse(_imports_starting_with(imports, "discord"))
+                self.assertFalse(_imports_starting_with(imports, "bot.cogs"))
+                self.assertFalse(_imports_starting_with(imports, "bot.features"))
+                self.assertFalse(_imports_starting_with(imports, "bot.utils.helpers"))
 
     def test_application_code_does_not_reference_legacy_schema_identifiers(self):
         for path in SRC_ROOT.rglob("*.py"):

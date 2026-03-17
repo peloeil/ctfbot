@@ -3,12 +3,12 @@ from __future__ import annotations
 import datetime
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 
 import requests
 
-from ...errors import ExternalAPIError
-from ...utils.helpers import logger
-from .models import CTFEvent
+from ..errors import ExternalAPIError
+from ..log import logger
 
 API_URL = "https://ctftime.org/api/v1/events/"
 REQUEST_TIMEOUT_SECONDS = 10
@@ -16,7 +16,15 @@ MAX_RETRIES = 3
 RETRY_BACKOFF_SECONDS = 1.5
 
 
-class CTFTimeService:
+@dataclass(frozen=True, slots=True)
+class CTFTimeEventRecord:
+    title: str
+    start: datetime.datetime
+    finish: datetime.datetime
+    ctftime_url: str
+
+
+class CTFTimeClient:
     def __init__(
         self,
         *,
@@ -36,30 +44,14 @@ class CTFTimeService:
         self._retry_backoff_seconds = max(0.0, retry_backoff_seconds)
         self._sleep = sleep_fn
 
-    def get_upcoming_events(self, days: int, limit: int) -> list[CTFEvent]:
+    def get_upcoming_events(self, *, days: int, limit: int) -> list[CTFTimeEventRecord]:
         payload = self._request_events(days=days, limit=limit)
-        parsed_events: list[CTFEvent] = []
+        events: list[CTFTimeEventRecord] = []
         for item in payload:
-            start = self._parse_iso_datetime(item.get("start"))
-            finish_at = self._parse_iso_datetime(item.get("finish"))
-            if start is None or finish_at is None:
-                continue
-
-            title_obj = item.get("title")
-            url_obj = item.get("url")
-            if not isinstance(title_obj, str) or not isinstance(url_obj, str):
-                continue
-
-            parsed_events.append(
-                CTFEvent(
-                    title=title_obj,
-                    start=start,
-                    finish=finish_at,
-                    ctftime_url=url_obj,
-                )
-            )
-
-        return parsed_events
+            event = self._parse_event(item)
+            if event is not None:
+                events.append(event)
+        return events
 
     def _request_events(self, *, days: int, limit: int) -> list[dict[str, object]]:
         now = int(time.time())
@@ -96,6 +88,24 @@ class CTFTimeService:
         if last_error is not None:
             raise ExternalAPIError("Failed to fetch CTFtime events.") from last_error
         raise ExternalAPIError("Failed to fetch CTFtime events.")
+
+    def _parse_event(self, item: dict[str, object]) -> CTFTimeEventRecord | None:
+        start = self._parse_iso_datetime(item.get("start"))
+        finish_at = self._parse_iso_datetime(item.get("finish"))
+        if start is None or finish_at is None:
+            return None
+
+        title_obj = item.get("title")
+        url_obj = item.get("url")
+        if not isinstance(title_obj, str) or not isinstance(url_obj, str):
+            return None
+
+        return CTFTimeEventRecord(
+            title=title_obj,
+            start=start,
+            finish=finish_at,
+            ctftime_url=url_obj,
+        )
 
     def _parse_iso_datetime(self, raw_value: object) -> datetime.datetime | None:
         if not isinstance(raw_value, str) or not raw_value:

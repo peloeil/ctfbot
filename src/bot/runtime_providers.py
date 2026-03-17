@@ -6,25 +6,25 @@ from .config import Settings
 from .db.connection import DatabaseConnectionFactory
 from .db.migrations import ensure_current_schema
 from .features.alpacahack.repository import AlpacaHackUserRepository
-from .features.alpacahack.service import AlpacaHackService
 from .features.alpacahack.usecase import AlpacaHackUseCase
 from .features.ctf_team.repository import CTFTeamCampaignRepository
 from .features.ctf_team.service import CTFTeamService
 from .features.ctf_team.usecase import CTFTeamUseCase
-from .features.ctftime.service import CTFTimeService
 from .features.ctftime.usecase import CTFTimeUseCase
+from .integrations.alpacahack_scraper import AlpacaHackClient
+from .integrations.ctftime_api import CTFTimeClient
 
 
 @dataclass(frozen=True, slots=True)
 class AlpacaHackComponents:
     repository: AlpacaHackUserRepository
-    service: AlpacaHackService
+    client: AlpacaHackClient
     usecase: AlpacaHackUseCase
 
 
 @dataclass(frozen=True, slots=True)
 class CTFTimeComponents:
-    service: CTFTimeService
+    client: CTFTimeClient
     usecase: CTFTimeUseCase
 
 
@@ -46,22 +46,26 @@ def build_alpacahack_components(
     factory: DatabaseConnectionFactory,
 ) -> AlpacaHackComponents:
     repository = AlpacaHackUserRepository(connection_factory=factory)
-    service = AlpacaHackService(timezone=settings.tzinfo)
-    usecase = AlpacaHackUseCase(repository=repository, service=service)
-    return AlpacaHackComponents(repository=repository, service=service, usecase=usecase)
+    client = AlpacaHackClient(timezone=settings.tzinfo)
+    usecase = AlpacaHackUseCase(
+        repository=repository,
+        client=client,
+        timezone=settings.tzinfo,
+    )
+    return AlpacaHackComponents(repository=repository, client=client, usecase=usecase)
 
 
 def build_ctftime_components(settings: Settings) -> CTFTimeComponents:
-    service = CTFTimeService(
+    client = CTFTimeClient(
         timezone=settings.tzinfo,
         user_agent=settings.ctftime_user_agent,
     )
     usecase = CTFTimeUseCase(
-        service=service,
+        client=client,
         window_days=settings.ctftime_window_days,
         event_limit=settings.ctftime_event_limit,
     )
-    return CTFTimeComponents(service=service, usecase=usecase)
+    return CTFTimeComponents(client=client, usecase=usecase)
 
 
 def build_ctf_team_components(
