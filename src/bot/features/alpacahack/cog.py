@@ -8,8 +8,8 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from ...cogs._runtime import get_runtime
+from ...log import logger
 from ...utils.helpers import (
-    logger,
     send_interaction_message,
     send_message_safely,
 )
@@ -19,6 +19,7 @@ from .usecase import WeeklySolveSummary
 WEEKLY_NOTIFICATION_WEEKDAY = 6  # 0=Mon ... 6=Sun
 CTF_CATEGORY_NAME = "ctf"
 ALPACAHACK_CHANNEL_NAME = "alpacahack"
+TRUNCATION_SUFFIX = "..."
 
 
 class Alpacahack(
@@ -43,30 +44,6 @@ class Alpacahack(
     def _normalize_name(name: str) -> str:
         return name.strip().lower()
 
-    @classmethod
-    def _find_alpacahack_channel(
-        cls, guild: discord.Guild
-    ) -> discord.TextChannel | None:
-        for category in guild.categories:
-            if cls._normalize_name(category.name) != CTF_CATEGORY_NAME:
-                continue
-            for channel in category.text_channels:
-                if cls._normalize_name(channel.name) == ALPACAHACK_CHANNEL_NAME:
-                    return channel
-        return None
-
-    async def _resolve_target_channel(self) -> discord.abc.Messageable | None:
-        for guild in self.bot.guilds:
-            channel = self._find_alpacahack_channel(guild)
-            if channel is not None:
-                return channel
-        logger.warning(
-            "Could not find #%s under %s category in joined guilds",
-            ALPACAHACK_CHANNEL_NAME,
-            CTF_CATEGORY_NAME,
-        )
-        return None
-
     @staticmethod
     def _format_lines(
         entries: list[str],
@@ -83,7 +60,10 @@ class Alpacahack(
             if len("\n".join([*lines, entry])) > max_length:
                 if not lines:
                     return (
-                        f"{entry[: max_length - 3]}..."
+                        (
+                            f"{entry[: max_length - len(TRUNCATION_SUFFIX)]}"
+                            f"{TRUNCATION_SUFFIX}"
+                        )
                         if len(entry) > max_length
                         else entry
                     )
@@ -100,10 +80,10 @@ class Alpacahack(
 
     @staticmethod
     def _format_solve_entry(solve: SolvedChallenge) -> str:
-        name = discord.utils.escape_markdown(solve.name, as_needed=True)
+        escaped_name = discord.utils.escape_markdown(solve.name, as_needed=True)
         if solve.url:
-            return f"- [{name}]({solve.url})"
-        return f"- {name}"
+            return f"- [{escaped_name}]({solve.url})"
+        return f"- {escaped_name}"
 
     @classmethod
     def _format_solve_list(
@@ -115,10 +95,10 @@ class Alpacahack(
             max_items=max_items,
         )
 
-    @staticmethod
-    def _format_failed_users(users: list[str], max_items: int = 20) -> str:
-        return Alpacahack._format_lines(
-            [f"- {name}" for name in users],
+    @classmethod
+    def _format_failed_users(cls, users: list[str], max_items: int = 20) -> str:
+        return cls._format_lines(
+            [cls._format_username_entry(name) for name in users],
             empty_message="-",
             max_items=max_items,
         )
@@ -153,6 +133,30 @@ class Alpacahack(
         if result.status == UserMutationStatus.NOT_FOUND:
             return f"`{result.normalized_name}` は登録されていません。"
         return "不明な結果です。"
+
+    @classmethod
+    def _find_alpacahack_channel(
+        cls, guild: discord.Guild
+    ) -> discord.TextChannel | None:
+        for category in guild.categories:
+            if cls._normalize_name(category.name) != CTF_CATEGORY_NAME:
+                continue
+            for channel in category.text_channels:
+                if cls._normalize_name(channel.name) == ALPACAHACK_CHANNEL_NAME:
+                    return channel
+        return None
+
+    async def _resolve_target_channel(self) -> discord.abc.Messageable | None:
+        for guild in self.bot.guilds:
+            channel = self._find_alpacahack_channel(guild)
+            if channel is not None:
+                return channel
+        logger.warning(
+            "Could not find #%s under %s category in joined guilds",
+            ALPACAHACK_CHANNEL_NAME,
+            CTF_CATEGORY_NAME,
+        )
+        return None
 
     def _build_weekly_summary_embed(self, summary: WeeklySolveSummary) -> discord.Embed:
         total_solves = sum(len(items) for items in summary.weekly_solves.values())

@@ -152,6 +152,28 @@ class CogTests(unittest.IsolatedAsyncioTestCase):
         )
         await fake_bot.close()
 
+    async def test_alpacahack_embed_builder_uses_discord_markdown_escape(self):
+        runtime = self._build_runtime()
+        fake_bot = _FakeBot(runtime)
+        with patch("discord.ext.tasks.Loop.start", return_value=None):
+            cog = Alpacahack(fake_bot)
+
+        tricky_name = "__init__"
+        summary = WeeklySolveSummary(
+            week_start=datetime.date(2026, 3, 2),
+            week_end=datetime.date(2026, 3, 8),
+            total_users=1,
+            weekly_solves={"alice": [SolvedChallenge(name=tricky_name, url=None)]},
+            failed_users=[],
+        )
+
+        embed = cog._build_weekly_summary_embed(summary)
+
+        escaped_name = discord.utils.escape_markdown(tricky_name, as_needed=True)
+        value = embed.fields[0].value or ""
+        self.assertIn(f"- {escaped_name}", value)
+        await fake_bot.close()
+
     def test_alpacahack_find_target_channel_in_ctf_category(self):
         target_channel = SimpleNamespace(name="alpacahack")
         ctf_category = SimpleNamespace(
