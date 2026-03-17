@@ -8,6 +8,13 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+LEGACY_SCHEMA_IDENTIFIERS = (
+    "ctf_role_campaign",
+    "idx_ctf_role_campaign_message",
+    "idx_ctf_role_campaign_status_end",
+    "idx_ctf_role_campaign_guild_status_created",
+)
+
 
 def _load_imports(path: Path) -> set[str]:
     tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -114,6 +121,15 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                         self.assertFalse(
                             {"service", "repository"} & imported_names,
                         )
+
+    def test_application_code_does_not_reference_legacy_schema_identifiers(self):
+        for path in SRC_ROOT.rglob("*.py"):
+            if "__pycache__" in path.parts:
+                continue
+            text = path.read_text(encoding="utf-8")
+            for identifier in LEGACY_SCHEMA_IDENTIFIERS:
+                with self.subTest(path=path.as_posix(), identifier=identifier):
+                    self.assertNotIn(identifier, text)
 
 
 if __name__ == "__main__":

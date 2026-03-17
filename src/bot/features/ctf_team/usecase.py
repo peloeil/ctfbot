@@ -6,21 +6,21 @@ from .models import (
     CampaignDraft,
     CampaignDraftValidation,
     CampaignStatus,
-    CTFRoleCampaign,
+    CTFTeamCampaign,
 )
-from .repository import CTFRoleCampaignRepository
-from .service import CTFRoleService
+from .repository import CTFTeamCampaignRepository
+from .service import CTFTeamService
 
 DEFAULT_MAX_ACTIVE_CAMPAIGNS_PER_USER = 3
 DEFAULT_MAX_CTF_NAME_LENGTH = 60
 DEFAULT_ARCHIVE_DELAY_DAYS = 30
 
 
-class CTFRoleUseCase:
+class CTFTeamUseCase:
     def __init__(
         self,
-        repository: CTFRoleCampaignRepository,
-        service: CTFRoleService,
+        repository: CTFTeamCampaignRepository,
+        service: CTFTeamService,
         *,
         max_active_campaigns_per_user: int = DEFAULT_MAX_ACTIVE_CAMPAIGNS_PER_USER,
         max_ctf_name_length: int = DEFAULT_MAX_CTF_NAME_LENGTH,
@@ -130,7 +130,7 @@ class CTFRoleUseCase:
         created_by: int,
         draft: CampaignDraft,
         voice_channel_id: int | None = None,
-    ) -> CTFRoleCampaign:
+    ) -> CTFTeamCampaign:
         return self._repository.create_campaign(
             guild_id=guild_id,
             channel_id=channel_id,
@@ -151,7 +151,7 @@ class CTFRoleUseCase:
         guild_id: int,
         channel_id: int,
         message_id: int,
-    ) -> CTFRoleCampaign | None:
+    ) -> CTFTeamCampaign | None:
         return self._repository.find_active_campaign_by_message(
             guild_id=guild_id,
             channel_id=channel_id,
@@ -160,19 +160,19 @@ class CTFRoleUseCase:
 
     def find_active_campaign_by_name(
         self, *, guild_id: int, ctf_name: str
-    ) -> CTFRoleCampaign | None:
+    ) -> CTFTeamCampaign | None:
         return self._repository.find_active_campaign_by_name(
             guild_id=guild_id,
             ctf_name=ctf_name.strip(),
         )
 
-    def list_due_campaigns(self, *, limit: int = 20) -> list[CTFRoleCampaign]:
+    def list_due_campaigns(self, *, limit: int = 20) -> list[CTFTeamCampaign]:
         return self._repository.list_due_campaigns(
             now_unix=self._service.now_unix(),
             limit=limit,
         )
 
-    def list_due_starts(self, *, limit: int = 20) -> list[CTFRoleCampaign]:
+    def list_due_starts(self, *, limit: int = 20) -> list[CTFTeamCampaign]:
         return self._repository.list_due_starts(
             now_unix=self._service.now_unix(),
             limit=limit,
@@ -200,15 +200,15 @@ class CTFRoleUseCase:
             archive_at_unix=archive_at_unix,
         )
 
-    def is_campaign_expired(self, campaign: CTFRoleCampaign) -> bool:
+    def is_campaign_expired(self, campaign: CTFTeamCampaign) -> bool:
         if campaign.end_at_unix is None:
             return False
         return campaign.end_at_unix <= self._service.now_unix()
 
-    def is_campaign_started(self, campaign: CTFRoleCampaign) -> bool:
+    def is_campaign_started(self, campaign: CTFTeamCampaign) -> bool:
         return campaign.start_at_unix <= self._service.now_unix()
 
-    def list_due_archives(self, *, limit: int = 20) -> list[CTFRoleCampaign]:
+    def list_due_archives(self, *, limit: int = 20) -> list[CTFTeamCampaign]:
         return self._repository.list_due_archives(
             now_unix=self._service.now_unix(),
             limit=limit,
@@ -226,7 +226,7 @@ class CTFRoleUseCase:
         guild_id: int,
         status: str,
         limit: int = 20,
-    ) -> list[CTFRoleCampaign]:
+    ) -> list[CTFTeamCampaign]:
         if status == CampaignStatus.ACTIVE.value:
             filter_status = CampaignStatus.ACTIVE
         elif status == CampaignStatus.CLOSED.value:

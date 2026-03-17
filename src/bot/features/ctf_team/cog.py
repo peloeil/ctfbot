@@ -20,7 +20,7 @@ from .models import (
     CampaignDraft,
     CampaignStatus,
     CloseCampaignReport,
-    CTFRoleCampaign,
+    CTFTeamCampaign,
 )
 from .open_create_flow import handle_create_modal_submit
 from .start_close_flow import close_campaign, start_campaign
@@ -53,10 +53,10 @@ ROLE_COLOR_SUGGESTIONS: tuple[tuple[str, str], ...] = (
 )
 
 
-class CTFRoleCreateModal(discord.ui.Modal, title="CTF Role 募集作成"):
+class CTFTeamCreateModal(discord.ui.Modal, title="CTF Team 募集作成"):
     def __init__(
         self,
-        cog: CTFRoleCampaigns,
+        cog: CTFTeamCampaigns,
         *,
         ctf_name: str,
         role_color_value: int | None,
@@ -95,7 +95,7 @@ class CTFRoleCreateModal(discord.ui.Modal, title="CTF Role 募集作成"):
         interaction: discord.Interaction,
         error: Exception,
     ) -> None:
-        logger.exception("Unhandled error on CTFRoleCreateModal", exc_info=error)
+        logger.exception("Unhandled error on CTFTeamCreateModal", exc_info=error)
         await send_interaction_message(
             interaction,
             "募集作成フォームの処理中にエラーが発生しました。",
@@ -103,7 +103,7 @@ class CTFRoleCreateModal(discord.ui.Modal, title="CTF Role 募集作成"):
         )
 
 
-class CTFRoleCampaigns(
+class CTFTeamCampaigns(
     commands.GroupCog,
     group_name="ctfteam",
     group_description="CTF参加ロール募集を管理します。",
@@ -114,7 +114,7 @@ class CTFRoleCampaigns(
         self.bot = bot
         self.runtime = get_runtime(bot)
         self.settings = self.runtime.settings
-        self.usecase = self.runtime.ctf_role_usecase
+        self.usecase = self.runtime.ctf_team_usecase
         self.timezone_label = getattr(
             self.settings.tzinfo, "key", self.settings.timezone
         )
@@ -139,7 +139,7 @@ class CTFRoleCampaigns(
         return permissions.view_channel and permissions.send_messages
 
     @staticmethod
-    def _can_close_campaign(user: discord.abc.User, campaign: CTFRoleCampaign) -> bool:
+    def _can_close_campaign(user: discord.abc.User, campaign: CTFTeamCampaign) -> bool:
         if user.id == campaign.created_by:
             return True
         if not isinstance(user, discord.Member):
@@ -312,14 +312,14 @@ class CTFRoleCampaigns(
         suggestions: builtins.list[app_commands.Choice[str]] = []
 
         for label, value in ROLE_COLOR_SUGGESTIONS:
-            if query:
-                lowered_label = label.lower()
-                if (
-                    query not in lowered_label
-                    and query not in value
-                    and normalized_query not in value[1:]
-                ):
-                    continue
+            lowered_label = label.lower()
+            matches_query = not query or (
+                query in lowered_label
+                or query in value
+                or normalized_query in value[1:]
+            )
+            if not matches_query:
+                continue
             suggestions.append(
                 app_commands.Choice(name=f"{label} ({value})", value=value)
             )
@@ -331,7 +331,7 @@ class CTFRoleCampaigns(
         if raw_value is None:
             return None, ""
 
-        normalized = CTFRoleCampaigns._normalize_role_color_token(raw_value)
+        normalized = CTFTeamCampaigns._normalize_role_color_token(raw_value)
         if not normalized:
             return None, ""
         if len(normalized) != 6 or not re.fullmatch(r"[0-9a-f]{6}", normalized):
@@ -472,7 +472,7 @@ class CTFRoleCampaigns(
         self,
         *,
         guild: discord.Guild,
-        campaign: CTFRoleCampaign,
+        campaign: CTFTeamCampaign,
         role: discord.Role | None,
         reason: str,
     ) -> bool:
@@ -541,7 +541,7 @@ class CTFRoleCampaigns(
         self,
         *,
         guild: discord.Guild,
-        campaign: CTFRoleCampaign,
+        campaign: CTFTeamCampaign,
         reason: str,
     ) -> bool:
         if campaign.voice_channel_id is None:
@@ -596,7 +596,7 @@ class CTFRoleCampaigns(
         self,
         *,
         guild: discord.Guild,
-        campaign: CTFRoleCampaign,
+        campaign: CTFTeamCampaign,
         role: discord.Role,
     ) -> tuple[int | None, bool]:
         if campaign.discussion_channel_id is None:
@@ -652,7 +652,7 @@ class CTFRoleCampaigns(
         self,
         *,
         guild: discord.Guild,
-        campaign: CTFRoleCampaign,
+        campaign: CTFTeamCampaign,
         role: discord.Role | None,
         archive_at_unix: int | None,
     ) -> tuple[int | None, bool]:
@@ -694,7 +694,7 @@ class CTFRoleCampaigns(
         self,
         *,
         guild: discord.Guild,
-        campaign: CTFRoleCampaign,
+        campaign: CTFTeamCampaign,
         member: discord.Member,
     ) -> None:
         if campaign.discussion_channel_id is None:
@@ -747,7 +747,7 @@ class CTFRoleCampaigns(
         )
 
     @staticmethod
-    def _build_campaign_jump_url(campaign: CTFRoleCampaign) -> str:
+    def _build_campaign_jump_url(campaign: CTFTeamCampaign) -> str:
         return (
             "https://discord.com/channels/"
             f"{campaign.guild_id}/{campaign.channel_id}/{campaign.message_id}"
@@ -765,7 +765,7 @@ class CTFRoleCampaigns(
             return value
         return f"{value[: max_length - 3]}..."
 
-    def _format_campaign_field_value(self, campaign: CTFRoleCampaign) -> str:
+    def _format_campaign_field_value(self, campaign: CTFTeamCampaign) -> str:
         lines = [
             f"状態: **{STATUS_LABELS.get(campaign.status, campaign.status.value)}**",
             (
@@ -812,7 +812,7 @@ class CTFRoleCampaigns(
 
     def _build_campaign_list_embed(
         self,
-        campaigns: builtins.list[CTFRoleCampaign],
+        campaigns: builtins.list[CTFTeamCampaign],
         *,
         selected_status: str,
     ) -> discord.Embed:
@@ -884,7 +884,7 @@ class CTFRoleCampaigns(
     async def _mark_campaign_message_closed(
         self,
         guild: discord.Guild,
-        campaign: CTFRoleCampaign,
+        campaign: CTFTeamCampaign,
         *,
         archive_at_unix: int | None,
     ) -> bool:
@@ -925,19 +925,19 @@ class CTFRoleCampaigns(
 
     async def _close_campaign(
         self,
-        campaign: CTFRoleCampaign,
+        campaign: CTFTeamCampaign,
     ) -> CloseCampaignReport:
         return await close_campaign(self, campaign)
 
     async def _start_campaign(
         self,
-        campaign: CTFRoleCampaign,
+        campaign: CTFTeamCampaign,
     ) -> tuple[bool, tuple[str, ...]]:
         return await start_campaign(self, campaign)
 
     async def _archive_campaign(
         self,
-        campaign: CTFRoleCampaign,
+        campaign: CTFTeamCampaign,
         *,
         reason: str,
     ) -> tuple[bool, tuple[str, ...]]:
@@ -988,7 +988,7 @@ class CTFRoleCampaigns(
             if role not in member.roles:
                 await member.add_roles(
                     role,
-                    reason=f"Joined CTF role: {campaign.ctf_name}",
+                    reason=f"Joined CTF team: {campaign.ctf_name}",
                 )
                 await self._announce_member_join(
                     guild=guild,
@@ -1036,7 +1036,7 @@ class CTFRoleCampaigns(
             )
             return
 
-        modal = CTFRoleCreateModal(
+        modal = CTFTeamCreateModal(
             self,
             ctf_name=ctf_name,
             role_color_value=role_color_value,
@@ -1238,4 +1238,4 @@ class CTFRoleCampaigns(
 
 
 async def setup(bot: commands.Bot) -> None:
-    await bot.add_cog(CTFRoleCampaigns(bot))
+    await bot.add_cog(CTFTeamCampaigns(bot))

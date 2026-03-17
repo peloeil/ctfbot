@@ -21,7 +21,7 @@ class ManageCogs(
         "perms_debug",
         "times_channels",
     }
-    FEATURE_COGS: ClassVar[set[str]] = {"alpacahack", "ctf_roles", "ctftime"}
+    FEATURE_COGS: ClassVar[set[str]] = {"alpacahack", "ctf_team", "ctftime"}
     LEGACY_CORE_ALIASES: ClassVar[dict[str, str]] = {"slash_commands": "message_tools"}
 
     def __init__(self, bot: commands.Bot):

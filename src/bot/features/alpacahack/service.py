@@ -142,16 +142,15 @@ class AlpacaHackService:
         self, soup: BeautifulSoup
     ) -> element.Tag | None:
         for paragraph in soup.find_all("p"):
-            if paragraph.get_text(strip=True) == "SOLVED CHALLENGES":
-                sibling = paragraph.find_next_sibling("div")
-                if isinstance(sibling, element.Tag):
-                    tbody = sibling.find("tbody")
-                    if isinstance(tbody, element.Tag):
-                        return tbody
+            if paragraph.get_text(strip=True) != "SOLVED CHALLENGES":
+                continue
+            sibling = paragraph.find_next_sibling("div")
+            if not isinstance(sibling, element.Tag):
+                continue
+            tbody = sibling.find("tbody")
+            if isinstance(tbody, element.Tag):
+                return tbody
 
-        fallback = soup.find("tbody", class_="MuiTableBody-root")
-        if isinstance(fallback, element.Tag):
-            return fallback
         return None
 
     def _parse_aria_label_to_local_datetime(

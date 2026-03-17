@@ -12,7 +12,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from bot.db.connection import DatabaseConnectionFactory  # noqa: E402
-from bot.db.migrations import apply_migrations  # noqa: E402
+from bot.db.migrations import ensure_current_schema  # noqa: E402
 from bot.errors import ExternalAPIError  # noqa: E402
 from bot.features.alpacahack.models import (  # noqa: E402
     SolvedChallenge,
@@ -176,6 +176,36 @@ class TestAlpacaHackService(unittest.TestCase):
         self.assertTrue(result.fetch_failed)
         self.assertEqual(result.challenges, [])
 
+    def test_collect_weekly_solve_result_ignores_legacy_fallback_markup(self):
+        html = """
+        <html>
+          <body>
+            <table>
+              <tbody class="MuiTableBody-root">
+                <tr>
+                  <td><a href="/challenges/legacy-one">legacy-one</a></td>
+                  <td><p>1</p></td>
+                  <td><span aria-label="2026-03-04 19:11 GMT+0"></span></td>
+                </tr>
+              </tbody>
+            </table>
+          </body>
+        </html>
+        """
+        response = Mock()
+        response.content = html.encode("utf-8")
+        response.raise_for_status.return_value = None
+
+        with patch(
+            "bot.features.alpacahack.service.requests.get", return_value=response
+        ):
+            result = self.service.collect_weekly_solve_result(
+                "legacy-user", reference_date=date(2026, 3, 5)
+            )
+
+        self.assertEqual(result.challenges, [])
+        self.assertFalse(result.fetch_failed)
+
 
 class TestDatabaseAndUseCase(unittest.TestCase):
     def setUp(self):
@@ -184,9 +214,9 @@ class TestDatabaseAndUseCase(unittest.TestCase):
     def test_insert_and_delete_user(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             connection_factory = DatabaseConnectionFactory(
-                database_path=str(Path(tmp_dir) / "alpaca.db")
+                database_path=str(Path(tmp_dir) / "ctfbot.db")
             )
-            apply_migrations(connection_factory)
+            ensure_current_schema(connection_factory)
             repository = AlpacaHackUserRepository(connection_factory=connection_factory)
             usecase = AlpacaHackUseCase(
                 repository=repository,
@@ -206,9 +236,9 @@ class TestDatabaseAndUseCase(unittest.TestCase):
     def test_insert_duplicate_user(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             connection_factory = DatabaseConnectionFactory(
-                database_path=str(Path(tmp_dir) / "alpaca.db")
+                database_path=str(Path(tmp_dir) / "ctfbot.db")
             )
-            apply_migrations(connection_factory)
+            ensure_current_schema(connection_factory)
             repository = AlpacaHackUserRepository(connection_factory=connection_factory)
             usecase = AlpacaHackUseCase(
                 repository=repository,
@@ -224,9 +254,9 @@ class TestDatabaseAndUseCase(unittest.TestCase):
     def test_collect_weekly_summary_includes_challenge_links(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             connection_factory = DatabaseConnectionFactory(
-                database_path=str(Path(tmp_dir) / "alpaca.db")
+                database_path=str(Path(tmp_dir) / "ctfbot.db")
             )
-            apply_migrations(connection_factory)
+            ensure_current_schema(connection_factory)
             repository = AlpacaHackUserRepository(connection_factory=connection_factory)
             service = AlpacaHackService(timezone=self.timezone)
             usecase = AlpacaHackUseCase(
@@ -264,9 +294,9 @@ class TestDatabaseAndUseCase(unittest.TestCase):
     def test_collect_weekly_summary_tracks_failed_users(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             connection_factory = DatabaseConnectionFactory(
-                database_path=str(Path(tmp_dir) / "alpaca.db")
+                database_path=str(Path(tmp_dir) / "ctfbot.db")
             )
-            apply_migrations(connection_factory)
+            ensure_current_schema(connection_factory)
             repository = AlpacaHackUserRepository(connection_factory=connection_factory)
             service = AlpacaHackService(timezone=self.timezone)
             usecase = AlpacaHackUseCase(

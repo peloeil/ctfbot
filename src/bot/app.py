@@ -15,11 +15,8 @@ from .utils.helpers import configure_logging, logger, send_interaction_message
 class CTFBot(commands.Bot):
     def __init__(self, runtime: BotRuntime) -> None:
         intents = discord.Intents.default()
-        intents.message_content = True
         intents.members = True
-        super().__init__(
-            command_prefix=runtime.settings.command_prefix, intents=intents
-        )
+        super().__init__(command_prefix=commands.when_mentioned, intents=intents)
         self.runtime = runtime
         self.settings = runtime.settings
         self.gateway = DiscordGateway(self, logger)

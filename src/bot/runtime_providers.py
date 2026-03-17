@@ -4,13 +4,13 @@ from dataclasses import dataclass
 
 from .config import Settings
 from .db.connection import DatabaseConnectionFactory
-from .db.migrations import apply_migrations
+from .db.migrations import ensure_current_schema
 from .features.alpacahack.repository import AlpacaHackUserRepository
 from .features.alpacahack.service import AlpacaHackService
 from .features.alpacahack.usecase import AlpacaHackUseCase
-from .features.ctf_roles.repository import CTFRoleCampaignRepository
-from .features.ctf_roles.service import CTFRoleService
-from .features.ctf_roles.usecase import CTFRoleUseCase
+from .features.ctf_team.repository import CTFTeamCampaignRepository
+from .features.ctf_team.service import CTFTeamService
+from .features.ctf_team.usecase import CTFTeamUseCase
 from .features.ctftime.service import CTFTimeService
 from .features.ctftime.usecase import CTFTimeUseCase
 
@@ -29,15 +29,15 @@ class CTFTimeComponents:
 
 
 @dataclass(frozen=True, slots=True)
-class CTFRoleComponents:
-    repository: CTFRoleCampaignRepository
-    service: CTFRoleService
-    usecase: CTFRoleUseCase
+class CTFTeamComponents:
+    repository: CTFTeamCampaignRepository
+    service: CTFTeamService
+    usecase: CTFTeamUseCase
 
 
 def build_connection_factory(settings: Settings) -> DatabaseConnectionFactory:
     factory = DatabaseConnectionFactory(database_path=settings.database_path)
-    apply_migrations(factory)
+    ensure_current_schema(factory)
     return factory
 
 
@@ -64,11 +64,11 @@ def build_ctftime_components(settings: Settings) -> CTFTimeComponents:
     return CTFTimeComponents(service=service, usecase=usecase)
 
 
-def build_ctf_role_components(
+def build_ctf_team_components(
     settings: Settings,
     factory: DatabaseConnectionFactory,
-) -> CTFRoleComponents:
-    repository = CTFRoleCampaignRepository(connection_factory=factory)
-    service = CTFRoleService(timezone=settings.tzinfo)
-    usecase = CTFRoleUseCase(repository=repository, service=service)
-    return CTFRoleComponents(repository=repository, service=service, usecase=usecase)
+) -> CTFTeamComponents:
+    repository = CTFTeamCampaignRepository(connection_factory=factory)
+    service = CTFTeamService(timezone=settings.tzinfo)
+    usecase = CTFTeamUseCase(repository=repository, service=service)
+    return CTFTeamComponents(repository=repository, service=service, usecase=usecase)

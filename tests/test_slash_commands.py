@@ -118,8 +118,8 @@ def _build_echo_command() -> app_commands.Command:
     return echo
 
 
-def _build_ctf_role_group() -> app_commands.Group:
-    class _CTFRoleGroup(
+def _build_ctf_team_group() -> app_commands.Group:
+    class _CTFTeamGroup(
         app_commands.Group,
         name="ctfteam",
         description="CTF参加ロール募集を管理します。",
@@ -131,14 +131,14 @@ def _build_ctf_role_group() -> app_commands.Group:
         async def open(self, interaction: object) -> None:
             _ = interaction
 
-    return _CTFRoleGroup()
+    return _CTFTeamGroup()
 
 
 class HelpCommandTests(unittest.IsolatedAsyncioTestCase):
     async def test_help_lists_global_and_guild_slash_commands(self) -> None:
         tree = _FakeAppCommandTree(
             global_commands=[_build_echo_command()],
-            guild_commands=[_build_ctf_role_group()],
+            guild_commands=[_build_ctf_team_group()],
         )
         bot = cast(commands.Bot, _FakeBot(tree=tree))
         cog = HelpCommand(bot)

@@ -8,7 +8,19 @@ import discord
 
 from ...errors import ConflictError, RepositoryError
 from ...utils.helpers import logger, send_interaction_message, send_message_safely
-from .models import CTFRoleCampaign
+from .models import CTFTeamCampaign
+
+
+async def _collect_start_warnings(
+    cog: Any, campaign: CTFTeamCampaign
+) -> tuple[str, ...]:
+    if not cog.usecase.is_campaign_started(campaign):
+        return ()
+
+    started, warnings = await cog._start_campaign(campaign)
+    if started:
+        return ()
+    return warnings
 
 
 async def handle_create_modal_submit(
@@ -58,7 +70,7 @@ async def handle_create_modal_submit(
     voice_channel: discord.VoiceChannel | None = None
     role: discord.Role | None = None
     message: discord.Message | None = None
-    campaign: CTFRoleCampaign | None = None
+    campaign: CTFTeamCampaign | None = None
     create_warnings: builtins.list[str] = []
 
     try:
@@ -71,7 +83,7 @@ async def handle_create_modal_submit(
             name=draft.ctf_name,
             color=role_color,
             mentionable=True,
-            reason=f"CTF role campaign created by {interaction.user.id}",
+            reason=f"CTF team campaign created by {interaction.user.id}",
         )
         creator_member = (
             interaction.user if isinstance(interaction.user, discord.Member) else None
@@ -111,10 +123,7 @@ async def handle_create_modal_submit(
             created_by=interaction.user.id,
             draft=draft,
         )
-        if cog.usecase.is_campaign_started(campaign):
-            started, warnings = await cog._start_campaign(campaign)
-            if not started:
-                create_warnings.extend(warnings)
+        create_warnings.extend(await _collect_start_warnings(cog, campaign))
     except ConflictError:
         await cog._cleanup_created_resources(
             discussion_channel=discussion_channel,
@@ -135,7 +144,7 @@ async def handle_create_modal_submit(
             role=role,
             message=message,
         )
-        logger.exception("Repository error while creating CTF role campaign")
+        logger.exception("Repository error while creating CTF team campaign")
         await interaction.followup.send(
             "募集の保存中にエラーが発生しました。",
             ephemeral=True,
@@ -156,7 +165,7 @@ async def handle_create_modal_submit(
         )
         return
     except discord.HTTPException:
-        logger.exception("Discord API error while creating CTF role campaign")
+        logger.exception("Discord API error while creating CTF team campaign")
         await cog._cleanup_created_resources(
             discussion_channel=discussion_channel,
             voice_channel=voice_channel,
@@ -169,7 +178,7 @@ async def handle_create_modal_submit(
         )
         return
     except Exception:
-        logger.exception("Unexpected error while creating CTF role campaign")
+        logger.exception("Unexpected error while creating CTF team campaign")
         await cog._cleanup_created_resources(
             discussion_channel=discussion_channel,
             voice_channel=voice_channel,

@@ -9,7 +9,7 @@ DEFAULT_EXTENSIONS = (
     "bot.cogs.perms_debug",
     "bot.cogs.times_channels",
     "bot.features.alpacahack.cog",
-    "bot.features.ctf_roles.cog",
+    "bot.features.ctf_team.cog",
     "bot.features.ctftime.cog",
 )
 

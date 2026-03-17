@@ -25,12 +25,12 @@
 - `repository`
   DB 永続化
 - `db`
-  接続と migration
+  接続と current schema の初期化・検証
 
 Runtime の組み立て:
 
 - `src/bot/runtime_providers.py`
-  依存を構築し、DB migration を適用する
+  依存を構築し、DB の current schema を初期化または検証する
 - `src/bot/runtime.py`
   runtime にまとめて cog から参照できる形にする
 - `src/bot/cogs_loader.py`
@@ -58,7 +58,7 @@ Runtime の組み立て:
 ## テスト方針
 
 - 純粋ロジックは `service` / `usecase` を `unittest` で検証する
-- DB 変更は一時 DB を使う repository / migration テストで検証する
+- DB 変更は一時 DB を使う repository / current schema テストで検証する
 - Discord 側の分岐は `AsyncMock` を使う cog テストで検証する
 - 依存境界は `tests/test_architecture.py` が検知する
 - 仕様変更時は対応する `test_*.py` を先に確認し、必要なら更新する

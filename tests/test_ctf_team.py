@@ -15,26 +15,26 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from bot.db.connection import DatabaseConnectionFactory  # noqa: E402
-from bot.db.migrations import apply_migrations  # noqa: E402
+from bot.db.migrations import ensure_current_schema  # noqa: E402
 from bot.errors import RepositoryError  # noqa: E402
-from bot.features.ctf_roles.cog import CTFRoleCampaigns  # noqa: E402
-from bot.features.ctf_roles.models import (  # noqa: E402
+from bot.features.ctf_team.cog import CTFTeamCampaigns  # noqa: E402
+from bot.features.ctf_team.models import (  # noqa: E402
     CampaignDraft,
     CampaignStatus,
-    CTFRoleCampaign,
+    CTFTeamCampaign,
 )
-from bot.features.ctf_roles.repository import CTFRoleCampaignRepository  # noqa: E402
-from bot.features.ctf_roles.service import CTFRoleService  # noqa: E402
-from bot.features.ctf_roles.usecase import CTFRoleUseCase  # noqa: E402
+from bot.features.ctf_team.repository import CTFTeamCampaignRepository  # noqa: E402
+from bot.features.ctf_team.service import CTFTeamService  # noqa: E402
+from bot.features.ctf_team.usecase import CTFTeamUseCase  # noqa: E402
 
 
-class CTFRoleUseCaseTests(unittest.TestCase):
-    def _build_usecase(self, db_path: str) -> tuple[CTFRoleUseCase, CTFRoleService]:
+class CTFTeamUseCaseTests(unittest.TestCase):
+    def _build_usecase(self, db_path: str) -> tuple[CTFTeamUseCase, CTFTeamService]:
         factory = DatabaseConnectionFactory(database_path=db_path)
-        apply_migrations(factory)
-        repository = CTFRoleCampaignRepository(connection_factory=factory)
-        service = CTFRoleService(timezone=ZoneInfo("Asia/Tokyo"))
-        return CTFRoleUseCase(repository=repository, service=service), service
+        ensure_current_schema(factory)
+        repository = CTFTeamCampaignRepository(connection_factory=factory)
+        service = CTFTeamService(timezone=ZoneInfo("Asia/Tokyo"))
+        return CTFTeamUseCase(repository=repository, service=service), service
 
     def test_validate_campaign_draft_rejects_invalid_datetime(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -225,7 +225,7 @@ class CTFRoleUseCaseTests(unittest.TestCase):
             with factory.connection() as conn:
                 conn.execute(
                     """
-                    UPDATE ctf_role_campaign
+                    UPDATE ctf_team_campaign
                     SET archive_at_unix = ?
                     WHERE id = ?
                     """,
@@ -308,40 +308,40 @@ class CTFRoleUseCaseTests(unittest.TestCase):
                 )
 
 
-class CTFRoleCogHelperTests(unittest.TestCase):
+class CTFTeamCogHelperTests(unittest.TestCase):
     def test_build_channel_base_name_normalizes_text(self) -> None:
-        channel_name = CTFRoleCampaigns._build_channel_base_name(
+        channel_name = CTFTeamCampaigns._build_channel_base_name(
             "  SECCON CTF 13 Finals!!  "
         )
         self.assertEqual(channel_name, "seccon-ctf-13-finals")
 
     def test_build_channel_base_name_falls_back_when_empty(self) -> None:
-        channel_name = CTFRoleCampaigns._build_channel_base_name("!!!")
+        channel_name = CTFTeamCampaigns._build_channel_base_name("!!!")
         self.assertEqual(channel_name, "ctf")
 
     def test_parse_role_color_accepts_hex(self) -> None:
-        parsed, error = CTFRoleCampaigns._parse_role_color("#12AB34")
+        parsed, error = CTFTeamCampaigns._parse_role_color("#12AB34")
         self.assertEqual(parsed, 0x12AB34)
         self.assertEqual(error, "")
 
     def test_parse_role_color_accepts_0x_prefix(self) -> None:
-        parsed, error = CTFRoleCampaigns._parse_role_color("0xff6600")
+        parsed, error = CTFTeamCampaigns._parse_role_color("0xff6600")
         self.assertEqual(parsed, 0xFF6600)
         self.assertEqual(error, "")
 
     def test_parse_role_color_rejects_invalid_value(self) -> None:
-        parsed, error = CTFRoleCampaigns._parse_role_color("orange")
+        parsed, error = CTFTeamCampaigns._parse_role_color("orange")
         self.assertIsNone(parsed)
         self.assertIn("16進数", error)
 
     def test_role_color_suggestions_show_preview(self) -> None:
-        choices = CTFRoleCampaigns._build_role_color_suggestions("")
+        choices = CTFTeamCampaigns._build_role_color_suggestions("")
         self.assertGreater(len(choices), 0)
         self.assertIn("🟥", choices[0].name)
         self.assertTrue(choices[0].value.startswith("#"))
 
     def test_role_color_suggestions_filter_by_hex(self) -> None:
-        choices = CTFRoleCampaigns._build_role_color_suggestions("22c55e")
+        choices = CTFTeamCampaigns._build_role_color_suggestions("22c55e")
         self.assertEqual(len(choices), 1)
         self.assertEqual(choices[0].value, "#22c55e")
 
@@ -351,7 +351,7 @@ class CTFRoleCogHelperTests(unittest.TestCase):
         creator = discord.Object(id=3)
         bot_member = discord.Object(id=4)
 
-        overwrites = CTFRoleCampaigns._build_discussion_channel_overwrites(
+        overwrites = CTFTeamCampaigns._build_discussion_channel_overwrites(
             default_role=default_role,
             role=role,
             creator=creator,
@@ -367,7 +367,7 @@ class CTFRoleCogHelperTests(unittest.TestCase):
         self.assertEqual(overwrites[bot_member].send_messages, True)
 
     def test_service_formats_discord_timestamp_with_relative(self) -> None:
-        service = CTFRoleService(timezone=ZoneInfo("Asia/Tokyo"))
+        service = CTFTeamService(timezone=ZoneInfo("Asia/Tokyo"))
 
         formatted = service.format_unix_with_relative(1_700_000_000)
 
@@ -377,13 +377,13 @@ class CTFRoleCogHelperTests(unittest.TestCase):
         )
 
     def test_build_campaign_list_embed_contains_links_and_mentions(self) -> None:
-        cog = object.__new__(CTFRoleCampaigns)
+        cog = object.__new__(CTFTeamCampaigns)
         cog.usecase = SimpleNamespace(
             format_unix_datetime_with_relative=lambda value: (
                 f"<t:{value}:f> (<t:{value}:R>)"
             )
         )
-        campaign = CTFRoleCampaign(
+        campaign = CTFTeamCampaign(
             id=1,
             guild_id=10,
             channel_id=100,
