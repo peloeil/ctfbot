@@ -1,7 +1,9 @@
 import datetime
+import signal
 import sys
 import tempfile
 import unittest
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
@@ -347,30 +349,28 @@ class TestCTFBotStatusNotifications(unittest.IsolatedAsyncioTestCase):
             bot = CTFBot(runtime)
         return bot, gateway, channel
 
-    async def test_on_disconnect_sends_status_message(self):
+    async def test_on_disconnect_records_timestamp_without_sending_status_message(self):
         bot, gateway, channel = self._build_bot()
 
         await bot.on_disconnect()
 
-        gateway.resolve_messageable_channel.assert_awaited_once_with(
-            bot.settings.bot_status_channel_id
-        )
-        channel.send.assert_awaited_once()
-        self.assertIn("ctfbot disconnected at", channel.send.await_args.args[0])
+        gateway.resolve_messageable_channel.assert_not_called()
+        channel.send.assert_not_awaited()
         self.assertIsNotNone(bot._last_disconnect_at)
 
-    async def test_on_disconnect_avoids_duplicate_messages_before_reconnect(self):
+    async def test_on_disconnect_preserves_first_timestamp_before_reconnect(self):
         bot, _gateway, channel = self._build_bot()
 
         await bot.on_disconnect()
         first_disconnect_at = bot._last_disconnect_at
         await bot.on_disconnect()
 
-        channel.send.assert_awaited_once()
+        channel.send.assert_not_awaited()
         self.assertEqual(bot._last_disconnect_at, first_disconnect_at)
 
     async def test_close_sends_disconnecting_message_once(self):
         bot, gateway, channel = self._build_bot()
+        bot.mark_shutdown_requested_by_sigint()
 
         with (
             patch.object(bot, "is_closed", return_value=False),
@@ -386,25 +386,60 @@ class TestCTFBotStatusNotifications(unittest.IsolatedAsyncioTestCase):
         channel.send.assert_awaited_once()
         self.assertIn("ctfbot disconnecting at", channel.send.await_args.args[0])
 
-    async def test_on_disconnect_skips_message_while_closing(self):
+    async def test_close_skips_status_message_without_sigint(self):
         bot, gateway, channel = self._build_bot()
-        bot._is_closing = True
 
-        await bot.on_disconnect()
+        with (
+            patch.object(bot, "is_closed", return_value=False),
+            patch.object(commands.Bot, "close", new=AsyncMock()) as super_close,
+        ):
+            await bot.close()
 
+        super_close.assert_awaited_once()
         gateway.resolve_messageable_channel.assert_not_called()
         channel.send.assert_not_awaited()
-        self.assertIsNotNone(bot._last_disconnect_at)
 
 
 class TestRunBot(unittest.TestCase):
     def test_run_bot_uses_discord_client_run(self):
         settings = Mock(discord_token="token")
         bot = Mock(settings=settings)
+        previous_sigint_handler = Mock()
 
-        run_bot(bot)
+        with (
+            patch("bot.app.signal.getsignal", return_value=previous_sigint_handler),
+            patch("bot.app.signal.signal") as signal_fn,
+        ):
+            run_bot(bot)
 
         bot.run.assert_called_once_with("token", log_handler=None)
+        self.assertEqual(signal_fn.call_count, 2)
+        self.assertEqual(
+            signal_fn.call_args_list[-1].args,
+            (signal.SIGINT, previous_sigint_handler),
+        )
+
+    def test_run_bot_sigint_handler_marks_bot_and_chains_previous_handler(self):
+        settings = Mock(discord_token="token")
+        bot = Mock(settings=settings)
+        previous_sigint_handler = Mock()
+        installed_handler: Callable[[int, object | None], None] | None = None
+
+        def capture_signal(signum, handler):
+            nonlocal installed_handler
+            if installed_handler is None:
+                installed_handler = handler
+
+        with (
+            patch("bot.app.signal.getsignal", return_value=previous_sigint_handler),
+            patch("bot.app.signal.signal", side_effect=capture_signal),
+        ):
+            run_bot(bot)
+
+        assert installed_handler is not None
+        installed_handler(signal.SIGINT, None)
+        bot.mark_shutdown_requested_by_sigint.assert_called_once_with()
+        previous_sigint_handler.assert_called_once_with(signal.SIGINT, None)
 
 
 if __name__ == "__main__":
