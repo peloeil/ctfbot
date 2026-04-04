@@ -4,10 +4,12 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock, patch
 from zoneinfo import ZoneInfo
 
 import discord
+from requests import Response
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = REPO_ROOT / "src"
@@ -477,6 +479,89 @@ class CTFTeamArchiveFlowTests(unittest.IsolatedAsyncioTestCase):
             guild,
             campaign.discussion_channel_id,
         )
+        cog._delete_voice_channel.assert_awaited_once_with(
+            guild=guild,
+            campaign=campaign,
+            reason="CTF campaign archive_at reached",
+        )
+
+    async def test_archive_campaign_continues_when_discussion_channel_deleted_midway(
+        self,
+    ) -> None:
+        guild = SimpleNamespace(id=10, default_role=object())
+        deleted_reasons: list[str] = []
+        marked_campaign_ids: list[int] = []
+
+        class FakeRole:
+            async def delete(self, *, reason: str) -> None:
+                deleted_reasons.append(reason)
+
+        class FakeDiscussionChannel:
+            def __init__(self) -> None:
+                self.category_id = 1
+
+            async def set_permissions(self, *_args, **_kwargs) -> None:
+                return None
+
+            async def edit(self, **_kwargs) -> None:
+                response = cast(
+                    Response,
+                    SimpleNamespace(status=404, reason="Not Found", text=""),
+                )
+                raise discord.NotFound(
+                    response,
+                    "missing",
+                )
+
+        campaign = CTFTeamCampaign(
+            id=2,
+            guild_id=10,
+            channel_id=100,
+            message_id=200,
+            role_id=300,
+            ctf_name="Deleted Midway CTF",
+            start_at_unix=1_700_000_000,
+            end_at_unix=1_700_003_600,
+            status=CampaignStatus.CLOSED,
+            created_by=400,
+            created_at_unix=1_699_999_000,
+            closed_at_unix=1_700_003_600,
+            archive_at_unix=1_700_003_700,
+            discussion_channel_id=500,
+            voice_channel_id=600,
+        )
+
+        cog = object.__new__(CTFTeamCampaigns)
+        cog.bot = SimpleNamespace(
+            get_guild=lambda guild_id: guild if guild_id == campaign.guild_id else None
+        )
+        cog.usecase = SimpleNamespace(
+            mark_campaign_archived=lambda *, campaign_id: (
+                marked_campaign_ids.append(campaign_id) or True
+            )
+        )
+        cog._resolve_role = AsyncMock(return_value=FakeRole())
+        cog._resolve_text_channel = AsyncMock(return_value=FakeDiscussionChannel())
+        cog._resolve_bot_member = lambda _guild: None
+        cog._ensure_archive_category = AsyncMock(return_value=SimpleNamespace(id=999))
+        cog._delete_voice_channel = AsyncMock(return_value=True)
+
+        archived, warnings = await archive_campaign(
+            cog,
+            campaign,
+            reason="CTF campaign archive_at reached",
+        )
+
+        self.assertTrue(archived)
+        self.assertEqual(warnings, ())
+        self.assertEqual(marked_campaign_ids, [campaign.id])
+        self.assertEqual(deleted_reasons, ["CTF campaign archive_at reached"])
+        cog._resolve_role.assert_awaited_once_with(guild, campaign.role_id)
+        cog._resolve_text_channel.assert_awaited_once_with(
+            guild,
+            campaign.discussion_channel_id,
+        )
+        cog._ensure_archive_category.assert_awaited_once_with(guild)
         cog._delete_voice_channel.assert_awaited_once_with(
             guild=guild,
             campaign=campaign,

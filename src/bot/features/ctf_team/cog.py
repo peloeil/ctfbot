@@ -539,6 +539,16 @@ class CTFTeamCampaigns(
                     ),
                 )
             return True
+        except discord.NotFound as error:
+            logger.warning(
+                "Skipping discussion archive: discussion channel disappeared "
+                "during archive for campaign=%s guild=%s channel=%s",
+                campaign.id,
+                guild.id,
+                campaign.discussion_channel_id,
+                exc_info=error,
+            )
+            return True
         except (discord.Forbidden, discord.HTTPException) as error:
             logger.warning(
                 "Failed to archive discussion channel for campaign=%s guild=%s "
