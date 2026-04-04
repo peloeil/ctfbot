@@ -131,6 +131,13 @@ def _build_ctf_team_group() -> app_commands.Group:
         async def open(self, interaction: object) -> None:
             _ = interaction
 
+        @app_commands.command(
+            name="archive",
+            description="指定名の close 済み募集の最新1件を手動で archive します。",
+        )
+        async def archive(self, interaction: object) -> None:
+            _ = interaction
+
     return _CTFTeamGroup()
 
 
@@ -155,7 +162,9 @@ class HelpCommandTests(unittest.IsolatedAsyncioTestCase):
         sent_content = await_args.args[1]
         self.assertIn("利用可能なスラッシュコマンド", sent_content)
         self.assertIn("/echo", sent_content)
+        self.assertIn("/ctfteam archive", sent_content)
         self.assertIn("/ctfteam open", sent_content)
+        self.assertIn("close 済み募集の最新1件", sent_content)
         self.assertTrue(await_args.kwargs["ephemeral"])
 
     async def test_help_shows_empty_message_when_no_slash_commands(self) -> None:

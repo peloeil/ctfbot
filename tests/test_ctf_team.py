@@ -244,6 +244,58 @@ class CTFTeamUseCaseTests(unittest.TestCase):
             due_after_mark = usecase.list_due_archives(limit=10)
             self.assertNotIn(campaign.id, [row.id for row in due_after_mark])
 
+    def test_find_pending_and_archived_campaign_by_name(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            usecase, service = self._build_usecase(str(Path(tmpdir) / "ctfbot.db"))
+            draft = CampaignDraft(
+                ctf_name="Archive Lookup CTF",
+                start_at_unix=service.now_unix(),
+                end_at_unix=None,
+            )
+            campaign = usecase.create_campaign(
+                guild_id=1,
+                channel_id=100,
+                message_id=304,
+                role_id=404,
+                discussion_channel_id=504,
+                voice_channel_id=604,
+                created_by=10,
+                draft=draft,
+            )
+            close_result = usecase.close_campaign(campaign_id=campaign.id)
+            self.assertTrue(close_result.was_closed)
+
+            pending = usecase.find_pending_archive_campaign_by_name(
+                guild_id=1,
+                ctf_name="archive lookup ctf",
+            )
+            self.assertIsNotNone(pending)
+            assert pending is not None
+            self.assertEqual(pending.id, campaign.id)
+
+            archived_before = usecase.find_archived_campaign_by_name(
+                guild_id=1,
+                ctf_name="Archive Lookup CTF",
+            )
+            self.assertIsNone(archived_before)
+
+            marked = usecase.mark_campaign_archived(campaign_id=campaign.id)
+            self.assertTrue(marked)
+
+            pending_after = usecase.find_pending_archive_campaign_by_name(
+                guild_id=1,
+                ctf_name="Archive Lookup CTF",
+            )
+            self.assertIsNone(pending_after)
+
+            archived_after = usecase.find_archived_campaign_by_name(
+                guild_id=1,
+                ctf_name="Archive Lookup CTF",
+            )
+            self.assertIsNotNone(archived_after)
+            assert archived_after is not None
+            self.assertEqual(archived_after.id, campaign.id)
+
     def test_due_starts_detected_and_marked(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "ctfbot.db"
@@ -419,6 +471,95 @@ class CTFTeamCogHelperTests(unittest.TestCase):
         self.assertIn("ロール: <@&300>", field.value)
         self.assertIn("作成者: <@400>", field.value)
         self.assertIn("<t:1700000000:f> (<t:1700000000:R>)", field.value)
+
+class CTFTeamCommandTests(unittest.IsolatedAsyncioTestCase):
+    async def test_archive_command_archives_pending_closed_campaign(self) -> None:
+        campaign = CTFTeamCampaign(
+            id=1,
+            guild_id=10,
+            channel_id=100,
+            message_id=200,
+            role_id=300,
+            ctf_name="ArchiveTarget CTF",
+            start_at_unix=1_700_000_000,
+            end_at_unix=1_700_003_600,
+            status=CampaignStatus.CLOSED,
+            created_by=400,
+            created_at_unix=1_699_999_000,
+            closed_at_unix=1_700_003_600,
+            archive_at_unix=1_700_003_700,
+            discussion_channel_id=500,
+            voice_channel_id=600,
+        )
+        interaction = SimpleNamespace(
+            guild=SimpleNamespace(id=10),
+            user=SimpleNamespace(id=400),
+            response=SimpleNamespace(defer=AsyncMock()),
+            followup=SimpleNamespace(send=AsyncMock()),
+        )
+
+        cog = object.__new__(CTFTeamCampaigns)
+        cog.usecase = SimpleNamespace(
+            find_pending_archive_campaign_by_name=lambda **_kwargs: campaign,
+            find_active_campaign_by_name=lambda **_kwargs: None,
+            find_archived_campaign_by_name=lambda **_kwargs: None,
+        )
+        cog._archive_campaign = AsyncMock(return_value=(True, ()))
+
+        await CTFTeamCampaigns.archive.callback(cog, interaction, "ArchiveTarget CTF")
+
+        interaction.response.defer.assert_awaited_once_with(
+            ephemeral=True,
+            thinking=True,
+        )
+        cog._archive_campaign.assert_awaited_once_with(
+            campaign,
+            reason="CTF campaign archived manually by 400",
+        )
+        interaction.followup.send.assert_awaited_once_with(
+            "`ArchiveTarget CTF` を archive しました。\n"
+            "関連チャンネルとロールの整理を実行しました。",
+            ephemeral=True,
+        )
+
+    async def test_archive_command_requests_close_when_campaign_is_active(self) -> None:
+        active_campaign = CTFTeamCampaign(
+            id=2,
+            guild_id=10,
+            channel_id=100,
+            message_id=201,
+            role_id=301,
+            ctf_name="Active CTF",
+            start_at_unix=1_700_000_000,
+            end_at_unix=1_700_003_600,
+            status=CampaignStatus.ACTIVE,
+            created_by=401,
+            created_at_unix=1_699_999_000,
+            discussion_channel_id=501,
+            voice_channel_id=601,
+        )
+        interaction = SimpleNamespace(
+            guild=SimpleNamespace(id=10),
+            user=SimpleNamespace(id=401),
+            response=SimpleNamespace(defer=AsyncMock()),
+            followup=SimpleNamespace(send=AsyncMock()),
+        )
+
+        cog = object.__new__(CTFTeamCampaigns)
+        cog.usecase = SimpleNamespace(
+            find_pending_archive_campaign_by_name=lambda **_kwargs: None,
+            find_active_campaign_by_name=lambda **_kwargs: active_campaign,
+            find_archived_campaign_by_name=lambda **_kwargs: None,
+        )
+        cog._archive_campaign = AsyncMock()
+
+        await CTFTeamCampaigns.archive.callback(cog, interaction, "Active CTF")
+
+        cog._archive_campaign.assert_not_awaited()
+        interaction.followup.send.assert_awaited_once_with(
+            "指定名の募集はまだ active です。先に /ctfteam close を実行してください。",
+            ephemeral=True,
+        )
 
 
 class CTFTeamArchiveFlowTests(unittest.IsolatedAsyncioTestCase):

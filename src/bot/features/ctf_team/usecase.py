@@ -161,9 +161,30 @@ class CTFTeamUseCase:
     def find_active_campaign_by_name(
         self, *, guild_id: int, ctf_name: str
     ) -> CTFTeamCampaign | None:
-        return self._repository.find_active_campaign_by_name(
+        return self._repository.find_campaign_by_name(
             guild_id=guild_id,
             ctf_name=ctf_name.strip(),
+            status=CampaignStatus.ACTIVE,
+        )
+
+    def find_pending_archive_campaign_by_name(
+        self, *, guild_id: int, ctf_name: str
+    ) -> CTFTeamCampaign | None:
+        return self._repository.find_campaign_by_name(
+            guild_id=guild_id,
+            ctf_name=ctf_name.strip(),
+            status=CampaignStatus.CLOSED,
+            archived=False,
+        )
+
+    def find_archived_campaign_by_name(
+        self, *, guild_id: int, ctf_name: str
+    ) -> CTFTeamCampaign | None:
+        return self._repository.find_campaign_by_name(
+            guild_id=guild_id,
+            ctf_name=ctf_name.strip(),
+            status=CampaignStatus.CLOSED,
+            archived=True,
         )
 
     def list_due_campaigns(self, *, limit: int = 20) -> list[CTFTeamCampaign]:

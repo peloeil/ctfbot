@@ -1200,6 +1200,85 @@ class CTFTeamCampaigns(
             ephemeral=True,
         )
 
+    @app_commands.command(
+        name="archive",
+        description="指定名の close 済み募集の最新1件を手動で archive します。",
+    )
+    @app_commands.describe(ctf_name="archive 対象のCTF名")
+    async def archive(self, interaction: discord.Interaction, ctf_name: str) -> None:
+        if interaction.guild is None:
+            await send_interaction_message(
+                interaction,
+                "このコマンドはサーバー内でのみ使用できます。",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        campaign = await asyncio.to_thread(
+            self.usecase.find_pending_archive_campaign_by_name,
+            guild_id=interaction.guild.id,
+            ctf_name=ctf_name,
+        )
+        if campaign is None:
+            active_campaign = await asyncio.to_thread(
+                self.usecase.find_active_campaign_by_name,
+                guild_id=interaction.guild.id,
+                ctf_name=ctf_name,
+            )
+            if active_campaign is not None:
+                await interaction.followup.send(
+                    "指定名の募集はまだ active です。"
+                    "先に /ctfteam close を実行してください。",
+                    ephemeral=True,
+                )
+                return
+
+            archived_campaign = await asyncio.to_thread(
+                self.usecase.find_archived_campaign_by_name,
+                guild_id=interaction.guild.id,
+                ctf_name=ctf_name,
+            )
+            if archived_campaign is not None:
+                await interaction.followup.send(
+                    "この募集はすでに archive 済みです。",
+                    ephemeral=True,
+                )
+                return
+
+            await interaction.followup.send(
+                "指定名の archive 対象募集は見つかりませんでした。",
+                ephemeral=True,
+            )
+            return
+
+        if not self._can_close_campaign(interaction.user, campaign):
+            await interaction.followup.send(
+                "募集を archive できるのは作成者または "
+                "Manage Server 権限を持つユーザーのみです。",
+                ephemeral=True,
+            )
+            return
+
+        archived, warnings = await self._archive_campaign(
+            campaign,
+            reason=f"CTF campaign archived manually by {interaction.user.id}",
+        )
+        if not archived:
+            warning_text = ", ".join(warnings) if warnings else "(unknown)"
+            await interaction.followup.send(
+                f"`{campaign.ctf_name}` の archive に失敗しました。"
+                f"後処理の状態: {warning_text}",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.followup.send(
+            f"`{campaign.ctf_name}` を archive しました。\n"
+            "関連チャンネルとロールの整理を実行しました。",
+            ephemeral=True,
+        )
+
     @commands.Cog.listener()
     async def on_raw_reaction_add(
         self, payload: discord.RawReactionActionEvent

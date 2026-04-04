@@ -158,6 +158,26 @@ class CTFTeamCampaignRepository:
     def find_active_campaign_by_name(
         self, *, guild_id: int, ctf_name: str
     ) -> CTFTeamCampaign | None:
+        return self.find_campaign_by_name(
+            guild_id=guild_id,
+            ctf_name=ctf_name,
+            status=CampaignStatus.ACTIVE,
+        )
+
+    def find_campaign_by_name(
+        self,
+        *,
+        guild_id: int,
+        ctf_name: str,
+        status: CampaignStatus,
+        archived: bool | None = None,
+    ) -> CTFTeamCampaign | None:
+        archived_filter = ""
+        if archived is True:
+            archived_filter = " AND archived_at_unix IS NOT NULL"
+        elif archived is False:
+            archived_filter = " AND archived_at_unix IS NULL"
+
         with self.connection_factory.connection() as conn:
             row = conn.execute(
                 f"""
@@ -166,10 +186,11 @@ class CTFTeamCampaignRepository:
                 WHERE guild_id = ?
                   AND status = ?
                   AND ctf_name = ? COLLATE NOCASE
+                  {archived_filter}
                 ORDER BY created_at_unix DESC
                 LIMIT 1
                 """,
-                (guild_id, CampaignStatus.ACTIVE.value, ctf_name),
+                (guild_id, status.value, ctf_name),
             ).fetchone()
         return self._to_campaign(row)
 
