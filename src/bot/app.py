@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import datetime
+import signal
+from collections.abc import Callable
+from types import FrameType
+from typing import cast
 
 import discord
 from discord.ext import commands
@@ -11,6 +15,8 @@ from .discord_gateway import DiscordGateway
 from .log import configure_logging, logger
 from .runtime import BotRuntime, build_runtime
 from .utils.helpers import send_interaction_message
+
+SigintHandler = Callable[[int, FrameType | None], object]
 
 
 class CTFBot(commands.Bot):
@@ -24,6 +30,7 @@ class CTFBot(commands.Bot):
         self._has_announced_ready = False
         self._is_closing = False
         self._last_disconnect_at: datetime.datetime | None = None
+        self._shutdown_requested_by_sigint = False
 
     async def setup_hook(self) -> None:
         await load_cogs(self)
@@ -64,12 +71,15 @@ class CTFBot(commands.Bot):
 
     async def close(self) -> None:
         self._is_closing = True
-        if not self.is_closed():
+        if self._shutdown_requested_by_sigint and not self.is_closed():
             now = datetime.datetime.now(self.settings.tzinfo)
             await self._send_status_message(
                 f"🔴 ctfbot disconnecting at {now.strftime('%Y-%m-%d %H:%M:%S %Z')}"
             )
         await super().close()
+
+    def mark_shutdown_requested_by_sigint(self) -> None:
+        self._shutdown_requested_by_sigint = True
 
     async def _send_status_message(self, content: str) -> None:
         channel = await self.gateway.resolve_messageable_channel(
@@ -118,4 +128,20 @@ def create_bot(settings: Settings | None = None) -> CTFBot:
 
 
 def run_bot(bot: CTFBot) -> None:
-    bot.run(bot.settings.discord_token, log_handler=None)
+    previous_sigint_handler = signal.getsignal(signal.SIGINT)
+
+    def handle_sigint(_signum: int, frame: FrameType | None) -> None:
+        bot.mark_shutdown_requested_by_sigint()
+        if previous_sigint_handler is signal.SIG_IGN:
+            return
+        if previous_sigint_handler is not signal.SIG_DFL:
+            previous_handler = cast(SigintHandler, previous_sigint_handler)
+            previous_handler(signal.SIGINT, frame)
+            return
+        signal.default_int_handler(signal.SIGINT, frame)
+
+    signal.signal(signal.SIGINT, handle_sigint)
+    try:
+        bot.run(bot.settings.discord_token, log_handler=None)
+    finally:
+        signal.signal(signal.SIGINT, previous_sigint_handler)
