@@ -22,6 +22,7 @@ class CTFBot(commands.Bot):
         self.settings = runtime.settings
         self.gateway = DiscordGateway(self, logger)
         self._has_announced_ready = False
+        self._is_closing = False
         self._last_disconnect_at: datetime.datetime | None = None
 
     async def setup_hook(self) -> None:
@@ -50,10 +51,24 @@ class CTFBot(commands.Bot):
         self._last_disconnect_at = None
 
     async def on_disconnect(self) -> None:
-        self._last_disconnect_at = datetime.datetime.now(self.settings.tzinfo)
-        logger.warning("Disconnected at %s", self._last_disconnect_at.isoformat())
+        if self._last_disconnect_at is not None:
+            logger.warning(
+                "Disconnect event received while already disconnected since %s",
+                self._last_disconnect_at.isoformat(),
+            )
+            return
+
+        now = datetime.datetime.now(self.settings.tzinfo)
+        self._last_disconnect_at = now
+        logger.warning("Disconnected at %s", now.isoformat())
+        if self._is_closing:
+            return
+        await self._send_status_message(
+            f"🔴 ctfbot disconnected at {now.strftime('%Y-%m-%d %H:%M:%S %Z')}"
+        )
 
     async def close(self) -> None:
+        self._is_closing = True
         if not self.is_closed():
             now = datetime.datetime.now(self.settings.tzinfo)
             await self._send_status_message(
