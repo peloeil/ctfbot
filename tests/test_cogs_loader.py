@@ -15,7 +15,6 @@ class CogsLoaderTests(unittest.IsolatedAsyncioTestCase):
     async def test_load_cogs_loads_all_extensions(self) -> None:
         bot = AsyncMock()
         extensions = (
-            "bot.cogs.manage_cogs",
             "bot.cogs.message_tools",
             "bot.features.ctftime.cog",
         )
@@ -29,7 +28,6 @@ class CogsLoaderTests(unittest.IsolatedAsyncioTestCase):
     async def test_load_cogs_fails_fast_on_extension_error(self) -> None:
         bot = AsyncMock()
         extensions = (
-            "bot.cogs.manage_cogs",
             "bot.features.ctftime.cog",
             "bot.features.alpacahack.cog",
         )
@@ -48,7 +46,7 @@ class CogsLoaderTests(unittest.IsolatedAsyncioTestCase):
             await cogs_loader.load_cogs(bot)
 
         self.assertIn("bot.features.ctftime.cog", str(raised.exception))
-        self.assertEqual(bot.load_extension.await_count, 2)
+        self.assertEqual(bot.load_extension.await_count, 1)
 
 
 if __name__ == "__main__":

@@ -3,7 +3,6 @@ from discord.ext import commands
 from .log import logger
 
 DEFAULT_EXTENSIONS = (
-    "bot.cogs.manage_cogs",
     "bot.cogs.help_command",
     "bot.cogs.message_tools",
     "bot.cogs.perms_debug",
