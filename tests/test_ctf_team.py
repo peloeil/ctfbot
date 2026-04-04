@@ -568,5 +568,6 @@ class CTFTeamArchiveFlowTests(unittest.IsolatedAsyncioTestCase):
             reason="CTF campaign archive_at reached",
         )
 
+
 if __name__ == "__main__":
     unittest.main()
