@@ -4,22 +4,25 @@ import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from zoneinfo import ZoneInfo
 
 import requests
+from discord.ext import commands
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+from bot.app import CTFBot  # noqa: E402
 from bot.application.alpacahack import (  # noqa: E402
     ChallengeRef,
     SolveRecord,
     get_week_range,
     select_weekly_solves,
 )
+from bot.config import Settings  # noqa: E402
 from bot.db.connection import DatabaseConnectionFactory  # noqa: E402
 from bot.db.migrations import ensure_current_schema  # noqa: E402
 from bot.errors import ExternalAPIError  # noqa: E402
@@ -313,6 +316,85 @@ class TestDatabaseAndUseCase(unittest.TestCase):
         self.assertEqual(summary.total_users, 1)
         self.assertEqual(summary.weekly_solves, {})
         self.assertEqual(summary.failed_users, ["alice"])
+
+
+class TestCTFBotStatusNotifications(unittest.IsolatedAsyncioTestCase):
+    def _settings(self) -> Settings:
+        tz = ZoneInfo("Asia/Tokyo")
+        return Settings(
+            discord_token="token",
+            bot_channel_id=0,
+            bot_status_channel_id=12345,
+            timezone="Asia/Tokyo",
+            tzinfo=tz,
+            log_level="INFO",
+            database_path=":memory:",
+            alpacahack_solve_time=datetime.time(23, 0, tzinfo=tz),
+            ctftime_notification_time=datetime.time(9, 0, tzinfo=tz),
+            ctftime_window_days=14,
+            ctftime_event_limit=20,
+            ctftime_user_agent="ctfbot-test/1.0",
+        )
+
+    def _build_bot(self) -> tuple[CTFBot, Mock, Mock]:
+        settings = self._settings()
+        runtime = Mock(settings=settings)
+        gateway = Mock()
+        channel = Mock()
+        channel.send = AsyncMock()
+        gateway.resolve_messageable_channel = AsyncMock(return_value=channel)
+        with patch("bot.app.DiscordGateway", return_value=gateway):
+            bot = CTFBot(runtime)
+        return bot, gateway, channel
+
+    async def test_on_disconnect_sends_status_message(self):
+        bot, gateway, channel = self._build_bot()
+
+        await bot.on_disconnect()
+
+        gateway.resolve_messageable_channel.assert_awaited_once_with(
+            bot.settings.bot_status_channel_id
+        )
+        channel.send.assert_awaited_once()
+        self.assertIn("ctfbot disconnected at", channel.send.await_args.args[0])
+        self.assertIsNotNone(bot._last_disconnect_at)
+
+    async def test_on_disconnect_avoids_duplicate_messages_before_reconnect(self):
+        bot, _gateway, channel = self._build_bot()
+
+        await bot.on_disconnect()
+        first_disconnect_at = bot._last_disconnect_at
+        await bot.on_disconnect()
+
+        channel.send.assert_awaited_once()
+        self.assertEqual(bot._last_disconnect_at, first_disconnect_at)
+
+    async def test_close_sends_disconnecting_message_once(self):
+        bot, gateway, channel = self._build_bot()
+
+        with (
+            patch.object(bot, "is_closed", return_value=False),
+            patch.object(commands.Bot, "close", new=AsyncMock()) as super_close,
+        ):
+            await bot.close()
+
+        super_close.assert_awaited_once()
+        self.assertTrue(bot._is_closing)
+        gateway.resolve_messageable_channel.assert_awaited_once_with(
+            bot.settings.bot_status_channel_id
+        )
+        channel.send.assert_awaited_once()
+        self.assertIn("ctfbot disconnecting at", channel.send.await_args.args[0])
+
+    async def test_on_disconnect_skips_message_while_closing(self):
+        bot, gateway, channel = self._build_bot()
+        bot._is_closing = True
+
+        await bot.on_disconnect()
+
+        gateway.resolve_messageable_channel.assert_not_called()
+        channel.send.assert_not_awaited()
+        self.assertIsNotNone(bot._last_disconnect_at)
 
 
 if __name__ == "__main__":
