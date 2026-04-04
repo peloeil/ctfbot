@@ -66,7 +66,7 @@ Runtime の組み立て:
 - 外部依存の詳細は `integrations` に閉じ込める
 - I/O を持たないロジックは `application` に寄せる
 - 例外は `bot.errors` の型で表現する
-- slash command を変更したら開発用サーバーで reload と sync を行う
+- slash command を変更したら bot を再起動する
 
 ## テスト方針
 
