@@ -8,7 +8,7 @@ CTF サーバー向けの Discord bot です。公開運用を前提に、設定
 - CTF 参加募集の管理 `/ctfteam open|list|close|archive`
 - `times` カテゴリのチャンネル作成 `/times create`
 - AlpacaHack ユーザー管理と週次 solve 集計 `/alpaca add|del|list|solve`
-- 運用用 slash command `/help`, `/cog`, `/message`, `/perms`
+- 運用用 slash command `/help`, `/message`, `/perms`
 - Bot の接続状態通知
 
 ## Quick Start
