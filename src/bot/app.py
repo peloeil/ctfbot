@@ -122,5 +122,5 @@ def create_bot(settings: Settings | None = None) -> CTFBot:
     return bot
 
 
-async def run_bot(bot: CTFBot) -> None:
-    await bot.start(bot.settings.discord_token)
+def run_bot(bot: CTFBot) -> None:
+    bot.run(bot.settings.discord_token, log_handler=None)
