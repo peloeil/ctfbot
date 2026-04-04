@@ -15,7 +15,7 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from bot.app import CTFBot  # noqa: E402
+from bot.app import CTFBot, run_bot  # noqa: E402
 from bot.application.alpacahack import (  # noqa: E402
     ChallengeRef,
     SolveRecord,
@@ -395,6 +395,16 @@ class TestCTFBotStatusNotifications(unittest.IsolatedAsyncioTestCase):
         gateway.resolve_messageable_channel.assert_not_called()
         channel.send.assert_not_awaited()
         self.assertIsNotNone(bot._last_disconnect_at)
+
+
+class TestRunBot(unittest.TestCase):
+    def test_run_bot_uses_discord_client_run(self):
+        settings = Mock(discord_token="token")
+        bot = Mock(settings=settings)
+
+        run_bot(bot)
+
+        bot.run.assert_called_once_with("token", log_handler=None)
 
 
 if __name__ == "__main__":
