@@ -61,11 +61,6 @@ class CTFBot(commands.Bot):
         now = datetime.datetime.now(self.settings.tzinfo)
         self._last_disconnect_at = now
         logger.warning("Disconnected at %s", now.isoformat())
-        if self._is_closing:
-            return
-        await self._send_status_message(
-            f"🔴 ctfbot disconnected at {now.strftime('%Y-%m-%d %H:%M:%S %Z')}"
-        )
 
     async def close(self) -> None:
         self._is_closing = True
