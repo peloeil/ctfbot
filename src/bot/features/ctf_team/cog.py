@@ -477,13 +477,26 @@ class CTFTeamCampaigns(
         reason: str,
     ) -> bool:
         if campaign.discussion_channel_id is None:
-            return False
+            logger.warning(
+                "Skipping discussion archive: discussion channel is not set "
+                "for campaign=%s guild=%s",
+                campaign.id,
+                guild.id,
+            )
+            return True
 
         discussion_channel = await self._resolve_text_channel(
             guild, campaign.discussion_channel_id
         )
         if discussion_channel is None:
-            return False
+            logger.warning(
+                "Skipping discussion archive: discussion channel not found "
+                "for campaign=%s guild=%s channel=%s",
+                campaign.id,
+                guild.id,
+                campaign.discussion_channel_id,
+            )
+            return True
 
         try:
             bot_member = self._resolve_bot_member(guild)
