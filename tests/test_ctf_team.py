@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import sys
 import tempfile
@@ -472,7 +473,101 @@ class CTFTeamCogHelperTests(unittest.TestCase):
         self.assertIn("作成者: <@400>", field.value)
         self.assertIn("<t:1700000000:f> (<t:1700000000:R>)", field.value)
 
+    def test_mark_campaign_message_closed_includes_manual_archive_guidance(
+        self,
+    ) -> None:
+        cog = object.__new__(CTFTeamCampaigns)
+        cog.usecase = SimpleNamespace(
+            format_unix_datetime_with_relative=lambda _value: "<t:1700003700:f>",
+        )
+        fake_message = SimpleNamespace(
+            content="募集本文",
+            edit=AsyncMock(),
+        )
+        fake_channel = SimpleNamespace(
+            fetch_message=AsyncMock(return_value=fake_message)
+        )
+        cog._resolve_text_channel = AsyncMock(return_value=fake_channel)
+        campaign = CTFTeamCampaign(
+            id=1,
+            guild_id=10,
+            channel_id=100,
+            message_id=200,
+            role_id=300,
+            ctf_name="SECCON CTF",
+            start_at_unix=1_700_000_000,
+            end_at_unix=1_700_003_600,
+            status=CampaignStatus.CLOSED,
+            created_by=400,
+            created_at_unix=1_699_999_000,
+        )
+
+        updated = asyncio.run(
+            cog._mark_campaign_message_closed(
+                SimpleNamespace(),
+                campaign,
+                archive_at_unix=1_700_003_700,
+            )
+        )
+
+        self.assertTrue(updated)
+        fake_message.edit.assert_awaited_once()
+        edited_content = fake_message.edit.await_args.kwargs["content"]
+        self.assertIn("🗂️ archive移行予定: <t:1700003700:f>", edited_content)
+        self.assertIn(
+            "🧹 作成者は必要に応じて `/ctfteam archive` で手動 archive できます。",
+            edited_content,
+        )
+
+
 class CTFTeamCommandTests(unittest.IsolatedAsyncioTestCase):
+    async def test_close_command_mentions_manual_archive(self) -> None:
+        campaign = CTFTeamCampaign(
+            id=3,
+            guild_id=10,
+            channel_id=100,
+            message_id=202,
+            role_id=302,
+            ctf_name="Closed CTF",
+            start_at_unix=1_700_000_000,
+            end_at_unix=1_700_003_600,
+            status=CampaignStatus.ACTIVE,
+            created_by=402,
+            created_at_unix=1_699_999_000,
+            discussion_channel_id=502,
+            voice_channel_id=602,
+        )
+        interaction = SimpleNamespace(
+            guild=SimpleNamespace(id=10),
+            user=SimpleNamespace(id=402),
+            response=SimpleNamespace(defer=AsyncMock()),
+            followup=SimpleNamespace(send=AsyncMock()),
+        )
+
+        cog = object.__new__(CTFTeamCampaigns)
+        cog.usecase = SimpleNamespace(
+            find_active_campaign_by_name=lambda **_kwargs: campaign,
+            format_unix_datetime_with_relative=lambda _value: "<t:1700003700:f>",
+        )
+        cog._close_campaign = AsyncMock(
+            return_value=SimpleNamespace(
+                was_closed=True,
+                archive_at_unix=1_700_003_700,
+                snapshot_member_count=5,
+                warnings=(),
+            )
+        )
+
+        await CTFTeamCampaigns.close.callback(cog, interaction, "Closed CTF")
+
+        interaction.followup.send.assert_awaited_once()
+        sent_content = interaction.followup.send.await_args.args[0]
+        self.assertIn("archive移行予定: <t:1700003700:f>", sent_content)
+        self.assertIn(
+            "🧹 作成者は必要に応じて `/ctfteam archive` で手動 archive できます。",
+            sent_content,
+        )
+
     async def test_archive_command_archives_pending_closed_campaign(self) -> None:
         campaign = CTFTeamCampaign(
             id=1,

@@ -35,6 +35,9 @@ STATUS_LABELS = {
     CampaignStatus.CLOSED: "終了済み",
 }
 CLOSED_HEADER = "🔒 **この募集は終了しました。**"
+MANUAL_ARCHIVE_GUIDANCE = (
+    "作成者は必要に応じて `/ctfteam archive` で手動 archive できます。"
+)
 CTF_CATEGORY_NAME = "ctf"
 ARCHIVE_CATEGORY_NAME = "archive"
 ROLE_ANNOUNCE_CHANNEL_NAME = "role"
@@ -705,7 +708,8 @@ class CTFTeamCampaigns(
                 f"🧾 **{campaign.ctf_name} の参加メンバー"
                 f"{suffix} ({len(members)}名)**\n"
                 f"{member_chunk}\n"
-                f"archive移行予定: {archive_text}"
+                f"archive移行予定: {archive_text}\n"
+                f"🧹 {MANUAL_ARCHIVE_GUIDANCE}"
             )
             message = await send_message_safely(discussion_channel, content=content)
             if message is None:
@@ -938,6 +942,7 @@ class CTFTeamCampaigns(
                 content=(
                     f"{CLOSED_HEADER}\n"
                     f"🗂️ archive移行予定: {archive_text}\n\n"
+                    f"🧹 {MANUAL_ARCHIVE_GUIDANCE}\n\n"
                     f"{message.content}"
                 )
             )
@@ -1179,7 +1184,8 @@ class CTFTeamCampaigns(
             warning_text = ", ".join(report.warnings)
             await interaction.followup.send(
                 f"`{campaign.ctf_name}` を終了しました。"
-                f"ただし後処理で一部失敗があります: {warning_text}",
+                f"ただし後処理で一部失敗があります: {warning_text}\n"
+                f"🧹 {MANUAL_ARCHIVE_GUIDANCE}",
                 ephemeral=True,
             )
             return
@@ -1196,7 +1202,8 @@ class CTFTeamCampaigns(
             f"`{campaign.ctf_name}` を終了しました。\n"
             f"終了時点メンバー記録: {member_count_text}名\n"
             f"archive移行予定: {archive_text}\n"
-            "archive移行まではロールを保持します。",
+            "archive移行まではロールを保持します。\n"
+            f"🧹 {MANUAL_ARCHIVE_GUIDANCE}",
             ephemeral=True,
         )
 
