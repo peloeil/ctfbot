@@ -61,7 +61,6 @@ uv run python src/main.py
   - `View Channel`（チャンネルを表示）
   - `Manage Channels`（チャンネルの管理）
   - `Add Reactions`（リアクションを付ける）
-  - `Pin Messages`（メッセージをピン留め）
   - `Manage Roles`（ロールの管理）
 - `Manage Roles` を使う機能のために、bot のロールは作成・付与対象のロールより上位に置く
 

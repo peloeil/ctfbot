@@ -83,7 +83,6 @@ class PermissionsDebug(commands.Cog):
             "Send Messages in Threads": channel_perms.send_messages_in_threads,
             "Read Message History": channel_perms.read_message_history,
             "Add Reactions": channel_perms.add_reactions,
-            "Pin Messages": channel_perms.pin_messages,
             "Manage Channels": channel_perms.manage_channels,
         }
 
