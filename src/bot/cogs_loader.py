@@ -4,7 +4,6 @@ from .log import logger
 
 DEFAULT_EXTENSIONS = (
     "bot.cogs.help_command",
-    "bot.cogs.message_tools",
     "bot.cogs.perms_debug",
     "bot.cogs.times_channels",
     "bot.features.alpacahack.cog",

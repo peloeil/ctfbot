@@ -108,14 +108,6 @@ class _FakeBot:
         self.tree = tree or _FakeAppCommandTree()
 
 
-def _build_echo_command() -> app_commands.Command:
-    @app_commands.command(name="echo", description="メッセージを送信します。")
-    async def echo(interaction: object, message: str) -> None:
-        _ = interaction, message
-
-    return echo
-
-
 def _build_ctf_team_group() -> app_commands.Group:
     class _CTFTeamGroup(
         app_commands.Group,
@@ -142,7 +134,7 @@ def _build_ctf_team_group() -> app_commands.Group:
 class HelpCommandTests(unittest.IsolatedAsyncioTestCase):
     async def test_help_lists_global_and_guild_slash_commands(self) -> None:
         tree = _FakeAppCommandTree(
-            global_commands=[_build_echo_command()],
+            global_commands=[],
             guild_commands=[_build_ctf_team_group()],
         )
         bot = cast(commands.Bot, _FakeBot(tree=tree))
@@ -159,7 +151,6 @@ class HelpCommandTests(unittest.IsolatedAsyncioTestCase):
         assert await_args is not None
         sent_content = await_args.args[1]
         self.assertIn("利用可能なスラッシュコマンド", sent_content)
-        self.assertIn("/echo", sent_content)
         self.assertIn("/ctfteam archive", sent_content)
         self.assertIn("/ctfteam open", sent_content)
         self.assertIn("close 済み募集の最新1件", sent_content)
