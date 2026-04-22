@@ -274,16 +274,23 @@ class TimesChannelsTests(unittest.IsolatedAsyncioTestCase):
             user=SimpleNamespace(id=42),
         )
 
-        with patch(
-            "bot.cogs.times_channels.send_interaction_message",
-            new=AsyncMock(),
-        ) as send_mock:
+        with (
+            patch(
+                "bot.cogs.times_channels.send_interaction_message",
+                new=AsyncMock(),
+            ) as send_mock,
+            patch(
+                "bot.cogs.times_channels.log_command_history",
+                new=AsyncMock(),
+            ) as audit_mock,
+        ):
             await TimesChannels.create_times.callback(cog, interaction, "web")
 
         await_args = send_mock.await_args
         assert await_args is not None
         sent_content = await_args.args[1]
         self.assertIn("`times` カテゴリが見つかりません", sent_content)
+        audit_mock.assert_not_awaited()
 
     async def test_create_times_creates_only_missing_channels(self) -> None:
         bot = cast(commands.Bot, _FakeBot())
@@ -301,6 +308,10 @@ class TimesChannelsTests(unittest.IsolatedAsyncioTestCase):
                 "bot.cogs.times_channels.send_interaction_message",
                 new=AsyncMock(),
             ) as send_mock,
+            patch(
+                "bot.cogs.times_channels.log_command_history",
+                new=AsyncMock(),
+            ) as audit_mock,
         ):
             await TimesChannels.create_times.callback(cog, interaction, "web,pwn,rev")
 
@@ -312,6 +323,13 @@ class TimesChannelsTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("#rev", sent_content)
         self.assertIn("既存のためスキップ", sent_content)
         self.assertIn("`web`", sent_content)
+        audit_mock.assert_awaited_once()
+        audit_args = audit_mock.await_args
+        assert audit_args is not None
+        self.assertEqual(audit_args.args[0], cog)
+        self.assertEqual(audit_args.args[1], interaction)
+        self.assertEqual(audit_args.kwargs["command_name"], "/times create")
+        self.assertIn("作成: #pwn, #rev", audit_args.kwargs["details"])
 
     async def test_create_times_normalizes_and_deduplicates_names(self) -> None:
         bot = cast(commands.Bot, _FakeBot())
@@ -329,6 +347,10 @@ class TimesChannelsTests(unittest.IsolatedAsyncioTestCase):
                 "bot.cogs.times_channels.send_interaction_message",
                 new=AsyncMock(),
             ) as send_mock,
+            patch(
+                "bot.cogs.times_channels.log_command_history",
+                new=AsyncMock(),
+            ) as audit_mock,
         ):
             await TimesChannels.create_times.callback(
                 cog, interaction, " Web, web, !!!, rev team"
@@ -340,6 +362,7 @@ class TimesChannelsTests(unittest.IsolatedAsyncioTestCase):
         sent_content = await_args.args[1]
         self.assertIn("無効な入力", sent_content)
         self.assertIn("`!!!`", sent_content)
+        audit_mock.assert_awaited_once()
 
     async def test_create_times_requires_bot_manage_channels_permission(self) -> None:
         bot = cast(commands.Bot, _FakeBot())
@@ -360,6 +383,10 @@ class TimesChannelsTests(unittest.IsolatedAsyncioTestCase):
                 "bot.cogs.times_channels.send_interaction_message",
                 new=AsyncMock(),
             ) as send_mock,
+            patch(
+                "bot.cogs.times_channels.log_command_history",
+                new=AsyncMock(),
+            ) as audit_mock,
         ):
             await TimesChannels.create_times.callback(cog, interaction, "web")
 
@@ -368,6 +395,7 @@ class TimesChannelsTests(unittest.IsolatedAsyncioTestCase):
         assert await_args is not None
         sent_content = await_args.args[1]
         self.assertIn("Manage Channels", sent_content)
+        audit_mock.assert_not_awaited()
 
 
 if __name__ == "__main__":

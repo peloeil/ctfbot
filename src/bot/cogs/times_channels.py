@@ -4,6 +4,11 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from ..command_audit import (
+    CommandAuditLogger,
+    log_command_history,
+    sanitize_audit_text,
+)
 from ..log import logger
 from ..utils.helpers import send_interaction_message
 
@@ -21,6 +26,7 @@ class TimesChannels(
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self.command_audit_logger = CommandAuditLogger(bot)
 
     @classmethod
     def _normalize_channel_name(cls, raw_name: str) -> str:
@@ -185,6 +191,32 @@ class TimesChannels(
             content = f"{content[:1897]}..."
 
         await send_interaction_message(interaction, content, ephemeral=True)
+        if created_mentions:
+            details = [
+                f"入力: {sanitize_audit_text(names)}",
+                f"作成: {', '.join(created_mentions)}",
+            ]
+            if skipped_names:
+                details.append(
+                    "既存スキップ: "
+                    + ", ".join(sanitize_audit_text(name) for name in skipped_names)
+                )
+            if failed_names:
+                details.append(
+                    "作成失敗: "
+                    + ", ".join(sanitize_audit_text(name) for name in failed_names)
+                )
+            if invalid_names:
+                details.append(
+                    "無効入力: "
+                    + ", ".join(sanitize_audit_text(name) for name in invalid_names)
+                )
+            await log_command_history(
+                self,
+                interaction,
+                command_name="/times create",
+                details=details,
+            )
 
 
 async def setup(bot: commands.Bot):
