@@ -262,6 +262,10 @@ class CogTests(unittest.IsolatedAsyncioTestCase):
                 "bot.features.alpacahack.cog.send_interaction_message",
                 new=AsyncMock(),
             ) as send_mock,
+            patch(
+                "bot.features.alpacahack.cog.log_command_history",
+                new=AsyncMock(),
+            ) as audit_mock,
         ):
             await Alpacahack.alpaca_add.callback(cog, interaction, "alice")
 
@@ -270,6 +274,40 @@ class CogTests(unittest.IsolatedAsyncioTestCase):
             "`alice` を登録しました。",
             ephemeral=True,
         )
+        audit_mock.assert_awaited_once()
+        audit_args = audit_mock.await_args
+        assert audit_args is not None
+        self.assertEqual(audit_args.args[0], cog)
+        self.assertEqual(audit_args.args[1], interaction)
+        self.assertEqual(audit_args.kwargs["command_name"], "/alpaca add")
+        self.assertIn("ユーザー名: alice", audit_args.kwargs["details"])
+        await fake_bot.close()
+
+    async def test_alpacahack_add_does_not_audit_when_no_mutation(self):
+        runtime = self._build_runtime()
+        fake_bot = _FakeBot(runtime)
+        with patch("discord.ext.tasks.Loop.start", return_value=None):
+            cog = Alpacahack(fake_bot)
+
+        interaction = SimpleNamespace()
+        result = UserMutationResult(
+            status=UserMutationStatus.ALREADY_EXISTS,
+            normalized_name="alice",
+        )
+        with (
+            patch.object(cog.usecase, "add_user", return_value=result),
+            patch(
+                "bot.features.alpacahack.cog.send_interaction_message",
+                new=AsyncMock(),
+            ),
+            patch(
+                "bot.features.alpacahack.cog.log_command_history",
+                new=AsyncMock(),
+            ) as audit_mock,
+        ):
+            await Alpacahack.alpaca_add.callback(cog, interaction, "alice")
+
+        audit_mock.assert_not_awaited()
         await fake_bot.close()
 
     async def test_alpacahack_list_replies_ephemerally_with_header(self):

@@ -8,6 +8,11 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from ...cogs._runtime import get_runtime
+from ...command_audit import (
+    CommandAuditLogger,
+    log_command_history,
+    sanitize_audit_text,
+)
 from ...log import logger
 from ...utils.helpers import (
     send_interaction_message,
@@ -34,6 +39,7 @@ class Alpacahack(
         self.runtime = get_runtime(bot)
         self.settings = self.runtime.settings
         self.usecase = self.runtime.alpacahack_usecase
+        self.command_audit_logger = CommandAuditLogger(bot)
         self.alpacahack_solves.change_interval(time=self.settings.alpacahack_solve_time)
         self.alpacahack_solves.start()
 
@@ -296,6 +302,16 @@ class Alpacahack(
             self._to_user_message(result),
             ephemeral=True,
         )
+        if result.status == UserMutationStatus.CREATED:
+            await log_command_history(
+                self,
+                interaction,
+                command_name="/alpaca add",
+                details=(
+                    f"ユーザー名: {sanitize_audit_text(result.normalized_name)}",
+                    "結果: ユーザーを登録しました。",
+                ),
+            )
 
     @app_commands.command(
         name="del",
@@ -309,6 +325,16 @@ class Alpacahack(
             self._to_user_message(result),
             ephemeral=True,
         )
+        if result.status == UserMutationStatus.DELETED:
+            await log_command_history(
+                self,
+                interaction,
+                command_name="/alpaca del",
+                details=(
+                    f"ユーザー名: {sanitize_audit_text(result.normalized_name)}",
+                    "結果: ユーザー登録を削除しました。",
+                ),
+            )
 
     @app_commands.command(
         name="list",
