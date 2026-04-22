@@ -64,7 +64,7 @@ uv run python src/main.py
   - `Manage Roles`（ロールの管理）
 - `Manage Roles` を使う機能のために、bot のロールは作成・付与対象のロールより上位に置く
 
-## 運用メモ
+## 運用前提
 
 - CTFtime の通知先は `BOT_CHANNEL_ID`
   `/ctfteam open|close|archive`, `/times create`, `/alpaca add|del` のような write 系コマンドの実行履歴も同じチャンネルへ送信する
@@ -72,7 +72,7 @@ uv run python src/main.py
 - 接続状態通知は `BOT_STATUS_CHANNEL_ID` を設定した場合のみ送信
 - 設定項目の一覧は `.env.example` と `src/bot/config.py` を参照
 - DB schema は current-only。schema version が current と一致しない DB は起動時に拒否される
-- 旧 `ctf_role_campaign` を使っている DB は、bot 起動前に `python scripts/migrate_ctf_team_db.py <db_path> [--rename-to ctfbot.db]` を手動実行して current schema に変換する
+- 旧 `ctf_role_campaign` を使っている DB を持ち込む場合は、bot 起動前に手動移行する。手順は `docs/LEGACY_DB_MIGRATION.md` を参照
 
 ## ドキュメントの役割
 
@@ -80,5 +80,7 @@ uv run python src/main.py
   セットアップ、運用前提、起動方法
 - `docs/DEVELOPMENT_GUIDE.md`
   人間向けの設計と開発手順
+- `docs/LEGACY_DB_MIGRATION.md`
+  旧 `ctf_role_campaign` DB を current schema に手動移行する手順
 - `AGENTS.md`
   Codex などの coding agent 向けの実装規約と検証手順
