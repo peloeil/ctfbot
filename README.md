@@ -67,6 +67,7 @@ uv run python src/main.py
 ## 運用メモ
 
 - CTFtime の通知先は `BOT_CHANNEL_ID`
+  `/ctfteam open|close|archive`, `/times create`, `/alpaca add|del` のような write 系コマンドの実行履歴も同じチャンネルへ送信する
 - AlpacaHack の週次通知先は `ctf` カテゴリ配下の `#alpacahack`
 - 接続状態通知は `BOT_STATUS_CHANNEL_ID` を設定した場合のみ送信
 - 設定項目の一覧は `.env.example` と `src/bot/config.py` を参照
