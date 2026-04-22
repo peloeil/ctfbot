@@ -1,4 +1,5 @@
 import datetime
+from typing import Any, cast
 
 import discord
 
@@ -9,6 +10,7 @@ async def send_message_safely(
     channel: discord.abc.Messageable,
     content: str | None = None,
     embed: discord.Embed | None = None,
+    allowed_mentions: discord.AllowedMentions | None = None,
 ) -> discord.Message | None:
     """
     Safely send a message to a channel with error handling.
@@ -17,6 +19,7 @@ async def send_message_safely(
         channel: The channel to send the message to
         content: The message content (optional)
         embed: The embed to send (optional)
+        allowed_mentions: Optional mention policy override
 
     Returns:
         The sent message or None if sending failed
@@ -24,13 +27,23 @@ async def send_message_safely(
     if content is None and embed is None:
         raise ValueError("Either content or embed must be provided")
 
+    sender = cast(Any, channel)
+
     try:
         if content is not None and embed is not None:
-            return await channel.send(content=content, embed=embed)
+            return await sender.send(
+                content,
+                embed=embed,
+                allowed_mentions=allowed_mentions,
+            )
         if content is not None:
-            return await channel.send(content=content)
+            return await sender.send(content, allowed_mentions=allowed_mentions)
         assert embed is not None
-        return await channel.send(embed=embed)
+        return await sender.send(
+            None,
+            embed=embed,
+            allowed_mentions=allowed_mentions,
+        )
     except discord.HTTPException:
         logger.exception("Failed to send message")
         return None
