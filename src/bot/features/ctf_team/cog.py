@@ -9,6 +9,11 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from ...cogs._runtime import get_runtime
+from ...command_audit import (
+    CommandAuditLogger,
+    log_command_history,
+    sanitize_audit_text,
+)
 from ...log import logger
 from ...utils.helpers import (
     send_interaction_message,
@@ -118,6 +123,7 @@ class CTFTeamCampaigns(
         self.runtime = get_runtime(bot)
         self.settings = self.runtime.settings
         self.usecase = self.runtime.ctf_team_usecase
+        self.command_audit_logger = CommandAuditLogger(bot)
         self.timezone_label = getattr(
             self.settings.tzinfo, "key", self.settings.timezone
         )
@@ -1188,6 +1194,16 @@ class CTFTeamCampaigns(
                 f"🧹 {MANUAL_ARCHIVE_GUIDANCE}",
                 ephemeral=True,
             )
+            await log_command_history(
+                self,
+                interaction,
+                command_name="/ctfteam close",
+                details=(
+                    f"CTF名: {sanitize_audit_text(campaign.ctf_name)}",
+                    "結果: 募集を終了しました。",
+                    "後処理警告: " + ", ".join(report.warnings),
+                ),
+            )
             return
 
         archive_text = self.usecase.format_unix_datetime_with_relative(
@@ -1205,6 +1221,17 @@ class CTFTeamCampaigns(
             "archive移行まではロールを保持します。\n"
             f"🧹 {MANUAL_ARCHIVE_GUIDANCE}",
             ephemeral=True,
+        )
+        await log_command_history(
+            self,
+            interaction,
+            command_name="/ctfteam close",
+            details=(
+                f"CTF名: {sanitize_audit_text(campaign.ctf_name)}",
+                "結果: 募集を終了しました。",
+                f"終了時点メンバー: {member_count_text}名",
+                f"archive移行予定: {archive_text}",
+            ),
         )
 
     @app_commands.command(
@@ -1284,6 +1311,15 @@ class CTFTeamCampaigns(
             f"`{campaign.ctf_name}` を archive しました。\n"
             "関連チャンネルとロールの整理を実行しました。",
             ephemeral=True,
+        )
+        await log_command_history(
+            self,
+            interaction,
+            command_name="/ctfteam archive",
+            details=(
+                f"CTF名: {sanitize_audit_text(campaign.ctf_name)}",
+                "結果: 募集を archive し、関連チャンネルとロールを整理しました。",
+            ),
         )
 
     @commands.Cog.listener()

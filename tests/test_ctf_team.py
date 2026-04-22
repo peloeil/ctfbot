@@ -27,6 +27,9 @@ from bot.features.ctf_team.models import (  # noqa: E402
     CampaignStatus,
     CTFTeamCampaign,
 )
+from bot.features.ctf_team.open_create_flow import (  # noqa: E402
+    handle_create_modal_submit,
+)
 from bot.features.ctf_team.repository import CTFTeamCampaignRepository  # noqa: E402
 from bot.features.ctf_team.service import CTFTeamService  # noqa: E402
 from bot.features.ctf_team.usecase import CTFTeamUseCase  # noqa: E402
@@ -521,6 +524,93 @@ class CTFTeamCogHelperTests(unittest.TestCase):
 
 
 class CTFTeamCommandTests(unittest.IsolatedAsyncioTestCase):
+    async def test_open_create_modal_submit_audits_created_campaign(self) -> None:
+        draft = CampaignDraft(
+            ctf_name="SECCON CTF",
+            start_at_unix=1_700_000_000,
+            end_at_unix=1_700_003_600,
+        )
+        campaign = CTFTeamCampaign(
+            id=1,
+            guild_id=10,
+            channel_id=100,
+            message_id=200,
+            role_id=300,
+            ctf_name=draft.ctf_name,
+            start_at_unix=draft.start_at_unix,
+            end_at_unix=draft.end_at_unix,
+            status=CampaignStatus.ACTIVE,
+            created_by=400,
+            created_at_unix=1_699_999_000,
+            discussion_channel_id=500,
+            voice_channel_id=600,
+        )
+        role = SimpleNamespace(id=300, mention="<@&300>")
+        discussion_channel = SimpleNamespace(id=500, mention="<#500>")
+        voice_channel = SimpleNamespace(id=600, mention="<#600>")
+        announce_channel = SimpleNamespace(id=100, mention="<#100>")
+        message = SimpleNamespace(
+            id=200,
+            jump_url="https://discord.com/channels/10/100/200",
+            add_reaction=AsyncMock(),
+        )
+        guild = SimpleNamespace(
+            id=10,
+            create_role=AsyncMock(return_value=role),
+        )
+        interaction = SimpleNamespace(
+            guild=guild,
+            user=SimpleNamespace(id=400),
+            response=SimpleNamespace(defer=AsyncMock()),
+            followup=SimpleNamespace(send=AsyncMock()),
+        )
+        typed_interaction = cast(discord.Interaction, interaction)
+
+        cog = object.__new__(CTFTeamCampaigns)
+        cog.usecase = SimpleNamespace(
+            validate_campaign_draft=lambda **_kwargs: SimpleNamespace(
+                is_valid=True,
+                error_message="",
+                draft=draft,
+            ),
+            create_campaign=lambda **_kwargs: campaign,
+            is_campaign_started=lambda _campaign: False,
+        )
+        cog._resolve_role_announce_channel = lambda _guild: announce_channel
+        cog._create_ctf_discussion_channel = AsyncMock(return_value=discussion_channel)
+        cog._create_ctf_voice_channel = AsyncMock(return_value=voice_channel)
+        cog._build_recruitment_message = lambda **_kwargs: "募集本文"
+        cog._cleanup_created_resources = AsyncMock()
+
+        with (
+            patch(
+                "bot.features.ctf_team.open_create_flow.send_message_safely",
+                new=AsyncMock(return_value=message),
+            ),
+            patch(
+                "bot.features.ctf_team.open_create_flow.log_command_history",
+                new=AsyncMock(),
+            ) as audit_mock,
+        ):
+            await handle_create_modal_submit(
+                cog,
+                typed_interaction,
+                ctf_name=draft.ctf_name,
+                role_color_value=0xFF6600,
+                start_at_raw="2026-11-01 10:00",
+                end_at_raw="2026-11-03 10:00",
+            )
+
+        interaction.followup.send.assert_awaited_once()
+        audit_mock.assert_awaited_once()
+        audit_args = audit_mock.await_args
+        assert audit_args is not None
+        self.assertEqual(audit_args.args[0], cog)
+        self.assertEqual(audit_args.args[1], interaction)
+        self.assertEqual(audit_args.kwargs["command_name"], "/ctfteam open")
+        self.assertIn("CTF名: SECCON CTF", audit_args.kwargs["details"])
+        self.assertIn("ロールカラー: #ff6600", audit_args.kwargs["details"])
+
     async def test_close_command_mentions_manual_archive(self) -> None:
         campaign = CTFTeamCampaign(
             id=3,
@@ -558,7 +648,11 @@ class CTFTeamCommandTests(unittest.IsolatedAsyncioTestCase):
             )
         )
 
-        await CTFTeamCampaigns.close.callback(cog, interaction, "Closed CTF")
+        with patch(
+            "bot.features.ctf_team.cog.log_command_history",
+            new=AsyncMock(),
+        ) as audit_mock:
+            await CTFTeamCampaigns.close.callback(cog, interaction, "Closed CTF")
 
         interaction.followup.send.assert_awaited_once()
         sent_content = interaction.followup.send.await_args.args[0]
@@ -567,6 +661,13 @@ class CTFTeamCommandTests(unittest.IsolatedAsyncioTestCase):
             "🧹 作成者は必要に応じて `/ctfteam archive` で手動 archive できます。",
             sent_content,
         )
+        audit_mock.assert_awaited_once()
+        audit_args = audit_mock.await_args
+        assert audit_args is not None
+        self.assertEqual(audit_args.args[0], cog)
+        self.assertEqual(audit_args.args[1], interaction)
+        self.assertEqual(audit_args.kwargs["command_name"], "/ctfteam close")
+        self.assertIn("CTF名: Closed CTF", audit_args.kwargs["details"])
 
     async def test_archive_command_archives_pending_closed_campaign(self) -> None:
         campaign = CTFTeamCampaign(
@@ -601,7 +702,15 @@ class CTFTeamCommandTests(unittest.IsolatedAsyncioTestCase):
         )
         cog._archive_campaign = AsyncMock(return_value=(True, ()))
 
-        await CTFTeamCampaigns.archive.callback(cog, interaction, "ArchiveTarget CTF")
+        with patch(
+            "bot.features.ctf_team.cog.log_command_history",
+            new=AsyncMock(),
+        ) as audit_mock:
+            await CTFTeamCampaigns.archive.callback(
+                cog,
+                interaction,
+                "ArchiveTarget CTF",
+            )
 
         interaction.response.defer.assert_awaited_once_with(
             ephemeral=True,
@@ -616,6 +725,11 @@ class CTFTeamCommandTests(unittest.IsolatedAsyncioTestCase):
             "関連チャンネルとロールの整理を実行しました。",
             ephemeral=True,
         )
+        audit_mock.assert_awaited_once()
+        audit_args = audit_mock.await_args
+        assert audit_args is not None
+        self.assertEqual(audit_args.kwargs["command_name"], "/ctfteam archive")
+        self.assertIn("CTF名: ArchiveTarget CTF", audit_args.kwargs["details"])
 
     async def test_archive_command_requests_close_when_campaign_is_active(self) -> None:
         active_campaign = CTFTeamCampaign(

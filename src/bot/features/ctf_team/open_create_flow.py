@@ -6,6 +6,7 @@ from typing import Any
 
 import discord
 
+from ...command_audit import log_command_history, sanitize_audit_text
 from ...errors import ConflictError, RepositoryError
 from ...log import logger
 from ...utils.helpers import send_interaction_message, send_message_safely
@@ -207,3 +208,26 @@ async def handle_create_modal_submit(
             create_warnings
         )
     await interaction.followup.send(summary, ephemeral=True)
+    details = [
+        f"CTF名: {sanitize_audit_text(draft.ctf_name)}",
+        f"開始日時: {sanitize_audit_text(start_at_raw)}",
+        (
+            f"終了日時: {sanitize_audit_text(end_at_raw)}"
+            if end_at_raw.strip()
+            else "終了日時: 未設定"
+        ),
+        f"募集投稿: {message.jump_url}",
+        f"議論チャンネル: {discussion_channel.mention}",
+        f"Voiceチャンネル: {voice_channel.mention}",
+        f"ロール: {role.mention}",
+    ]
+    if role_color_value is not None:
+        details.append(f"ロールカラー: #{role_color_value:06x}")
+    if create_warnings:
+        details.append("開始時警告: " + ", ".join(create_warnings))
+    await log_command_history(
+        cog,
+        interaction,
+        command_name="/ctfteam open",
+        details=details,
+    )
