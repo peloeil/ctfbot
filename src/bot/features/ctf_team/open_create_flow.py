@@ -7,7 +7,7 @@ from typing import Any
 import discord
 
 from ...command_audit import log_command_history, sanitize_audit_text
-from ...errors import ConflictError, RepositoryError
+from ...errors import ConflictError, RepositoryError, ServiceError
 from ...log import logger
 from ...utils.helpers import send_interaction_message, send_message_safely
 from .models import CTFTeamCampaign
@@ -151,6 +151,15 @@ async def handle_create_modal_submit(
             "募集の保存中にエラーが発生しました。",
             ephemeral=True,
         )
+        return
+    except ServiceError as error:
+        await cog._cleanup_created_resources(
+            discussion_channel=discussion_channel,
+            voice_channel=voice_channel,
+            role=role,
+            message=message,
+        )
+        await interaction.followup.send(str(error), ephemeral=True)
         return
     except discord.Forbidden:
         await cog._cleanup_created_resources(

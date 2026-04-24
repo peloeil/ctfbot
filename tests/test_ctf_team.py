@@ -19,7 +19,7 @@ if str(SRC_ROOT) not in sys.path:
 
 from bot.db.connection import DatabaseConnectionFactory  # noqa: E402
 from bot.db.migrations import ensure_current_schema  # noqa: E402
-from bot.errors import RepositoryError  # noqa: E402
+from bot.errors import RepositoryError, ServiceError  # noqa: E402
 from bot.features.ctf_team.archive_flow import archive_campaign  # noqa: E402
 from bot.features.ctf_team.cog import CTFTeamCampaigns  # noqa: E402
 from bot.features.ctf_team.models import (  # noqa: E402
@@ -368,6 +368,42 @@ class CTFTeamUseCaseTests(unittest.TestCase):
 
 
 class CTFTeamCogHelperTests(unittest.TestCase):
+    def test_ensure_ctf_category_resolves_configured_category_id(self) -> None:
+        class FakeCategoryChannel:
+            def __init__(self, channel_id: int) -> None:
+                self.id = channel_id
+                self.guild = SimpleNamespace(id=10)
+                self.channels = []
+
+        category = FakeCategoryChannel(123)
+        guild = SimpleNamespace(
+            id=10,
+            get_channel=lambda channel_id: category if channel_id == 123 else None,
+        )
+        cog = object.__new__(CTFTeamCampaigns)
+        cog.settings = SimpleNamespace(ctf_team_category_id=123)
+        cog.bot = SimpleNamespace(fetch_channel=AsyncMock())
+
+        with patch(
+            "bot.features.ctf_team.cog.discord.CategoryChannel", FakeCategoryChannel
+        ):
+            resolved = asyncio.run(cog._ensure_ctf_category(guild))
+
+        self.assertIs(resolved, category)
+        cog.bot.fetch_channel.assert_not_awaited()
+
+    def test_ensure_archive_category_raises_when_category_id_is_missing(self) -> None:
+        guild = SimpleNamespace(
+            id=10,
+            get_channel=lambda _channel_id: None,
+        )
+        cog = object.__new__(CTFTeamCampaigns)
+        cog.settings = SimpleNamespace(ctf_team_archive_category_id=999)
+        cog.bot = SimpleNamespace(fetch_channel=AsyncMock(return_value=None))
+
+        with self.assertRaises(ServiceError):
+            asyncio.run(cog._ensure_archive_category(guild))
+
     def test_build_channel_base_name_normalizes_text(self) -> None:
         channel_name = CTFTeamCampaigns._build_channel_base_name(
             "  SECCON CTF 13 Finals!!  "

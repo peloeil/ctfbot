@@ -14,6 +14,7 @@ from ...command_audit import (
     log_command_history,
     sanitize_audit_text,
 )
+from ...errors import ServiceError
 from ...log import logger
 from ...utils.helpers import (
     send_interaction_message,
@@ -43,8 +44,6 @@ CLOSED_HEADER = "🔒 **この募集は終了しました。**"
 MANUAL_ARCHIVE_GUIDANCE = (
     "作成者は必要に応じて `/ctfteam archive` で手動 archive できます。"
 )
-CTF_CATEGORY_NAME = "ctf"
-ARCHIVE_CATEGORY_NAME = "archive"
 ROLE_ANNOUNCE_CHANNEL_NAME = "role"
 FALLBACK_CHANNEL_NAME = "ctf"
 MAX_CHANNEL_NAME_LENGTH = 100
@@ -184,6 +183,25 @@ class CTFTeamCampaigns(
             return None
 
         if isinstance(fetched, discord.VoiceChannel):
+            return fetched
+        return None
+
+    async def _resolve_category_channel(
+        self, guild: discord.Guild, channel_id: int
+    ) -> discord.CategoryChannel | None:
+        cached = guild.get_channel(channel_id)
+        if isinstance(cached, discord.CategoryChannel):
+            return cached
+
+        try:
+            fetched = await self.bot.fetch_channel(channel_id)
+        except discord.Forbidden, discord.NotFound, discord.HTTPException:
+            return None
+
+        if (
+            isinstance(fetched, discord.CategoryChannel)
+            and fetched.guild.id == guild.id
+        ):
             return fetched
         return None
 
@@ -368,26 +386,30 @@ class CTFTeamCampaigns(
     async def _ensure_ctf_category(
         self, guild: discord.Guild
     ) -> discord.CategoryChannel:
-        for category in guild.categories:
-            if category.name.strip().lower() == CTF_CATEGORY_NAME:
-                return category
-
-        return await guild.create_category(
-            CTF_CATEGORY_NAME,
-            reason="Create CTF category for ctfteam campaigns",
+        category = await self._resolve_category_channel(
+            guild,
+            self.settings.ctf_team_category_id,
         )
+        if category is None:
+            raise ServiceError(
+                "`CTF_TEAM_CATEGORY_ID` に対応するカテゴリが"
+                "このサーバー内に見つかりません。"
+            )
+        return category
 
     async def _ensure_archive_category(
         self, guild: discord.Guild
     ) -> discord.CategoryChannel:
-        for category in guild.categories:
-            if category.name.strip().lower() == ARCHIVE_CATEGORY_NAME:
-                return category
-
-        return await guild.create_category(
-            ARCHIVE_CATEGORY_NAME,
-            reason="Create archive category for ctfteam campaigns",
+        category = await self._resolve_category_channel(
+            guild,
+            self.settings.ctf_team_archive_category_id,
         )
+        if category is None:
+            raise ServiceError(
+                "`CTF_TEAM_ARCHIVE_CATEGORY_ID` に対応するカテゴリが"
+                "このサーバー内に見つかりません。"
+            )
+        return category
 
     async def _create_ctf_discussion_channel(
         self,
@@ -558,7 +580,7 @@ class CTFTeamCampaigns(
                 exc_info=error,
             )
             return True
-        except (discord.Forbidden, discord.HTTPException) as error:
+        except (ServiceError, discord.Forbidden, discord.HTTPException) as error:
             logger.warning(
                 "Failed to archive discussion channel for campaign=%s guild=%s "
                 "channel=%s",
