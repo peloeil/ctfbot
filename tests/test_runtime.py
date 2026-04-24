@@ -27,6 +27,8 @@ class RuntimeProviderTests(unittest.TestCase):
             discord_token="token",
             bot_channel_id=0,
             bot_status_channel_id=0,
+            ctf_team_category_id=123456789012345678,
+            ctf_team_archive_category_id=223456789012345678,
             timezone="Asia/Tokyo",
             tzinfo=tz,
             log_level="INFO",

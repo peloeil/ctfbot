@@ -94,6 +94,8 @@ class Settings:
     discord_token: str
     bot_channel_id: int
     bot_status_channel_id: int
+    ctf_team_category_id: int
+    ctf_team_archive_category_id: int
     timezone: str
     tzinfo: ZoneInfo
     log_level: str
@@ -130,6 +132,16 @@ def load_settings(
         discord_token=_read_required_str(env, "DISCORD_TOKEN"),
         bot_channel_id=_read_int(env, "BOT_CHANNEL_ID", min_value=0),
         bot_status_channel_id=_read_int(env, "BOT_STATUS_CHANNEL_ID", min_value=0),
+        ctf_team_category_id=_read_int(
+            env,
+            "CTF_TEAM_CATEGORY_ID",
+            min_value=1,
+        ),
+        ctf_team_archive_category_id=_read_int(
+            env,
+            "CTF_TEAM_ARCHIVE_CATEGORY_ID",
+            min_value=1,
+        ),
         timezone=timezone,
         tzinfo=tzinfo,
         log_level=_read_log_level(env),
