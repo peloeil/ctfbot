@@ -25,7 +25,8 @@ uv sync --group dev
 cp .env.example .env
 ```
 
-3. 最低限 `DISCORD_TOKEN` を設定します。
+3. 最低限 `DISCORD_TOKEN`, `CTF_TEAM_CATEGORY_ID`,
+   `CTF_TEAM_ARCHIVE_CATEGORY_ID` を設定します。
 
 4. bot を起動します。
 
@@ -63,11 +64,16 @@ uv run python src/main.py
   - `Add Reactions`（リアクションを付ける）
   - `Manage Roles`（ロールの管理）
 - `Manage Roles` を使う機能のために、bot のロールは作成・付与対象のロールより上位に置く
+- `/ctfteam` を使う場合、募集用カテゴリと archive 用カテゴリを事前に作成し、
+  そのカテゴリ ID を `.env` の `CTF_TEAM_CATEGORY_ID`,
+  `CTF_TEAM_ARCHIVE_CATEGORY_ID` に設定する
 
 ## 運用前提
 
 - CTFtime の通知先は `BOT_CHANNEL_ID`
   `/ctfteam open|close|archive`, `/times create`, `/alpaca add|del` のような write 系コマンドの実行履歴も同じチャンネルへ送信する
+- `/ctfteam open` の discussion / voice channel は `CTF_TEAM_CATEGORY_ID` が指すカテゴリ配下に作成する
+- `/ctfteam archive` の discussion channel 移動先は `CTF_TEAM_ARCHIVE_CATEGORY_ID` が指すカテゴリ
 - AlpacaHack の週次通知先は `ctf` カテゴリ配下の `#alpacahack`
 - 接続状態通知は `BOT_STATUS_CHANNEL_ID` を設定した場合のみ送信
 - 設定項目の一覧は `.env.example` と `src/bot/config.py` を参照
