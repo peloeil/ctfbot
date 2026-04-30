@@ -363,12 +363,36 @@ class TestCTFBotStatusNotifications(unittest.IsolatedAsyncioTestCase):
     async def test_on_disconnect_preserves_first_timestamp_before_reconnect(self):
         bot, _gateway, channel = self._build_bot()
 
-        await bot.on_disconnect()
+        with patch("bot.app.time.monotonic_ns", return_value=1_000_000_000):
+            await bot.on_disconnect()
         first_disconnect_at = bot._last_disconnect_at
+        first_disconnect_monotonic_ns = bot._last_disconnect_monotonic_ns
         await bot.on_disconnect()
 
         channel.send.assert_not_awaited()
         self.assertEqual(bot._last_disconnect_at, first_disconnect_at)
+        self.assertEqual(
+            bot._last_disconnect_monotonic_ns, first_disconnect_monotonic_ns
+        )
+
+    async def test_on_ready_reports_reconnect_downtime_from_monotonic_clock(self):
+        bot, gateway, channel = self._build_bot()
+        bot._connection.user = Mock()
+        bot._has_announced_ready = True
+
+        with patch(
+            "bot.app.time.monotonic_ns",
+            side_effect=[1_000_000_000, 66_900_000_000],
+        ):
+            await bot.on_disconnect()
+            await bot.on_ready()
+
+        gateway.resolve_messageable_channel.assert_awaited_once_with(
+            bot.settings.bot_status_channel_id
+        )
+        channel.send.assert_awaited_once_with("🟢 ctfbot reconnected (downtime 65s)")
+        self.assertIsNone(bot._last_disconnect_at)
+        self.assertIsNone(bot._last_disconnect_monotonic_ns)
 
     async def test_close_sends_disconnecting_message_once(self):
         bot, gateway, channel = self._build_bot()

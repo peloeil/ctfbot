@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 import signal
+import time
 from collections.abc import Callable
 from types import FrameType
 from typing import cast
@@ -30,6 +31,7 @@ class CTFBot(commands.Bot):
         self._has_announced_ready = False
         self._is_closing = False
         self._last_disconnect_at: datetime.datetime | None = None
+        self._last_disconnect_monotonic_ns: int | None = None
         self._shutdown_requested_by_sigint = False
 
     async def setup_hook(self) -> None:
@@ -51,11 +53,22 @@ class CTFBot(commands.Bot):
             )
             self._has_announced_ready = True
         elif self._last_disconnect_at is not None:
-            downtime = now - self._last_disconnect_at
+            if self._last_disconnect_monotonic_ns is None:
+                logger.warning(
+                    "Reconnect event received without monotonic disconnect timestamp"
+                )
+                downtime_seconds = 0
+            else:
+                downtime_seconds = max(
+                    0,
+                    (time.monotonic_ns() - self._last_disconnect_monotonic_ns)
+                    // 1_000_000_000,
+                )
             await self._send_status_message(
-                f"🟢 ctfbot reconnected (downtime {int(downtime.total_seconds())}s)"
+                f"🟢 ctfbot reconnected (downtime {downtime_seconds}s)"
             )
         self._last_disconnect_at = None
+        self._last_disconnect_monotonic_ns = None
 
     async def on_disconnect(self) -> None:
         if self._last_disconnect_at is not None:
@@ -67,6 +80,7 @@ class CTFBot(commands.Bot):
 
         now = datetime.datetime.now(self.settings.tzinfo)
         self._last_disconnect_at = now
+        self._last_disconnect_monotonic_ns = time.monotonic_ns()
         logger.warning("Disconnected at %s", now.isoformat())
 
     async def close(self) -> None:
