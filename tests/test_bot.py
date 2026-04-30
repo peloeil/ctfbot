@@ -394,6 +394,31 @@ class TestCTFBotStatusNotifications(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(bot._last_disconnect_at)
         self.assertIsNone(bot._last_disconnect_monotonic_ns)
 
+    async def test_on_resumed_reports_reconnect_downtime_and_clears_disconnect(self):
+        bot, gateway, channel = self._build_bot()
+
+        with patch(
+            "bot.app.time.monotonic_ns",
+            side_effect=[1_000_000_000, 3_500_000_000],
+        ):
+            await bot.on_disconnect()
+            await bot.on_resumed()
+
+        gateway.resolve_messageable_channel.assert_awaited_once_with(
+            bot.settings.bot_status_channel_id
+        )
+        channel.send.assert_awaited_once_with("🟢 ctfbot reconnected (downtime 2s)")
+        self.assertIsNone(bot._last_disconnect_at)
+        self.assertIsNone(bot._last_disconnect_monotonic_ns)
+
+    async def test_on_resumed_without_disconnect_does_not_send_status_message(self):
+        bot, gateway, channel = self._build_bot()
+
+        await bot.on_resumed()
+
+        gateway.resolve_messageable_channel.assert_not_called()
+        channel.send.assert_not_awaited()
+
     async def test_close_sends_disconnecting_message_once(self):
         bot, gateway, channel = self._build_bot()
         bot.mark_shutdown_requested_by_sigint()

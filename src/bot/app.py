@@ -53,22 +53,7 @@ class CTFBot(commands.Bot):
             )
             self._has_announced_ready = True
         elif self._last_disconnect_at is not None:
-            if self._last_disconnect_monotonic_ns is None:
-                logger.warning(
-                    "Reconnect event received without monotonic disconnect timestamp"
-                )
-                downtime_seconds = 0
-            else:
-                downtime_seconds = max(
-                    0,
-                    (time.monotonic_ns() - self._last_disconnect_monotonic_ns)
-                    // 1_000_000_000,
-                )
-            await self._send_status_message(
-                f"🟢 ctfbot reconnected (downtime {downtime_seconds}s)"
-            )
-        self._last_disconnect_at = None
-        self._last_disconnect_monotonic_ns = None
+            await self._announce_reconnected()
 
     async def on_disconnect(self) -> None:
         if self._last_disconnect_at is not None:
@@ -82,6 +67,11 @@ class CTFBot(commands.Bot):
         self._last_disconnect_at = now
         self._last_disconnect_monotonic_ns = time.monotonic_ns()
         logger.warning("Disconnected at %s", now.isoformat())
+
+    async def on_resumed(self) -> None:
+        logger.info("Discord gateway session resumed")
+        if self._last_disconnect_at is not None:
+            await self._announce_reconnected()
 
     async def close(self) -> None:
         self._is_closing = True
@@ -105,6 +95,24 @@ class CTFBot(commands.Bot):
             await channel.send(content)
         except discord.Forbidden, discord.HTTPException:
             logger.exception("Failed to send status message")
+
+    async def _announce_reconnected(self) -> None:
+        if self._last_disconnect_monotonic_ns is None:
+            logger.warning(
+                "Reconnect event received without monotonic disconnect timestamp"
+            )
+            downtime_seconds = 0
+        else:
+            downtime_seconds = max(
+                0,
+                (time.monotonic_ns() - self._last_disconnect_monotonic_ns)
+                // 1_000_000_000,
+            )
+        await self._send_status_message(
+            f"🟢 ctfbot reconnected (downtime {downtime_seconds}s)"
+        )
+        self._last_disconnect_at = None
+        self._last_disconnect_monotonic_ns = None
 
 
 def create_bot(settings: Settings | None = None) -> CTFBot:
