@@ -351,67 +351,26 @@ class TestCTFBotStatusNotifications(unittest.IsolatedAsyncioTestCase):
             bot = CTFBot(runtime)
         return bot, gateway, channel
 
-    async def test_on_disconnect_records_timestamp_without_sending_status_message(self):
+    async def test_on_disconnect_does_not_send_status_message(self):
         bot, gateway, channel = self._build_bot()
 
         await bot.on_disconnect()
 
         gateway.resolve_messageable_channel.assert_not_called()
         channel.send.assert_not_awaited()
-        self.assertIsNotNone(bot._last_disconnect_at)
 
-    async def test_on_disconnect_preserves_first_timestamp_before_reconnect(self):
-        bot, _gateway, channel = self._build_bot()
-
-        with patch("bot.app.time.monotonic_ns", return_value=1_000_000_000):
-            await bot.on_disconnect()
-        first_disconnect_at = bot._last_disconnect_at
-        first_disconnect_monotonic_ns = bot._last_disconnect_monotonic_ns
-        await bot.on_disconnect()
-
-        channel.send.assert_not_awaited()
-        self.assertEqual(bot._last_disconnect_at, first_disconnect_at)
-        self.assertEqual(
-            bot._last_disconnect_monotonic_ns, first_disconnect_monotonic_ns
-        )
-
-    async def test_on_ready_reports_reconnect_downtime_from_monotonic_clock(self):
+    async def test_on_ready_after_initial_connect_does_not_send_reconnect_status(self):
         bot, gateway, channel = self._build_bot()
         bot._connection.user = Mock()
         bot._has_announced_ready = True
 
-        with patch(
-            "bot.app.time.monotonic_ns",
-            side_effect=[1_000_000_000, 66_900_000_000],
-        ):
-            await bot.on_disconnect()
-            await bot.on_ready()
+        await bot.on_disconnect()
+        await bot.on_ready()
 
-        gateway.resolve_messageable_channel.assert_awaited_once_with(
-            bot.settings.bot_status_channel_id
-        )
-        channel.send.assert_awaited_once_with("🟢 ctfbot reconnected (downtime 65s)")
-        self.assertIsNone(bot._last_disconnect_at)
-        self.assertIsNone(bot._last_disconnect_monotonic_ns)
+        gateway.resolve_messageable_channel.assert_not_called()
+        channel.send.assert_not_awaited()
 
-    async def test_on_resumed_reports_reconnect_downtime_and_clears_disconnect(self):
-        bot, gateway, channel = self._build_bot()
-
-        with patch(
-            "bot.app.time.monotonic_ns",
-            side_effect=[1_000_000_000, 3_500_000_000],
-        ):
-            await bot.on_disconnect()
-            await bot.on_resumed()
-
-        gateway.resolve_messageable_channel.assert_awaited_once_with(
-            bot.settings.bot_status_channel_id
-        )
-        channel.send.assert_awaited_once_with("🟢 ctfbot reconnected (downtime 2s)")
-        self.assertIsNone(bot._last_disconnect_at)
-        self.assertIsNone(bot._last_disconnect_monotonic_ns)
-
-    async def test_on_resumed_without_disconnect_does_not_send_status_message(self):
+    async def test_on_resumed_does_not_send_status_message(self):
         bot, gateway, channel = self._build_bot()
 
         await bot.on_resumed()
