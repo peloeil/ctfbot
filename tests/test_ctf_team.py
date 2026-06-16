@@ -177,7 +177,7 @@ class CTFTeamUseCaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             usecase, service = self._build_usecase(str(Path(tmpdir) / "ctfbot.db"))
             now = service.now()
-            for index in range(3):
+            for index in range(5):
                 draft = CampaignDraft(
                     ctf_name=f"CTF-{index}",
                     start_at_unix=service.to_unix(now),

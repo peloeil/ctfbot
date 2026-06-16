@@ -11,7 +11,7 @@ from .models import (
 from .repository import CTFTeamCampaignRepository
 from .service import CTFTeamService
 
-DEFAULT_MAX_ACTIVE_CAMPAIGNS_PER_USER = 3
+DEFAULT_MAX_ACTIVE_CAMPAIGNS_PER_USER = 5
 DEFAULT_MAX_CTF_NAME_LENGTH = 60
 DEFAULT_ARCHIVE_DELAY_DAYS = 30
 
