@@ -17,6 +17,8 @@ from bot.db import Database
 from bot.errors import ExternalAPIError
 from bot.helpers import log_audit, resolve_messageable, send_interaction, send_safely
 
+MAX_EMBED_FIELDS = 25
+
 
 @dataclass(frozen=True, slots=True)
 class SolveRecord:
@@ -179,7 +181,9 @@ def _build_summary_embed(summary: WeeklySolveSummary) -> discord.Embed:
     if summary.failed_users:
         description += f"\n取得失敗 {len(summary.failed_users)}人"
     embed = discord.Embed(title="🦙 AlpacaHack 今週の solve", description=description)
-    for username, solves in summary.weekly_solves.items():
+    visible_items = list(summary.weekly_solves.items())[: MAX_EMBED_FIELDS - 1]
+    omitted_users = max(len(summary.weekly_solves) - len(visible_items), 0)
+    for username, solves in visible_items:
         value_lines: list[str] = []
         for record in solves[:12]:
             if record.challenge_url:
@@ -198,10 +202,16 @@ def _build_summary_embed(summary: WeeklySolveSummary) -> discord.Embed:
             value=value,
             inline=False,
         )
-    if summary.failed_users:
+    if omitted_users or summary.failed_users:
+        extra_lines: list[str] = []
+        if omitted_users:
+            extra_lines.append(f"他 {omitted_users} 人は省略しました。")
+        if summary.failed_users:
+            failed = ", ".join(summary.failed_users)
+            extra_lines.append(f"取得失敗: {failed}")
         embed.add_field(
-            name="⚠️ 取得失敗",
-            value=", ".join(summary.failed_users)[:1024],
+            name="その他 / 取得失敗" if summary.failed_users else "その他",
+            value="\n".join(extra_lines)[:1024],
             inline=False,
         )
     return embed

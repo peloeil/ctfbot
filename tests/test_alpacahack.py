@@ -11,6 +11,8 @@ from bot.errors import ExternalAPIError
 from bot.features.alpacahack import (
     AlpacaHackClient,
     SolveRecord,
+    WeeklySolveSummary,
+    _build_summary_embed,
     collect_weekly_summary,
     get_week_range,
     select_weekly_solves,
@@ -108,6 +110,18 @@ class AlpacaHackTest(unittest.TestCase):
             for suffix in ("", "-wal", "-shm"):
                 with suppress(FileNotFoundError):
                     os.unlink(path + suffix)
+
+    def test_summary_embed_limits_fields(self) -> None:
+        summary = WeeklySolveSummary(
+            week_start=datetime.date(2026, 6, 15),
+            week_end=datetime.date(2026, 6, 21),
+            total_users=30,
+            weekly_solves={f"user{i:02d}": [] for i in range(30)},
+            failed_users=["failed"],
+        )
+        embed = _build_summary_embed(summary)
+        self.assertLessEqual(len(embed.fields), 25)
+        self.assertEqual(embed.fields[-1].name, "その他 / 取得失敗")
 
 
 if __name__ == "__main__":
