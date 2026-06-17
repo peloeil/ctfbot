@@ -65,7 +65,8 @@ class ArchitectureTest(unittest.TestCase):
                 forbidden = {
                     name
                     for name in forbidden
-                    if not name.startswith("bot.features.ctf_team.")
+                    if name != "bot.features.ctf_team"
+                    and not name.startswith("bot.features.ctf_team.")
                 }
             self.assertFalse(forbidden, f"{module} imports {sorted(forbidden)}")
 
