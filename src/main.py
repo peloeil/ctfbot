@@ -1,10 +1,4 @@
-from bot.app import create_bot, run_bot
-
-
-def main() -> None:
-    bot = create_bot()
-    run_bot(bot)
-
+from bot.__main__ import main
 
 if __name__ == "__main__":
     main()
