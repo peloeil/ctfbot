@@ -287,6 +287,12 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
             return
 
         archive_at = await self._close_campaign_resources(guild, found)
+        if archive_at is None:
+            await send_interaction(
+                interaction,
+                "Discord リソースの更新に失敗したため、募集を終了しませんでした。",
+            )
+            return
         await send_interaction(
             interaction,
             f"**{found.ctf_name}** を終了しました。archive 予定: "
@@ -327,7 +333,13 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
             )
             return
 
-        await self._archive_campaign_resources(guild, found)
+        if not await self._archive_campaign_resources(guild, found):
+            await send_interaction(
+                interaction,
+                "Discord リソースの archive に失敗したため、"
+                "DB状態を更新しませんでした。",
+            )
+            return
         await send_interaction(
             interaction, f"**{found.ctf_name}** を archive しました。"
         )
@@ -474,52 +486,75 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
 
     async def _close_campaign_resources(
         self, guild: discord.Guild, item: Campaign
-    ) -> int:
+    ) -> int | None:
         closed_at, archive_at = campaign.calculate_close(self.settings.tzinfo)
-        was_closed = await asyncio.to_thread(
-            self.db.close_campaign, item.id, closed_at, archive_at
-        )
-        if not was_closed:
-            return item.archive_at_unix or archive_at
 
+        ok = True
         disc_ch = guild.get_channel(item.discussion_channel_id or 0)
         role = guild.get_role(item.role_id)
         if isinstance(disc_ch, discord.TextChannel) and role is not None:
             await discord_ops.send_close_snapshot(disc_ch, item.ctf_name, role)
         recruit_ch = guild.get_channel(item.channel_id)
         if isinstance(recruit_ch, discord.TextChannel):
-            await discord_ops.mark_message_closed(recruit_ch, item.message_id)
-        await discord_ops.delete_voice_channel(self.bot, guild, item.voice_channel_id)
+            ok = await discord_ops.mark_message_closed(recruit_ch, item.message_id)
+        ok = (
+            await discord_ops.delete_voice_channel(
+                self.bot, guild, item.voice_channel_id
+            )
+            and ok
+        )
+        if not ok:
+            logger.warning("Failed to close Discord resources for campaign %s", item.id)
+            return None
+
+        was_closed = await asyncio.to_thread(
+            self.db.close_campaign, item.id, closed_at, archive_at
+        )
+        if not was_closed:
+            return item.archive_at_unix or archive_at
         return archive_at
 
     async def _archive_campaign_resources(
         self, guild: discord.Guild, item: Campaign
-    ) -> None:
+    ) -> bool:
         archive_category = guild.get_channel(self.settings.ctf_team_archive_category_id)
         if not isinstance(archive_category, discord.CategoryChannel):
             logger.warning(
                 "Archive category %s not found",
                 self.settings.ctf_team_archive_category_id,
             )
-            archive_category = None
+            return False
 
+        ok = True
         disc_ch = guild.get_channel(item.discussion_channel_id or 0)
         role = guild.get_role(item.role_id)
-        if isinstance(disc_ch, discord.TextChannel) and archive_category is not None:
-            await discord_ops.archive_discussion_channel(
+        if isinstance(disc_ch, discord.TextChannel):
+            ok = await discord_ops.archive_discussion_channel(
                 disc_ch, archive_category, role, guild.me
             )
-        await discord_ops.delete_voice_channel(self.bot, guild, item.voice_channel_id)
+        ok = (
+            await discord_ops.delete_voice_channel(
+                self.bot, guild, item.voice_channel_id
+            )
+            and ok
+        )
         if role is not None:
             try:
                 await role.delete()
             except discord.Forbidden, discord.HTTPException:
                 logger.warning("Failed to delete role %s", item.role_id)
+                ok = False
+        if not ok:
+            logger.warning(
+                "Failed to archive Discord resources for campaign %s", item.id
+            )
+            return False
         await asyncio.to_thread(
             self.db.mark_archived,
             item.id,
             campaign.now_unix(self.settings.tzinfo),
         )
+        return True
 
 
 def _can_manage_campaign(interaction: discord.Interaction, item: Campaign) -> bool:
