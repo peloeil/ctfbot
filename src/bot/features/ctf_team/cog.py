@@ -501,11 +501,11 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
                 "Archive category %s not found",
                 self.settings.ctf_team_archive_category_id,
             )
-            return
+            archive_category = None
 
         disc_ch = guild.get_channel(item.discussion_channel_id or 0)
         role = guild.get_role(item.role_id)
-        if isinstance(disc_ch, discord.TextChannel):
+        if isinstance(disc_ch, discord.TextChannel) and archive_category is not None:
             await discord_ops.archive_discussion_channel(
                 disc_ch, archive_category, role, guild.me
             )
