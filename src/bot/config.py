@@ -58,13 +58,12 @@ def _read_clock_time(
     *,
     tzinfo: datetime.tzinfo,
 ) -> datetime.time:
-    del tzinfo
     raw = environ.get(name, default).strip()
     try:
         parsed = datetime.datetime.strptime(raw, "%H:%M")
     except ValueError as exc:
         raise ConfigurationError(f"{name} must be HH:MM format.") from exc
-    return parsed.time()
+    return parsed.time().replace(tzinfo=tzinfo)
 
 
 def load_settings(

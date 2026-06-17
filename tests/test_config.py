@@ -31,8 +31,13 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(settings.tzinfo, ZoneInfo("Asia/Tokyo"))
         self.assertEqual(settings.log_level, "INFO")
         self.assertEqual(settings.database_path, "ctfbot.db")
-        self.assertEqual(settings.alpacahack_solve_time, datetime.time(23, 0))
-        self.assertEqual(settings.ctftime_notification_time, datetime.time(9, 0))
+        self.assertEqual(
+            settings.alpacahack_solve_time, datetime.time(23, 0, tzinfo=settings.tzinfo)
+        )
+        self.assertEqual(
+            settings.ctftime_notification_time,
+            datetime.time(9, 0, tzinfo=settings.tzinfo),
+        )
         self.assertEqual(settings.ctftime_window_days, 14)
         self.assertEqual(settings.ctftime_event_limit, 20)
         self.assertEqual(settings.ctftime_user_agent, "ctfbot/2.0 (+discord)")
@@ -67,11 +72,11 @@ class ConfigTest(unittest.TestCase):
         tzinfo = ZoneInfo("Asia/Tokyo")
         self.assertEqual(
             _read_clock_time({"RUN_AT": "01:23"}, "RUN_AT", "23:00", tzinfo=tzinfo),
-            datetime.time(1, 23),
+            datetime.time(1, 23, tzinfo=tzinfo),
         )
         self.assertEqual(
             _read_clock_time({}, "RUN_AT", "23:00", tzinfo=tzinfo),
-            datetime.time(23, 0),
+            datetime.time(23, 0, tzinfo=tzinfo),
         )
         with self.assertRaises(ConfigurationError):
             _read_clock_time({"RUN_AT": "25:99"}, "RUN_AT", "23:00", tzinfo=tzinfo)
