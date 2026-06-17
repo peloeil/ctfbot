@@ -58,6 +58,7 @@ class DatabaseTest(unittest.TestCase):
         self.assertIn("idx_campaign_guild_message", indexes)
         self.assertIn("idx_campaign_status_end", indexes)
         self.assertIn("idx_campaign_guild_status", indexes)
+        self.assertIn("idx_campaign_active_name_unique", indexes)
         self.assertEqual(version, CURRENT_SCHEMA_VERSION)
         Database(self.path)
 

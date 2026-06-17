@@ -41,6 +41,9 @@ CREATE INDEX IF NOT EXISTS idx_campaign_status_end
     ON ctf_team_campaign (status, end_at_unix);
 CREATE INDEX IF NOT EXISTS idx_campaign_guild_status
     ON ctf_team_campaign (guild_id, status, created_at_unix);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_campaign_active_name_unique
+    ON ctf_team_campaign (guild_id, ctf_name)
+    WHERE status = 'active';
 """
 
 _CAMPAIGN_COLUMNS = (
@@ -78,6 +81,8 @@ class Database:
                 "AND name NOT LIKE 'sqlite_%'"
             ).fetchone()[0]
             if version == CURRENT_SCHEMA_VERSION:
+                conn.executescript(_SCHEMA_DDL)
+                conn.commit()
                 return
             if version == 0 and table_count == 0:
                 conn.executescript(_SCHEMA_DDL)
@@ -175,26 +180,29 @@ class Database:
         if self.has_active_campaign_with_name(guild_id, ctf_name):
             raise ConflictError("Active campaign already exists.")
         with self._connection() as conn:
-            cur = conn.execute(
-                "INSERT INTO ctf_team_campaign ("
-                "guild_id, channel_id, message_id, role_id, discussion_channel_id, "
-                "voice_channel_id, ctf_name, start_at_unix, end_at_unix, status, "
-                "created_by, created_at_unix"
-                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)",
-                (
-                    guild_id,
-                    channel_id,
-                    message_id,
-                    role_id,
-                    discussion_channel_id,
-                    voice_channel_id,
-                    ctf_name,
-                    start_at_unix,
-                    end_at_unix,
-                    created_by,
-                    created_at_unix,
-                ),
-            )
+            try:
+                cur = conn.execute(
+                    "INSERT INTO ctf_team_campaign ("
+                    "guild_id, channel_id, message_id, role_id, "
+                    "discussion_channel_id, voice_channel_id, ctf_name, "
+                    "start_at_unix, end_at_unix, status, created_by, created_at_unix"
+                    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)",
+                    (
+                        guild_id,
+                        channel_id,
+                        message_id,
+                        role_id,
+                        discussion_channel_id,
+                        voice_channel_id,
+                        ctf_name,
+                        start_at_unix,
+                        end_at_unix,
+                        created_by,
+                        created_at_unix,
+                    ),
+                )
+            except sqlite3.IntegrityError as exc:
+                raise ConflictError("Active campaign already exists.") from exc
             conn.commit()
             row = conn.execute(
                 f"SELECT {_CAMPAIGN_COLUMNS} FROM ctf_team_campaign WHERE id=?",
