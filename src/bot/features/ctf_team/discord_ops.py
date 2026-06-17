@@ -140,7 +140,9 @@ async def archive_discussion_channel(
 ) -> bool:
     try:
         if bot_member is not None:
-            await discussion.set_permissions(bot_member, manage_channels=True)
+            overwrite = discussion.overwrites_for(bot_member)
+            overwrite.manage_channels = True
+            await discussion.set_permissions(bot_member, overwrite=overwrite)
         await discussion.edit(category=archive_category)
         await discussion.set_permissions(
             discussion.guild.default_role,
