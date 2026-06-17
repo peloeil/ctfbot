@@ -82,6 +82,12 @@ class ConfigTest(unittest.TestCase):
         with self.assertRaises(ConfigurationError):
             load_settings(environ=self.env(CTFTIME_EVENT_LIMIT="0"))
 
+    def test_integer_settings_reject_negative_and_non_integer(self) -> None:
+        with self.assertRaises(ConfigurationError):
+            load_settings(environ=self.env(BOT_CHANNEL_ID="-1"))
+        with self.assertRaises(ConfigurationError):
+            load_settings(environ=self.env(BOT_CHANNEL_ID="not-an-int"))
+
 
 if __name__ == "__main__":
     unittest.main()
