@@ -46,11 +46,32 @@ class DatabaseTest(unittest.TestCase):
                     "SELECT name FROM sqlite_master WHERE type='table'"
                 )
             }
+            indexes = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='index'"
+                )
+            }
             version = conn.execute("PRAGMA user_version").fetchone()[0]
         self.assertIn("alpacahack_user", tables)
         self.assertIn("ctf_team_campaign", tables)
+        self.assertIn("idx_campaign_guild_message", indexes)
+        self.assertIn("idx_campaign_status_end", indexes)
+        self.assertIn("idx_campaign_guild_status", indexes)
         self.assertEqual(version, CURRENT_SCHEMA_VERSION)
         Database(self.path)
+
+    def test_unmanaged_database_raises(self) -> None:
+        fd, path = tempfile.mkstemp()
+        os.close(fd)
+        try:
+            with sqlite3.connect(path) as conn:
+                conn.execute("CREATE TABLE unmanaged (id INTEGER PRIMARY KEY)")
+            with self.assertRaises(RepositoryError):
+                Database(path)
+        finally:
+            with suppress(FileNotFoundError):
+                os.unlink(path)
 
     def test_version_mismatch(self) -> None:
         with sqlite3.connect(self.path) as conn:
@@ -111,6 +132,50 @@ class DatabaseTest(unittest.TestCase):
         self.assertIsNotNone(archived)
         assert archived is not None
         self.assertEqual(archived.id, c.id)
+
+    def test_find_campaign_by_name_archived_filters(self) -> None:
+        c = self.create_campaign("FilterMe")
+        self.assertIsNotNone(
+            self.db.find_campaign_by_name(
+                guild_id=1,
+                ctf_name="filterme",
+                status=CampaignStatus.ACTIVE,
+            )
+        )
+        self.assertTrue(self.db.close_campaign(c.id, 21, 30))
+        closed = self.db.find_campaign_by_name(
+            guild_id=1,
+            ctf_name="FILTERME",
+            status=CampaignStatus.CLOSED,
+            archived=False,
+        )
+        self.assertIsNotNone(closed)
+        self.assertIsNone(
+            self.db.find_campaign_by_name(
+                guild_id=1,
+                ctf_name="FilterMe",
+                status=CampaignStatus.CLOSED,
+                archived=True,
+            )
+        )
+
+    def test_list_campaigns_filters_status_and_orders_desc(self) -> None:
+        active_old = self.create_campaign("Old", message_id=10, created_at_unix=10)
+        active_new = self.create_campaign("New", message_id=11, created_at_unix=20)
+        closed = self.create_campaign("Closed", message_id=12, created_at_unix=30)
+        self.assertTrue(self.db.close_campaign(closed.id, 31, 40))
+
+        active = self.db.list_campaigns(1, "active")
+        self.assertEqual([item.id for item in active], [active_new.id, active_old.id])
+
+        closed_items = self.db.list_campaigns(1, "closed")
+        self.assertEqual([item.id for item in closed_items], [closed.id])
+
+        all_items = self.db.list_campaigns(1, None)
+        self.assertEqual(
+            [item.id for item in all_items],
+            [closed.id, active_new.id, active_old.id],
+        )
 
 
 if __name__ == "__main__":
