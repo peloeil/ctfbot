@@ -67,7 +67,11 @@ class AlpacaHackClient:
         self._timeout = request_timeout
 
     def fetch_solve_records(
-        self, username: str, *, page_interval: float = 0.2
+        self,
+        username: str,
+        *,
+        since: datetime.date | None = None,
+        page_interval: float = 0.2,
     ) -> list[SolveRecord]:
         records: list[SolveRecord] = []
         for page in range(1, _MAX_PAGES + 1):
@@ -90,6 +94,8 @@ class AlpacaHackClient:
             page_records = self._parse_html(response.text)
             records.extend(page_records)
             if len(page_records) < _PAGE_SIZE:
+                break
+            if since and page_records and page_records[-1].solved_at.date() < since:
                 break
         return records
 
@@ -175,7 +181,7 @@ def collect_weekly_summary(
         if index:
             time.sleep(request_interval)
         try:
-            records = client.fetch_solve_records(username)
+            records = client.fetch_solve_records(username, since=week_start)
         except ExternalAPIError:
             failed_users.append(username)
             continue
