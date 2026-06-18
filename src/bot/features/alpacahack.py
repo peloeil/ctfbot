@@ -119,7 +119,7 @@ class AlpacaHackClient:
                 urljoin("https://alpacahack.com", str(href)) if href else None
             )
             ts_cell = cells[2]
-            aria_el = ts_cell.find(attrs={"aria-label": True})
+            aria_el = ts_cell.find(True, attrs={"aria-label": True})
             aria_label = (
                 aria_el["aria-label"]
                 if isinstance(aria_el, Tag)
