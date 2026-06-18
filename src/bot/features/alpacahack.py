@@ -18,6 +18,8 @@ from bot.errors import ExternalAPIError
 from bot.helpers import log_audit, resolve_messageable, send_interaction, send_safely
 
 MAX_EMBED_FIELDS = 25
+_MAX_PAGES = 20
+_PAGE_SIZE = 10
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,16 +66,32 @@ class AlpacaHackClient:
         self._timezone = timezone
         self._timeout = request_timeout
 
-    def fetch_solve_records(self, username: str) -> list[SolveRecord]:
-        try:
-            response = requests.get(
-                f"https://alpacahack.com/users/{username}/solved-challenges",
-                timeout=self._timeout,
-            )
-            response.raise_for_status()
-        except requests.RequestException as exc:
-            raise ExternalAPIError("AlpacaHack からの取得に失敗しました。") from exc
-        return self._parse_html(response.text)
+    def fetch_solve_records(
+        self, username: str, *, page_interval: float = 0.2
+    ) -> list[SolveRecord]:
+        records: list[SolveRecord] = []
+        for page in range(1, _MAX_PAGES + 1):
+            if page > 1:
+                time.sleep(page_interval)
+            params: dict[str, int] = {}
+            if page > 1:
+                params["solvesPage"] = page
+            try:
+                response = requests.get(
+                    f"https://alpacahack.com/users/{username}/solved-challenges",
+                    params=params,
+                    timeout=self._timeout,
+                )
+                response.raise_for_status()
+            except requests.RequestException as exc:
+                raise ExternalAPIError(
+                    "AlpacaHack からの取得に失敗しました。"
+                ) from exc
+            page_records = self._parse_html(response.text)
+            records.extend(page_records)
+            if len(page_records) < _PAGE_SIZE:
+                break
+        return records
 
     def _parse_html(self, html: str) -> list[SolveRecord]:
         soup = BeautifulSoup(html, "html.parser")

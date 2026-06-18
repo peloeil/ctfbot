@@ -68,13 +68,35 @@ class AlpacaHackTest(unittest.TestCase):
         """
         get.return_value = response
         client = AlpacaHackClient(timezone=self.tz)
-        records = client.fetch_solve_records("alice")
+        records = client.fetch_solve_records("alice", page_interval=0)
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0].challenge_name, "Example")
         self.assertEqual(
             records[0].challenge_url, "https://alpacahack.com/challenges/example"
         )
         self.assertEqual(records[0].solved_at.hour, 21)
+
+    @patch("bot.features.alpacahack.requests.get")
+    def test_fetch_solve_records_paginates(self, get: Mock) -> None:
+        def make_page(names: list[str]) -> Mock:
+            rows = "\n".join(
+                f'<tr><td><a href="/challenges/{n}">{n}</a></td>'
+                f"<td>1 solves</td>"
+                f'<td><span aria-label="2026-06-15 12:00 GMT+0">2026/06/15 12:00</span></td></tr>'
+                for n in names
+            )
+            resp = Mock()
+            resp.raise_for_status.return_value = None
+            resp.text = f"<table>{rows}</table>"
+            return resp
+
+        full_page = make_page([f"c{i}" for i in range(10)])
+        partial_page = make_page(["last"])
+        get.side_effect = [full_page, partial_page]
+        client = AlpacaHackClient(timezone=self.tz)
+        records = client.fetch_solve_records("alice", page_interval=0)
+        self.assertEqual(len(records), 11)
+        self.assertEqual(get.call_count, 2)
 
     def test_collect_weekly_summary_mixes_success_and_failure(self) -> None:
         fd, path = tempfile.mkstemp()
