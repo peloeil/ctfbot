@@ -18,6 +18,7 @@ from bot.errors import ExternalAPIError
 from bot.helpers import log_audit, resolve_messageable, send_interaction, send_safely
 
 MAX_EMBED_FIELDS = 25
+ALPACAHACK_EMBED_COLOR = 0xFD8028
 _MAX_PAGES = 20
 _PAGE_SIZE = 10
 
@@ -206,7 +207,11 @@ def _build_summary_embed(summary: WeeklySolveSummary) -> discord.Embed:
     )
     if summary.failed_users:
         description += f"\n取得失敗 {len(summary.failed_users)}人"
-    embed = discord.Embed(title="🦙 AlpacaHack 今週の solve", description=description)
+    embed = discord.Embed(
+        title="🦙 AlpacaHack 今週の solve",
+        description=description,
+        color=ALPACAHACK_EMBED_COLOR,
+    )
     visible_items = list(summary.weekly_solves.items())[: MAX_EMBED_FIELDS - 1]
     omitted_users = max(len(summary.weekly_solves) - len(visible_items), 0)
     for username, solves in visible_items:
