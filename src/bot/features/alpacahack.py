@@ -67,7 +67,7 @@ class AlpacaHackClient:
     def fetch_solve_records(self, username: str) -> list[SolveRecord]:
         try:
             response = requests.get(
-                f"https://alpacahack.com/users/{username}",
+                f"https://alpacahack.com/users/{username}/solved-challenges",
                 timeout=self._timeout,
             )
             response.raise_for_status()
@@ -93,11 +93,12 @@ class AlpacaHackClient:
             challenge_url = (
                 urljoin("https://alpacahack.com", str(href)) if href else None
             )
-            time_tag = cells[2].find("time")
+            ts_cell = cells[2]
+            aria_el = ts_cell.find(attrs={"aria-label": True})
             aria_label = (
-                time_tag.get("aria-label")
-                if isinstance(time_tag, Tag)
-                else cells[2].get_text(" ", strip=True)
+                aria_el["aria-label"]
+                if isinstance(aria_el, Tag)
+                else ts_cell.get_text(" ", strip=True)
             )
             solved_at = _parse_solved_at(str(aria_label), self._timezone)
             if solved_at is None:
@@ -129,10 +130,11 @@ def _tag_text(tag: Tag) -> str:
 
 
 def _parse_solved_at(value: str, timezone: datetime.tzinfo) -> datetime.datetime | None:
-    match = re.search(r"(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)", value)
+    match = re.search(r"(\d{4}[-/]\d{2}[-/]\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)", value)
     if match is None:
         return None
-    raw = f"{match.group(1)} {match.group(2)}"
+    date_str = match.group(1).replace("/", "-")
+    raw = f"{date_str} {match.group(2)}"
     fmt = "%Y-%m-%d %H:%M:%S" if raw.count(":") == 2 else "%Y-%m-%d %H:%M"
     parsed = datetime.datetime.strptime(raw, fmt).replace(tzinfo=datetime.UTC)
     return parsed.astimezone(timezone)

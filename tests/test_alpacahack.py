@@ -58,12 +58,11 @@ class AlpacaHackTest(unittest.TestCase):
         response = Mock()
         response.raise_for_status.return_value = None
         response.text = """
-        <h2>SOLVED CHALLENGES</h2>
         <table>
           <tr>
             <td><a href="/challenges/example">Example</a></td>
-            <td>misc</td>
-            <td><time aria-label="2026-06-15 12:34:56"></time></td>
+            <td>33 solves</td>
+            <td><span aria-label="2026-06-15 12:34:56 GMT+0">2026/06/15 12:34</span></td>
           </tr>
         </table>
         """
