@@ -89,9 +89,7 @@ class AlpacaHackClient:
                 )
                 response.raise_for_status()
             except requests.RequestException as exc:
-                raise ExternalAPIError(
-                    "AlpacaHack からの取得に失敗しました。"
-                ) from exc
+                raise ExternalAPIError("AlpacaHack からの取得に失敗しました。") from exc
             page_records = self._parse_html(response.text)
             records.extend(page_records)
             if len(page_records) < _PAGE_SIZE:

@@ -62,7 +62,9 @@ class AlpacaHackTest(unittest.TestCase):
           <tr>
             <td><a href="/challenges/example">Example</a></td>
             <td>33 solves</td>
-            <td><span aria-label="2026-06-15 12:34:56 GMT+0">2026/06/15 12:34</span></td>
+            <td><span aria-label="2026-06-15 12:34:56 GMT+0">
+              2026/06/15 12:34
+            </span></td>
           </tr>
         </table>
         """
@@ -82,7 +84,8 @@ class AlpacaHackTest(unittest.TestCase):
             rows = "\n".join(
                 f'<tr><td><a href="/challenges/{n}">{n}</a></td>'
                 f"<td>1 solves</td>"
-                f'<td><span aria-label="2026-06-15 12:00 GMT+0">2026/06/15 12:00</span></td></tr>'
+                f'<td><span aria-label="2026-06-15 12:00 GMT+0">'
+                f"2026/06/15 12:00</span></td></tr>"
                 for n in names
             )
             resp = Mock()
