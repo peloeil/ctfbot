@@ -1,0 +1,4 @@
+ctfbot.db
+ctfbot.db.bak
+.env
+uv.lock
