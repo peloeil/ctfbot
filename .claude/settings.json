@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run ruff check*)",
+      "Bash(uv run ruff format*)",
+      "Bash(uv run ty check*)",
+      "Bash(uv run python -m unittest*)",
+      "Bash(uv sync*)",
+      "Bash(find *)",
+      "Bash(wc *)",
+      "Bash(git status*)",
+      "Bash(git log*)",
+      "Bash(git diff*)"
+    ],
+    "deny": [
+      "Bash(uv run python src/main.py*)"
+    ]
+  },
+  "hooks": {
+    "PostEdit": [
+      {
+        "type": "command",
+        "command": "case \"$CLAUDE_FILE_PATH\" in *.py) uv run ruff format --quiet \"$CLAUDE_FILE_PATH\" ;; esac",
+        "description": "Auto-format edited Python files with ruff"
+      }
+    ]
+  }
+}
