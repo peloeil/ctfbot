@@ -32,7 +32,7 @@
 4. **`discord_ops.py` は `bot.db` を import しない**
 5. **feature 間の相互 import 禁止** — `alpacahack`, `ctftime`, `times`, `utility`, `ctf_team` は互いを import しない
 6. **BotRuntime は Settings + Database のみ** — API クライアントは各 cog の `__init__` でローカル生成する
-7. **バリデーションは例外ベース** — `ServiceError` を raise し、cog で `try/except ServiceError` で統一
+7. **バリデーションは例外ベース** — 複数ステップの検証は `ServiceError` を raise し cog で `try/except ServiceError` で統一。単純な Discord 入力チェック（空文字・guild 存在確認など）は cog 内で直接応答してよい
 8. **Database は 1 クラスに集約** — 全テーブル・全 SQL が `db.py` に収まる
 9. **blocking I/O は `asyncio.to_thread`** — DB アクセス、HTTP リクエストなど同期処理は必ずスレッド委譲
 

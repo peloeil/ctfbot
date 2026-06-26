@@ -64,7 +64,7 @@ AlpacaHack のスクレイピング用。HTML パーサーとして `html.parser
 
 ### validation は例外ベース
 
-`ServiceError` を raise し、cog で `try/except ServiceError` の 1 パターンで統一する。新しいバリデーション項目追加時も `raise ServiceError("...")` を書くだけで呼び出し側の変更が不要。
+複数ステップの検証は `ServiceError` を raise し、cog で `try/except ServiceError` の 1 パターンで統一する。新しいバリデーション項目追加時も `raise ServiceError("...")` を書くだけで呼び出し側の変更が不要。単純な Discord 入力チェック（空文字・guild 存在確認など）は cog 内で直接応答してよい。
 
 ### Database を 1 クラスに集約する
 
