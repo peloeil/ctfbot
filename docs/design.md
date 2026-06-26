@@ -6,7 +6,7 @@
 
 ### 型の境界でモジュールを分割する
 
-Discord オブジェクト（`guild`, `role`, `channel`）を受け取る関数と、プリミティブ型のみで動く関数を別モジュールに置く。後者は `asyncio.to_thread` 経由でも呼べるし、テストで Discord のモックが不要。
+Discord 非依存ロジックを独立してテスト・再利用する必要がある場合は別モジュールに分ける。単一ファイルで完結する小規模 feature（alpacahack, ctftime, times 等）では同居してよい。分割の判断基準は行数ではなく「Discord のモック無しでテストしたいか」「他の feature から再利用するか」。
 
 ### `discord_ops.py` を ctf_team cog から分離する
 

@@ -26,7 +26,7 @@
 
 実装時に必ず守ること。`tests/test_architecture.py` で静的に検証されている。
 
-1. **型の境界でモジュールを分割する** — Discord オブジェクトを受け取る関数と、プリミティブ型のみの関数は別モジュール
+1. **型の境界でモジュールを分割する** — Discord 非依存ロジックを独立してテスト・再利用する必要がある場合は別モジュールに分ける。単一ファイルで完結する小規模 feature（alpacahack, ctftime, times 等）は同居してよい
 2. **`db.py` は discord を import しない**
 3. **`campaign.py` は discord を import しない**
 4. **`discord_ops.py` は `bot.db` を import しない**
