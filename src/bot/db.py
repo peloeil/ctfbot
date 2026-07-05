@@ -7,6 +7,7 @@ from bot.errors import ConflictError, RepositoryError
 from bot.features.ctf_team.models import Campaign, CampaignStatus
 
 CURRENT_SCHEMA_VERSION = 1
+_MIGRATIONS: dict[int, str] = {}
 
 _SCHEMA_DDL = """\
 CREATE TABLE IF NOT EXISTS alpacahack_user (
@@ -80,22 +81,31 @@ class Database:
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='table' "
                 "AND name NOT LIKE 'sqlite_%'"
             ).fetchone()[0]
-            if version == CURRENT_SCHEMA_VERSION:
-                conn.executescript(_SCHEMA_DDL)
-                conn.commit()
-                return
-            if version == 0 and table_count == 0:
+            if version == 0 and table_count > 0:
+                raise RepositoryError("Unmanaged database schema.")
+            if version > CURRENT_SCHEMA_VERSION:
+                message = (
+                    f"Unsupported schema version: {version}; "
+                    f"expected {CURRENT_SCHEMA_VERSION}."
+                )
+                raise RepositoryError(message)
+            if version == 0:
                 conn.executescript(_SCHEMA_DDL)
                 conn.execute(f"PRAGMA user_version = {CURRENT_SCHEMA_VERSION}")
                 conn.commit()
                 return
-            if version == 0:
-                raise RepositoryError("Unmanaged database schema.")
-            message = (
-                f"Unsupported schema version: {version}; "
-                f"expected {CURRENT_SCHEMA_VERSION}."
-            )
-            raise RepositoryError(message)
+            while version < CURRENT_SCHEMA_VERSION:
+                script = _MIGRATIONS.get(version)
+                if script is None:
+                    raise RepositoryError(
+                        f"No migration path from schema version {version}."
+                    )
+                conn.executescript(script)
+                version += 1
+                conn.execute(f"PRAGMA user_version = {version}")
+                conn.commit()
+            conn.executescript(_SCHEMA_DDL)
+            conn.commit()
 
     @staticmethod
     def _to_campaign(row: tuple) -> Campaign:

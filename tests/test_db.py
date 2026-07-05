@@ -3,6 +3,7 @@ import sqlite3
 import tempfile
 import unittest
 from contextlib import suppress
+from unittest import mock
 
 from bot.db import CURRENT_SCHEMA_VERSION, Database
 from bot.errors import ConflictError, RepositoryError
@@ -78,6 +79,28 @@ class DatabaseTest(unittest.TestCase):
         with sqlite3.connect(self.path) as conn:
             conn.execute("PRAGMA user_version = 99")
         with self.assertRaises(RepositoryError):
+            Database(self.path)
+
+    def test_migration_applies_pending_scripts(self) -> None:
+        migration = "ALTER TABLE alpacahack_user ADD COLUMN note TEXT"
+        with (
+            mock.patch("bot.db.CURRENT_SCHEMA_VERSION", 2),
+            mock.patch.dict("bot.db._MIGRATIONS", {1: migration}),
+        ):
+            Database(self.path)
+        with sqlite3.connect(self.path) as conn:
+            version = conn.execute("PRAGMA user_version").fetchone()[0]
+            columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(alpacahack_user)")
+            }
+        self.assertEqual(version, 2)
+        self.assertIn("note", columns)
+
+    def test_migration_missing_path_raises(self) -> None:
+        with (
+            mock.patch("bot.db.CURRENT_SCHEMA_VERSION", 2),
+            self.assertRaises(RepositoryError),
+        ):
             Database(self.path)
 
     def test_alpacahack_users(self) -> None:
