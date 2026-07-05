@@ -56,6 +56,7 @@ uv run python src/main.py
 - `Add Reactions`
 - `Manage Channels`
 - `Manage Roles`
+- `View Audit Log`
 
 `Manage Roles` を使うため、Bot のロールは操作対象のロールより上位に配置してください。
 

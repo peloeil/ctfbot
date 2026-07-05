@@ -56,10 +56,12 @@ class DatabaseTest(unittest.TestCase):
             version = conn.execute("PRAGMA user_version").fetchone()[0]
         self.assertIn("alpacahack_user", tables)
         self.assertIn("ctf_team_campaign", tables)
+        self.assertIn("audit_log_entry", tables)
         self.assertIn("idx_campaign_guild_message", indexes)
         self.assertIn("idx_campaign_status_end", indexes)
         self.assertIn("idx_campaign_guild_status", indexes)
         self.assertIn("idx_campaign_active_name_unique", indexes)
+        self.assertIn("idx_audit_log_guild_created", indexes)
         self.assertEqual(version, CURRENT_SCHEMA_VERSION)
         Database(self.path)
 
@@ -83,9 +85,10 @@ class DatabaseTest(unittest.TestCase):
 
     def test_migration_applies_pending_scripts(self) -> None:
         migration = "ALTER TABLE alpacahack_user ADD COLUMN note TEXT"
+        next_version = CURRENT_SCHEMA_VERSION + 1
         with (
-            mock.patch("bot.db.CURRENT_SCHEMA_VERSION", 2),
-            mock.patch.dict("bot.db._MIGRATIONS", {1: migration}),
+            mock.patch("bot.db.CURRENT_SCHEMA_VERSION", next_version),
+            mock.patch.dict("bot.db._MIGRATIONS", {CURRENT_SCHEMA_VERSION: migration}),
         ):
             Database(self.path)
         with sqlite3.connect(self.path) as conn:
@@ -93,15 +96,38 @@ class DatabaseTest(unittest.TestCase):
             columns = {
                 row[1] for row in conn.execute("PRAGMA table_info(alpacahack_user)")
             }
-        self.assertEqual(version, 2)
+        self.assertEqual(version, next_version)
         self.assertIn("note", columns)
 
     def test_migration_missing_path_raises(self) -> None:
         with (
-            mock.patch("bot.db.CURRENT_SCHEMA_VERSION", 2),
+            mock.patch("bot.db.CURRENT_SCHEMA_VERSION", CURRENT_SCHEMA_VERSION + 1),
             self.assertRaises(RepositoryError),
         ):
             Database(self.path)
+
+    def test_migration_from_version_one_adds_audit_log_schema(self) -> None:
+        with sqlite3.connect(self.path) as conn:
+            conn.execute("DROP TABLE audit_log_entry")
+            conn.execute("PRAGMA user_version = 1")
+        Database(self.path)
+        with sqlite3.connect(self.path) as conn:
+            tables = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )
+            }
+            indexes = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='index'"
+                )
+            }
+            version = conn.execute("PRAGMA user_version").fetchone()[0]
+        self.assertIn("audit_log_entry", tables)
+        self.assertIn("idx_audit_log_guild_created", indexes)
+        self.assertEqual(version, CURRENT_SCHEMA_VERSION)
 
     def test_alpacahack_users(self) -> None:
         self.assertTrue(self.db.add_alpacahack_user(" zeta "))
@@ -110,6 +136,27 @@ class DatabaseTest(unittest.TestCase):
         self.assertEqual(self.db.list_alpacahack_users(), ["alpha", "zeta"])
         self.assertTrue(self.db.delete_alpacahack_user("alpha"))
         self.assertFalse(self.db.delete_alpacahack_user("missing"))
+
+    def test_insert_audit_log_entry_is_idempotent(self) -> None:
+        values = {
+            "entry_id": 10,
+            "guild_id": 20,
+            "action": "channel_create",
+            "user_id": 30,
+            "target_id": 40,
+            "reason": "test reason",
+            "changes_json": '{"before": {}, "after": {}}',
+            "extra_text": "extra",
+            "created_at_unix": 50,
+        }
+        self.assertTrue(self.db.insert_audit_log_entry(**values))
+        self.assertFalse(self.db.insert_audit_log_entry(**values))
+        with sqlite3.connect(self.path) as conn:
+            row = conn.execute(
+                "SELECT entry_id, guild_id, action, user_id, target_id, reason, "
+                "changes_json, extra_text, created_at_unix FROM audit_log_entry"
+            ).fetchone()
+        self.assertEqual(row, tuple(values.values()))
 
     def test_create_and_find_campaign(self) -> None:
         created = self.create_campaign()

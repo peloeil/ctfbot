@@ -47,6 +47,7 @@ class UtilityCommands(commands.Cog):
         guild_permissions = guild.me.guild_permissions
         channel_permissions = target.permissions_for(guild.me)
         checks = [
+            ("Guild view_audit_log", guild_permissions.view_audit_log),
             ("Guild manage_roles", guild_permissions.manage_roles),
             ("Channel view_channel", channel_permissions.view_channel),
             ("Channel send_messages", channel_permissions.send_messages),

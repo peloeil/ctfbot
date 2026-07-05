@@ -56,6 +56,7 @@ class ArchitectureTest(unittest.TestCase):
             "bot.features.ctftime",
             "bot.features.times",
             "bot.features.utility",
+            "bot.features.audit_log",
             "bot.features.ctf_team",
         }
         for path in (SRC / "features").rglob("*.py"):
