@@ -300,7 +300,7 @@ class Database:
         )
 
     def list_campaigns(
-        self, guild_id: int, status: str | None, limit: int = 20
+        self, guild_id: int, status: CampaignStatus | None, limit: int = 20
     ) -> list[Campaign]:
         if status is None:
             return self._list(
@@ -309,7 +309,7 @@ class Database:
             )
         return self._list(
             "WHERE guild_id=? AND status=? ORDER BY created_at_unix DESC LIMIT ?",
-            (guild_id, status, limit),
+            (guild_id, status.value, limit),
         )
 
     def _list(self, suffix: str, params: tuple[object, ...]) -> list[Campaign]:

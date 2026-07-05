@@ -250,7 +250,7 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         if interaction.guild_id is None:
             await send_interaction(interaction, "サーバー内で実行してください。")
             return
-        filter_status = None if status == "all" else status
+        filter_status = None if status == "all" else CampaignStatus(status)
         campaigns = await asyncio.to_thread(
             self.db.list_campaigns,
             interaction.guild_id,

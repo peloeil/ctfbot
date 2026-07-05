@@ -189,10 +189,10 @@ class DatabaseTest(unittest.TestCase):
         closed = self.create_campaign("Closed", message_id=12, created_at_unix=30)
         self.assertTrue(self.db.close_campaign(closed.id, 31, 40))
 
-        active = self.db.list_campaigns(1, "active")
+        active = self.db.list_campaigns(1, CampaignStatus.ACTIVE)
         self.assertEqual([item.id for item in active], [active_new.id, active_old.id])
 
-        closed_items = self.db.list_campaigns(1, "closed")
+        closed_items = self.db.list_campaigns(1, CampaignStatus.CLOSED)
         self.assertEqual([item.id for item in closed_items], [closed.id])
 
         all_items = self.db.list_campaigns(1, None)
