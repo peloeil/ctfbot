@@ -27,14 +27,16 @@
 実装時に必ず守ること。`tests/test_architecture.py` で静的に検証されている。
 
 1. **型の境界でモジュールを分割する** — Discord 非依存ロジックを独立してテスト・再利用する必要がある場合は別モジュールに分ける。単一ファイルで完結する小規模 feature（alpacahack, ctftime, times 等）は同居してよい
-2. **`db.py` は discord を import しない**
-3. **`campaign.py` は discord を import しない**
-4. **`discord_ops.py` は `bot.db` を import しない**
-5. **feature 間の相互 import 禁止** — `alpacahack`, `ctftime`, `times`, `utility`, `ctf_team` は互いを import しない
-6. **BotRuntime は Settings + Database のみ** — API クライアントは各 cog の `__init__` でローカル生成する
-7. **バリデーションは例外ベース** — 複数ステップの検証は `ServiceError` を raise し cog で `try/except ServiceError` で統一。単純な Discord 入力チェック（空文字・guild 存在確認など）は cog 内で直接応答してよい
-8. **Database は 1 クラスに集約** — 全テーブル・全 SQL が `db.py` に収まる
-9. **blocking I/O は `asyncio.to_thread`** — DB アクセス、HTTP リクエストなど同期処理は必ずスレッド委譲
+2. **`db.py` は discord を import しない** — feature からの import は `models.py` のみ許可
+3. **feature の `models.py` は discord を import しない** — `db.py` が import するため純粋なデータモデルに限定
+4. **`campaign.py` は discord を import しない**
+5. **`discord_ops.py` は `bot.db` を import しない**
+6. **feature 間の相互 import 禁止** — `alpacahack`, `ctftime`, `times`, `utility`, `ctf_team` は互いを import しない
+7. **BotRuntime は Settings + Database のみ** — `bot/runtime.py` に定義。API クライアントは各 cog の `__init__` でローカル生成する
+8. **バリデーションは例外ベース** — 複数ステップの検証は `ServiceError` を raise し cog で `try/except ServiceError` で統一。単純な Discord 入力チェック（空文字・guild 存在確認など）は cog 内で直接応答してよい
+9. **Database は 1 クラスに集約** — 全テーブル・全 SQL が `db.py` に収まる
+10. **blocking I/O は `asyncio.to_thread`** — DB アクセス、HTTP リクエストなど同期処理は必ずスレッド委譲
+11. **定期ループから呼ばれる処理は冪等にする** — 非冪等な副作用（通知送信）は DB の状態遷移確定後に置く。`discord.NotFound` は成功扱い（docs/design.md 参照）
 
 ## コーディング規約
 
@@ -55,7 +57,7 @@
 4. 外部 API クライアントが必要なら `__init__` でインスタンスを作る（BotRuntime には追加しない）
 5. ファイル末尾に `async def setup(bot: commands.Bot) -> None:` を必ず置く
 6. `cogs_loader.py` の `DEFAULT_EXTENSIONS` にモジュールパスを追加する
-7. DB テーブルが必要なら `db.py` の `_SCHEMA_DDL` に DDL を追加し `CURRENT_SCHEMA_VERSION` をインクリメントする
+7. DB テーブルが必要なら `db.py` の `_SCHEMA_DDL` に DDL を追加し、`CURRENT_SCHEMA_VERSION` をインクリメントし、`_MIGRATIONS` に旧 version からの移行 SQL を追加する
 
 ```python
 # 最小の cog テンプレート
@@ -63,8 +65,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from bot.app import get_runtime
 from bot.helpers import send_interaction
+from bot.runtime import get_runtime
 
 
 class MyCog(commands.Cog):
@@ -98,5 +100,5 @@ uv run python -m unittest discover -s tests -v
 ## 変更時の注意
 
 - 新しい feature を追加する場合は `cogs_loader.py` の `DEFAULT_EXTENSIONS` に登録する
-- 新しい DB テーブルやカラムを追加する場合は `db.py` の `_SCHEMA_DDL` と `CURRENT_SCHEMA_VERSION` を更新する
+- 新しい DB テーブルやカラムを追加する場合は `db.py` の `_SCHEMA_DDL`・`CURRENT_SCHEMA_VERSION`・`_MIGRATIONS` の 3 点を更新する
 - `test_architecture.py` を実行してモジュール境界が壊れていないことを確認する
