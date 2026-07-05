@@ -109,7 +109,7 @@ archive 対象が見つからない場合のエラーメッセージ:
 
 ### チャンネル名の正規化
 
-`normalize_channel_name`: lowercase → スペースを `-` に → `[^a-z0-9\-]` 除去 → 連続 `-` を 1 つに → 先頭末尾 `-` 除去 → 100文字で切る。
+`normalize_channel_name`: lowercase → スペースを `-` に → `[^a-z0-9\-]` を `-` に置換 → 連続 `-` を 1 つに → 先頭末尾 `-` 除去 → 100文字で切る（times の正規化と同一ルール）。
 
 `pick_unique_channel_name`: カテゴリ内で重複する場合 `base-2`, `base-3` ... を試す。
 

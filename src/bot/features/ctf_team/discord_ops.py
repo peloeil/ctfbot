@@ -17,7 +17,7 @@ type OverwriteMap = dict[
 
 def normalize_channel_name(ctf_name: str) -> str:
     value = ctf_name.lower().replace(" ", "-")
-    value = re.sub(r"[^a-z0-9\-]", "", value)
+    value = re.sub(r"[^a-z0-9\-]", "-", value)
     value = re.sub(r"-+", "-", value).strip("-")
     return (value or "ctf")[:MAX_CHANNEL_NAME_LENGTH]
 
