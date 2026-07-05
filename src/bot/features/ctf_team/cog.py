@@ -4,7 +4,6 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from bot.app import get_runtime
 from bot.errors import ConflictError, ServiceError
 from bot.features.ctf_team import campaign, discord_ops
 from bot.features.ctf_team.models import Campaign, CampaignStatus
@@ -15,6 +14,7 @@ from bot.helpers import (
     send_interaction,
 )
 from bot.log import logger
+from bot.runtime import get_runtime
 
 REACTION_EMOJI = "✅"
 ROLE_ANNOUNCE_CHANNEL_NAME = "role"

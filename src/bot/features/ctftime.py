@@ -9,10 +9,10 @@ import requests
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from bot.app import get_runtime
 from bot.errors import ExternalAPIError
 from bot.helpers import resolve_messageable, send_interaction, send_safely
 from bot.log import logger
+from bot.runtime import get_runtime
 
 
 @dataclass(frozen=True, slots=True)

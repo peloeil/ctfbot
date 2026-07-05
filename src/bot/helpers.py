@@ -6,6 +6,7 @@ import discord
 from discord.ext import commands
 
 from bot.log import logger
+from bot.runtime import get_runtime
 
 
 async def send_safely(
@@ -77,9 +78,11 @@ async def log_audit(
     command_name: str,
     details: Sequence[str] = (),
 ) -> None:
-    runtime = getattr(bot, "runtime", None)
-    settings = getattr(runtime, "settings", None)
-    channel_id = getattr(settings, "bot_channel_id", 0)
+    try:
+        runtime = get_runtime(bot)
+    except RuntimeError:
+        return
+    channel_id = runtime.settings.bot_channel_id
     if channel_id <= 0:
         return
 

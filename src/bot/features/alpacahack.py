@@ -12,10 +12,10 @@ from bs4 import BeautifulSoup, Tag
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from bot.app import get_runtime
 from bot.db import Database
 from bot.errors import ExternalAPIError
 from bot.helpers import log_audit, resolve_messageable, send_interaction, send_safely
+from bot.runtime import get_runtime
 
 MAX_EMBED_FIELDS = 25
 ALPACAHACK_EMBED_COLOR = 0xFD8028

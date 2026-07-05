@@ -1,7 +1,6 @@
 import datetime
 import signal
 from collections.abc import Callable
-from dataclasses import dataclass
 from types import FrameType
 from typing import cast
 
@@ -13,19 +12,7 @@ from bot.config import Settings, load_settings
 from bot.db import Database
 from bot.helpers import resolve_messageable, send_interaction, send_safely
 from bot.log import configure_logging, logger
-
-
-@dataclass(frozen=True, slots=True)
-class BotRuntime:
-    settings: Settings
-    db: Database
-
-
-def get_runtime(bot: commands.Bot) -> BotRuntime:
-    runtime = getattr(bot, "runtime", None)
-    if not isinstance(runtime, BotRuntime):
-        raise RuntimeError("Bot runtime is not configured.")
-    return runtime
+from bot.runtime import BotRuntime
 
 
 class CTFBot(commands.Bot):
