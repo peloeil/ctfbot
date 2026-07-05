@@ -224,7 +224,9 @@ async def mark_message_closed(
             return True
         await message.edit(content=f"{CLOSED_HEADER}\n\n{message.content}")
         return True
-    except discord.NotFound, discord.Forbidden, discord.HTTPException:
+    except discord.NotFound:
+        return True
+    except discord.Forbidden, discord.HTTPException:
         logger.warning("Failed to mark recruitment message %s closed", message_id)
         return False
 

@@ -490,10 +490,6 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         closed_at, archive_at = campaign.calculate_close(self.settings.tzinfo)
 
         ok = True
-        disc_ch = guild.get_channel(item.discussion_channel_id or 0)
-        role = guild.get_role(item.role_id)
-        if isinstance(disc_ch, discord.TextChannel) and role is not None:
-            await discord_ops.send_close_snapshot(disc_ch, item.ctf_name, role)
         recruit_ch = guild.get_channel(item.channel_id)
         if isinstance(recruit_ch, discord.TextChannel):
             ok = await discord_ops.mark_message_closed(recruit_ch, item.message_id)
@@ -512,6 +508,11 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         )
         if not was_closed:
             return item.archive_at_unix or archive_at
+
+        disc_ch = guild.get_channel(item.discussion_channel_id or 0)
+        role = guild.get_role(item.role_id)
+        if isinstance(disc_ch, discord.TextChannel) and role is not None:
+            await discord_ops.send_close_snapshot(disc_ch, item.ctf_name, role)
         return archive_at
 
     async def _archive_campaign_resources(

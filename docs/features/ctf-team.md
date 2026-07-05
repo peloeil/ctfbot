@@ -32,6 +32,18 @@ active ──(end_at_unix 到達 or /ctfteam close)──→ closed ──(archi
 - discussion チャンネルに参加メンバースナップショットが投稿される
 - `archive_at_unix = closed_at + 30日` が設定される
 
+#### close 処理の順序（冪等性保証）
+
+close は毎分ループからリトライされるため、以下の順序で行う:
+
+1. 募集メッセージへのヘッダー追加（冪等: ヘッダー既存なら何もしない。メッセージが `NotFound` なら成功扱い）
+2. voice チャンネル削除（冪等: `NotFound` は成功扱い）
+3. 1・2 のいずれかが失敗したら中断（DB は active のまま。翌分リトライ）
+4. DB を closed に更新
+5. **4 で実際に active → closed へ遷移した場合のみ**、discussion チャンネルへスナップショットを送信
+
+スナップショット送信を状態遷移後に置くことで、リトライ時の重複送信を防ぐ。スナップショット送信自体の失敗は close を巻き戻さない。
+
 ### archived 状態
 
 - discussion チャンネルが archive カテゴリに移動される
