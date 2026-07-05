@@ -15,6 +15,7 @@ CTFtime API から近日開催の CTF イベントを取得し、週次で通知
 
 - 毎日 `CTFTIME_NOTIFICATION_TIME` に起動し、月曜（`weekday() == 0`）のみ実行
 - `CTFTIME_CHANNEL_ID` に Embed を送信（0 なら何もしない）
+- 実行時刻の設定は cog の `__init__` で `.start()` の前に `change_interval(time=...)` で行う（`before_loop` で設定すると bot 再起動時に即時実行が 1 回走り、二重送信になる。docs/design.md「週次通知の実行時刻は start 前に設定する」参照）
 
 ## API クライアント (CTFTimeClient)
 

@@ -254,6 +254,9 @@ class Alpacahack(commands.GroupCog, group_name="alpaca"):
         self.settings = runtime.settings
         self.db = runtime.db
         self.client = AlpacaHackClient(timezone=self.settings.tzinfo)
+        self.weekly_solve_report.change_interval(
+            time=self.settings.alpacahack_solve_time
+        )
         self.weekly_solve_report.start()
 
     async def cog_unload(self) -> None:
@@ -279,9 +282,6 @@ class Alpacahack(commands.GroupCog, group_name="alpaca"):
     @weekly_solve_report.before_loop
     async def before_weekly_solve(self) -> None:
         await self.bot.wait_until_ready()
-        self.weekly_solve_report.change_interval(
-            time=self.settings.alpacahack_solve_time
-        )
 
     @app_commands.command(name="add", description="AlpacaHackユーザーを登録します。")
     @app_commands.describe(username="AlpacaHackのユーザー名")

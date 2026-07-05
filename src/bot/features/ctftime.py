@@ -122,6 +122,9 @@ class CTFTimeNotifications(commands.Cog):
             timezone=self.settings.tzinfo,
             user_agent=self.settings.ctftime_user_agent,
         )
+        self.weekly_ctf_notification.change_interval(
+            time=self.settings.ctftime_notification_time
+        )
         self.weekly_ctf_notification.start()
 
     async def cog_unload(self) -> None:
@@ -150,9 +153,6 @@ class CTFTimeNotifications(commands.Cog):
     @weekly_ctf_notification.before_loop
     async def before_weekly(self) -> None:
         await self.bot.wait_until_ready()
-        self.weekly_ctf_notification.change_interval(
-            time=self.settings.ctftime_notification_time
-        )
 
     @app_commands.command(
         name="ctftime", description="CTFtimeの予定を手動で取得します。"
