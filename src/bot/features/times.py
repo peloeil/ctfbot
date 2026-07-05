@@ -6,6 +6,8 @@ from discord.ext import commands
 
 from bot.helpers import send_interaction
 
+MAX_CHANNELS_PER_COMMAND = 10
+
 
 def _normalize_channel_name(value: str) -> str:
     normalized = value.strip().lower()
@@ -35,14 +37,21 @@ class TimesChannels(commands.GroupCog, group_name="times"):
             await send_interaction(interaction, "times カテゴリが見つかりません。")
             return
 
-        requested = [
-            normalized
-            for raw in re.split(r"[,、\n]+", names)
-            if (normalized := _normalize_channel_name(raw))
-        ]
+        requested = list(
+            dict.fromkeys(
+                normalized
+                for raw in re.split(r"[,、\n]+", names)
+                if (normalized := _normalize_channel_name(raw))
+            )
+        )
         if not requested:
             await send_interaction(
                 interaction, "作成するチャンネル名を入力してください。"
+            )
+            return
+        if len(requested) > MAX_CHANNELS_PER_COMMAND:
+            await send_interaction(
+                interaction, "一度に作成できるチャンネルは 10 個までです。"
             )
             return
 
