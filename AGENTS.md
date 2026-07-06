@@ -20,6 +20,7 @@
 | AlpacaHack 連携の仕様 | `docs/features/alpacahack.md` |
 | times チャンネルの仕様 | `docs/features/times.md` |
 | ユーティリティコマンドの仕様 | `docs/features/utility.md` |
+| 監査ログ保存の仕様 | `docs/features/audit-log.md` |
 | セットアップ・環境変数・Discord 設定 | `README.md` |
 
 ## アーキテクチャ制約

@@ -6,6 +6,7 @@ DEFAULT_EXTENSIONS = (
     "bot.features.alpacahack",
     "bot.features.ctf_team.cog",
     "bot.features.ctftime",
+    "bot.features.audit_log",
 )
 
 

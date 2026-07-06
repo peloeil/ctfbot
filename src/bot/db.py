@@ -6,8 +6,26 @@ from pathlib import Path
 from bot.errors import ConflictError, RepositoryError
 from bot.features.ctf_team.models import Campaign, CampaignStatus
 
-CURRENT_SCHEMA_VERSION = 1
-_MIGRATIONS: dict[int, str] = {}
+CURRENT_SCHEMA_VERSION = 2
+_MIGRATIONS: dict[int, str] = {
+    1: """\
+CREATE TABLE IF NOT EXISTS audit_log_entry (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entry_id INTEGER NOT NULL UNIQUE,
+    guild_id INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    user_id INTEGER,
+    target_id INTEGER,
+    reason TEXT,
+    changes_json TEXT NOT NULL,
+    extra_text TEXT,
+    created_at_unix INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_guild_created
+    ON audit_log_entry (guild_id, created_at_unix);
+""",
+}
 
 _SCHEMA_DDL = """\
 CREATE TABLE IF NOT EXISTS alpacahack_user (
@@ -45,6 +63,22 @@ CREATE INDEX IF NOT EXISTS idx_campaign_guild_status
 CREATE UNIQUE INDEX IF NOT EXISTS idx_campaign_active_name_unique
     ON ctf_team_campaign (guild_id, ctf_name)
     WHERE status = 'active';
+
+CREATE TABLE IF NOT EXISTS audit_log_entry (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entry_id INTEGER NOT NULL UNIQUE,
+    guild_id INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    user_id INTEGER,
+    target_id INTEGER,
+    reason TEXT,
+    changes_json TEXT NOT NULL,
+    extra_text TEXT,
+    created_at_unix INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_guild_created
+    ON audit_log_entry (guild_id, created_at_unix);
 """
 
 _CAMPAIGN_COLUMNS = (
@@ -154,6 +188,40 @@ class Database:
                 "SELECT name FROM alpacahack_user ORDER BY name ASC"
             ).fetchall()
         return [row[0] for row in rows]
+
+    def insert_audit_log_entry(
+        self,
+        *,
+        entry_id: int,
+        guild_id: int,
+        action: str,
+        user_id: int | None,
+        target_id: int | None,
+        reason: str | None,
+        changes_json: str,
+        extra_text: str | None,
+        created_at_unix: int,
+    ) -> bool:
+        with self._connection() as conn:
+            cur = conn.execute(
+                "INSERT OR IGNORE INTO audit_log_entry ("
+                "entry_id, guild_id, action, user_id, target_id, reason, "
+                "changes_json, extra_text, created_at_unix"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    entry_id,
+                    guild_id,
+                    action,
+                    user_id,
+                    target_id,
+                    reason,
+                    changes_json,
+                    extra_text,
+                    created_at_unix,
+                ),
+            )
+            conn.commit()
+            return cur.rowcount > 0
 
     def count_active_campaigns_by_creator(self, guild_id: int, created_by: int) -> int:
         with self._connection() as conn:
