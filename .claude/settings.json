@@ -17,11 +17,16 @@
     ]
   },
   "hooks": {
-    "PostEdit": [
+    "PostToolUse": [
       {
-        "type": "command",
-        "command": "case \"$CLAUDE_FILE_PATH\" in *.py) uv run ruff format --quiet \"$CLAUDE_FILE_PATH\" ;; esac",
-        "description": "Auto-format edited Python files with ruff"
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(grep -oPm1 '\"file_path\"\\s*:\\s*\"\\K[^\"]*'); case \"$f\" in *.py) uv run ruff format --quiet \"$f\" ;; esac 2>/dev/null || true",
+            "statusMessage": "ruff format"
+          }
+        ]
       }
     ]
   }
