@@ -4,7 +4,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from bot.helpers import send_interaction
+from bot.helpers import log_audit, send_interaction
 
 MAX_CHANNELS_PER_COMMAND = 10
 
@@ -76,6 +76,13 @@ class TimesChannels(commands.GroupCog, group_name="times"):
                 "⏭️ " + ", ".join(f"#{name}" for name in skipped) + " は既に存在します。"
             )
         await send_interaction(interaction, "\n".join(lines))
+        if created:
+            await log_audit(
+                self.bot,
+                interaction,
+                command_name="times create",
+                details=["作成: " + ", ".join(f"#{name}" for name in created)],
+            )
 
 
 async def setup(bot: commands.Bot) -> None:
