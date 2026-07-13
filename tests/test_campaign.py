@@ -39,6 +39,7 @@ class CampaignLogicTest(unittest.TestCase):
             end_at_unix=None,
             created_by=created_by,
             created_at_unix=1,
+            max_active_per_creator=campaign.MAX_ACTIVE_PER_USER,
         )
 
     def test_validate_and_build_draft(self) -> None:
@@ -125,6 +126,7 @@ class CampaignLogicTest(unittest.TestCase):
             end_at_unix=now - 10,
             created_by=1,
             created_at_unix=1,
+            max_active_per_creator=campaign.MAX_ACTIVE_PER_USER,
         )
         future = self.db.create_campaign(
             guild_id=2,
@@ -138,6 +140,7 @@ class CampaignLogicTest(unittest.TestCase):
             end_at_unix=now + 20,
             created_by=1,
             created_at_unix=1,
+            max_active_per_creator=campaign.MAX_ACTIVE_PER_USER,
         )
         self.assertTrue(campaign.is_expired(past, self.tz))
         self.assertFalse(campaign.is_expired(future, self.tz))

@@ -254,10 +254,17 @@ class Database:
         end_at_unix: int | None,
         created_by: int,
         created_at_unix: int,
+        max_active_per_creator: int,
     ) -> Campaign:
-        if self.has_active_campaign_with_name(guild_id, ctf_name):
-            raise ConflictError("Active campaign already exists.")
         with self._connection() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            active_count = conn.execute(
+                "SELECT COUNT(*) FROM ctf_team_campaign "
+                "WHERE guild_id=? AND created_by=? AND status='active'",
+                (guild_id, created_by),
+            ).fetchone()[0]
+            if active_count >= max_active_per_creator:
+                raise ConflictError("Active campaign limit reached.")
             try:
                 cur = conn.execute(
                     "INSERT INTO ctf_team_campaign ("

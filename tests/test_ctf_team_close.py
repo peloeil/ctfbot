@@ -32,6 +32,7 @@ class CloseCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
             end_at_unix=200,
             created_by=7,
             created_at_unix=90,
+            max_active_per_creator=5,
         )
         self.cog = CTFTeamCampaigns.__new__(CTFTeamCampaigns)
         self.cog.bot = mock.Mock()

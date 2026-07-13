@@ -195,6 +195,7 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
                     end_at_unix=draft.end_at_unix,
                     created_by=interaction.user.id,
                     created_at_unix=campaign.now_unix(self.settings.tzinfo),
+                    max_active_per_creator=campaign.MAX_ACTIVE_PER_USER,
                 )
             except ConflictError:
                 await discord_ops.cleanup_resources(
@@ -203,7 +204,10 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
                     discussion=discussion,
                     voice=voice,
                 )
-                await send_interaction(interaction, "同名の募集が既に作成されました。")
+                await send_interaction(
+                    interaction,
+                    "同名の募集が作成されたか、active 募集数の上限に達しました。",
+                )
                 return
 
             if isinstance(creator, discord.Member) and role not in creator.roles:

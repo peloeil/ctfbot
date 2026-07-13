@@ -35,6 +35,7 @@ class DatabaseTest(unittest.TestCase):
             "end_at_unix": 200,
             "created_by": 7,
             "created_at_unix": 90,
+            "max_active_per_creator": 5,
         }
         values.update(kwargs)
         return self.db.create_campaign(**values)
@@ -176,6 +177,12 @@ class DatabaseTest(unittest.TestCase):
         self.create_campaign("Example")
         with self.assertRaises(ConflictError):
             self.create_campaign("example", message_id=4)
+
+    def test_active_campaign_limit_is_enforced_on_insert(self) -> None:
+        for index in range(5):
+            self.create_campaign(f"Example {index}", message_id=index + 1)
+        with self.assertRaisesRegex(ConflictError, "limit"):
+            self.create_campaign("Overflow", message_id=6)
 
     def test_close_start_archive_and_lists(self) -> None:
         c = self.create_campaign(start_at_unix=10, end_at_unix=20)
