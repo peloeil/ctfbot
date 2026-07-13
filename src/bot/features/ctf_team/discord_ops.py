@@ -253,10 +253,22 @@ async def send_start_announcement(
     role: discord.Role,
 ) -> tuple[int, bool]:
     members = list(role.members)
-    sent = await send_safely(channel, f"🚀 **{campaign_name}** が開始しました!")
+    sent = await send_safely(
+        channel,
+        f"🚀 **{campaign_name}** が開始しました!",
+        allowed_mentions=discord.AllowedMentions.none(),
+    )
     success = sent is not None
     for chunk in _chunk_mentions([member.mention for member in members]):
-        success = (await send_safely(channel, chunk)) is not None and success
+        success = (
+            await send_safely(
+                channel,
+                chunk,
+                allowed_mentions=discord.AllowedMentions(
+                    everyone=False, users=True, roles=False
+                ),
+            )
+        ) is not None and success
     return len(members), success
 
 
@@ -269,9 +281,23 @@ async def send_close_snapshot(
     header = f"🔒 **{campaign_name}** の募集が終了しました。"
     lines = [header, f"参加メンバー ({len(members)}人):"]
     chunks = _chunk_mentions([member.mention for member in members])
-    success = (await send_safely(channel, "\n".join(lines))) is not None
+    success = (
+        await send_safely(
+            channel,
+            "\n".join(lines),
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+    ) is not None
     for chunk in chunks:
-        success = (await send_safely(channel, chunk)) is not None and success
+        success = (
+            await send_safely(
+                channel,
+                chunk,
+                allowed_mentions=discord.AllowedMentions(
+                    everyone=False, users=True, roles=False
+                ),
+            )
+        ) is not None and success
     return len(members), success
 
 
@@ -281,7 +307,11 @@ async def send_join_announcement(
     campaign_name: str,
 ) -> None:
     await send_safely(
-        channel, f"🙋 {member.mention} が **{campaign_name}** に参加しました。"
+        channel,
+        f"🙋 {member.mention} が **{campaign_name}** に参加しました。",
+        allowed_mentions=discord.AllowedMentions(
+            everyone=False, users=[member], roles=False
+        ),
     )
 
 

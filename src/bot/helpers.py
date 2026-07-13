@@ -37,9 +37,17 @@ async def send_interaction(
 ) -> None:
     try:
         if interaction.response.is_done():
-            await interaction.followup.send(content, ephemeral=ephemeral)
+            await interaction.followup.send(
+                content,
+                ephemeral=ephemeral,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
         else:
-            await interaction.response.send_message(content, ephemeral=ephemeral)
+            await interaction.response.send_message(
+                content,
+                ephemeral=ephemeral,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
     except (
         discord.InteractionResponded,
         discord.NotFound,

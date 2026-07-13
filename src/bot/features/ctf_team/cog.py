@@ -173,7 +173,12 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
                 guild.me,
             )
             text = discord_ops.build_recruitment_message(draft, role, discussion)
-            recruit_msg = await role_channel.send(text)
+            recruit_msg = await role_channel.send(
+                text,
+                allowed_mentions=discord.AllowedMentions(
+                    everyone=False, users=False, roles=[role]
+                ),
+            )
             await recruit_msg.add_reaction(REACTION_EMOJI)
 
             try:
