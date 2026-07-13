@@ -7,13 +7,14 @@ from discord.ext import commands
 from bot.helpers import log_audit, send_interaction
 
 MAX_CHANNELS_PER_COMMAND = 10
+MAX_CHANNEL_NAME_LENGTH = 100
 
 
 def _normalize_channel_name(value: str) -> str:
     normalized = value.strip().lower()
     normalized = re.sub(r"[^a-z0-9\-]", "-", normalized)
     normalized = re.sub(r"-+", "-", normalized).strip("-")
-    return normalized
+    return normalized[:MAX_CHANNEL_NAME_LENGTH]
 
 
 class TimesChannels(commands.GroupCog, group_name="times"):
