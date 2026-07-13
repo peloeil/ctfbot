@@ -205,14 +205,7 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
                 await creator.add_roles(role)
 
             if campaign.is_started(created, self.settings.tzinfo):
-                await discord_ops.send_start_announcement(
-                    discussion, created.ctf_name, role
-                )
-                await asyncio.to_thread(
-                    self.db.mark_started,
-                    created.id,
-                    campaign.now_unix(self.settings.tzinfo),
-                )
+                await self._send_start_if_claimed(discussion, role, created)
 
             await send_interaction(
                 interaction, f"**{draft.ctf_name}** の募集を作成しました。"
@@ -404,14 +397,7 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
                 disc_ch = guild.get_channel(item.discussion_channel_id or 0)
                 role = guild.get_role(item.role_id)
                 if isinstance(disc_ch, discord.TextChannel) and role is not None:
-                    await discord_ops.send_start_announcement(
-                        disc_ch, item.ctf_name, role
-                    )
-                await asyncio.to_thread(
-                    self.db.mark_started,
-                    item.id,
-                    campaign.now_unix(self.settings.tzinfo),
-                )
+                    await self._send_start_if_claimed(disc_ch, role, item)
         except Exception:
             logger.exception("Error in start_due_campaigns")
 
@@ -483,6 +469,20 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
             )
             return
         await send_interaction(interaction, f"募集 '{ctf_name}' が見つかりません。")
+
+    async def _send_start_if_claimed(
+        self,
+        discussion: discord.TextChannel,
+        role: discord.Role,
+        item: Campaign,
+    ) -> None:
+        claimed = await asyncio.to_thread(
+            self.db.mark_started,
+            item.id,
+            campaign.now_unix(self.settings.tzinfo),
+        )
+        if claimed:
+            await discord_ops.send_start_announcement(discussion, item.ctf_name, role)
 
     async def _close_campaign_resources(
         self, guild: discord.Guild, item: Campaign
