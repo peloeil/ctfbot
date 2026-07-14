@@ -44,9 +44,17 @@
 - **Linter**: `ruff` — `line-length = 88`、ルール `E, F, I, W, N, UP, B, C4, SIM, RUF`
 - **Type checker**: `ty` — `python-version = "3.14"`、ルート `./src`
 - **dataclass**: `frozen=True, slots=True` を標準で付ける
-- **コメント**: 原則書かない。WHY が自明でない場合のみ 1 行
 - **言語**: コード・変数名は英語。ユーザー向けメッセージ（Discord に送信するもの）は日本語
 - **例外階層**: `BotError > ConfigurationError | RepositoryError (> ConflictError) | ServiceError (> ExternalAPIError)`
+
+## 情報の書き分け原則（必須）
+
+**コードには How、テストコードには What、コミットログには Why、コードコメントには Why not。**
+
+- **コード (How)**: 処理の流れは命名と分割だけで追えるようにする。コメントで補わない
+- **テスト (What)**: テスト名は振る舞い仕様を記述する（例: `test_retry_after_close_does_not_resend_snapshot`）。assert は型ではなく期待値そのものを検証する
+- **コミットログ (Why)**: subject は変更内容の要約、本文に「何が問題で、なぜこの変更か」を書く。fix / refactor / revert / 削除系コミットでは本文 1〜3 行を必須とする
+- **コメント (Why not)**: 原則書かない。素直な書き方をあえて避けた箇所（一見バグに見える処理、マジックナンバーの根拠、意味のある実行順序など）のみ、理由を 1 行で書く
 
 ## 実装パターン
 

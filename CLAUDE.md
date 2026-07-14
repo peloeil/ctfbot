@@ -46,5 +46,13 @@ uv run python src/main.py
 
 - コード・変数名は英語。Discord に送信するユーザー向けメッセージは日本語
 - dataclass は `frozen=True, slots=True`
-- コメントは原則書かない。WHY が自明でない場合のみ 1 行
 - blocking I/O は `asyncio.to_thread` 経由
+
+## 情報の書き分け原則（必須）
+
+**コードには How、テストコードには What、コミットログには Why、コードコメントには Why not。**
+
+- **コード (How)**: 処理の流れは命名と分割だけで追えるようにする。コメントで補わない
+- **テスト (What)**: テスト名は振る舞い仕様を記述する（例: `test_retry_after_close_does_not_resend_snapshot`）。assert は型ではなく期待値そのものを検証する
+- **コミットログ (Why)**: subject は変更内容の要約、本文に「何が問題で、なぜこの変更か」を書く。fix / refactor / revert / 削除系コミットでは本文 1〜3 行を必須とする
+- **コメント (Why not)**: 原則書かない。素直な書き方をあえて避けた箇所（一見バグに見える処理、マジックナンバーの根拠、意味のある実行順序など）のみ、理由を 1 行で書く
