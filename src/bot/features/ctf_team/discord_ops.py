@@ -3,6 +3,7 @@ import re
 import discord
 from discord.ext import commands
 
+from bot.errors import ServiceError
 from bot.features.ctf_team.models import CampaignDraft
 from bot.helpers import format_timestamp_with_relative, send_safely
 from bot.log import logger
@@ -10,9 +11,26 @@ from bot.log import logger
 MAX_CHANNEL_NAME_LENGTH = 100
 CLOSED_HEADER = "🔒 **この募集は終了しました。**"
 MENTION_CHUNK_SIZE = 1700
+ROLE_ANNOUNCE_CHANNEL_NAME = "role"
 type OverwriteMap = dict[
     discord.Role | discord.Member | discord.Object, discord.PermissionOverwrite
 ]
+
+
+def require_category(guild: discord.Guild, category_id: int) -> discord.CategoryChannel:
+    channel = guild.get_channel(category_id)
+    if not isinstance(channel, discord.CategoryChannel):
+        raise ServiceError("CTF募集カテゴリが見つかりません。")
+    return channel
+
+
+def require_role_channel(
+    category: discord.CategoryChannel,
+) -> discord.TextChannel:
+    channel = discord.utils.get(category.text_channels, name=ROLE_ANNOUNCE_CHANNEL_NAME)
+    if channel is None:
+        raise ServiceError("#role チャンネルが見つかりません。")
+    return channel
 
 
 def normalize_channel_name(ctf_name: str) -> str:

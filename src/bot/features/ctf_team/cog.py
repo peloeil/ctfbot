@@ -11,13 +11,13 @@ from bot.helpers import (
     fetch_member,
     format_timestamp_with_relative,
     log_audit,
+    require_guild,
     send_interaction,
 )
 from bot.log import logger
 from bot.runtime import get_runtime
 
 REACTION_EMOJI = "✅"
-ROLE_ANNOUNCE_CHANNEL_NAME = "role"
 
 ROLE_COLOR_SUGGESTIONS = (
     ("🟥 Red", "#ef4444"),
@@ -117,21 +117,21 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         end_at_raw: str,
     ) -> None:
         await interaction.response.defer(ephemeral=True)
-        guild = interaction.guild
-        if guild is None or interaction.guild_id is None:
-            await send_interaction(interaction, "サーバー内で実行してください。")
-            return
-
         try:
-            draft = await asyncio.to_thread(
-                campaign.validate_and_build_draft,
-                self.db,
-                guild_id=interaction.guild_id,
-                created_by=interaction.user.id,
+            guild = require_guild(interaction)
+            guild_id = guild.id
+            draft = campaign.parse_campaign_draft(
                 ctf_name=ctf_name,
                 start_at_raw=start_at_raw,
                 end_at_raw=end_at_raw,
                 timezone=self.settings.tzinfo,
+            )
+            await asyncio.to_thread(
+                campaign.ensure_campaign_can_be_created,
+                self.db,
+                guild_id=guild_id,
+                created_by=interaction.user.id,
+                draft=draft,
             )
         except ServiceError as exc:
             await send_interaction(interaction, str(exc))
@@ -143,14 +143,10 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         recruit_msg: discord.Message | None = None
 
         try:
-            category = guild.get_channel(self.settings.ctf_team_category_id)
-            if not isinstance(category, discord.CategoryChannel):
-                raise ServiceError("CTF募集カテゴリが見つかりません。")
-            role_channel = discord.utils.get(
-                category.text_channels, name=ROLE_ANNOUNCE_CHANNEL_NAME
+            category = discord_ops.require_category(
+                guild, self.settings.ctf_team_category_id
             )
-            if role_channel is None:
-                raise ServiceError("#role チャンネルが見つかりません。")
+            role_channel = discord_ops.require_role_channel(category)
 
             role = await guild.create_role(
                 name=draft.ctf_name, colour=role_color, mentionable=True
@@ -249,18 +245,15 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
     async def list_campaigns(
         self, interaction: discord.Interaction, status: str = "active"
     ) -> None:
-        if interaction.guild_id is None:
-            await send_interaction(interaction, "サーバー内で実行してください。")
-            return
+        guild = require_guild(interaction)
+        guild_id = guild.id
         filter_status = None if status == "all" else CampaignStatus(status)
         campaigns = await asyncio.to_thread(
             self.db.list_campaigns,
-            interaction.guild_id,
+            guild_id,
             filter_status,
         )
-        embed = _build_campaigns_embed(
-            interaction.guild_id, campaigns, _status_label(status)
-        )
+        embed = _build_campaigns_embed(guild_id, campaigns, _status_label(status))
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="close", description="CTF募集を終了します。")
@@ -269,13 +262,10 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         self, interaction: discord.Interaction, ctf_name: str
     ) -> None:
         await interaction.response.defer(ephemeral=True)
-        guild = interaction.guild
-        if guild is None or interaction.guild_id is None:
-            await send_interaction(interaction, "サーバー内で実行してください。")
-            return
+        guild = require_guild(interaction)
         found = await asyncio.to_thread(
             self.db.find_campaign_by_name,
-            guild_id=interaction.guild_id,
+            guild_id=guild.id,
             ctf_name=ctf_name.strip(),
             status=CampaignStatus.ACTIVE,
         )
@@ -315,19 +305,16 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         self, interaction: discord.Interaction, ctf_name: str
     ) -> None:
         await interaction.response.defer(ephemeral=True)
-        guild = interaction.guild
-        if guild is None or interaction.guild_id is None:
-            await send_interaction(interaction, "サーバー内で実行してください。")
-            return
+        guild = require_guild(interaction)
         found = await asyncio.to_thread(
             self.db.find_campaign_by_name,
-            guild_id=interaction.guild_id,
+            guild_id=guild.id,
             ctf_name=ctf_name.strip(),
             status=CampaignStatus.CLOSED,
             archived=False,
         )
         if found is None:
-            await self._send_archive_not_found(interaction, ctf_name)
+            await self._send_archive_not_found(interaction, guild.id, ctf_name)
             return
         if not _can_manage_campaign(interaction, found):
             await send_interaction(
@@ -447,14 +434,11 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         await self.bot.wait_until_ready()
 
     async def _send_archive_not_found(
-        self, interaction: discord.Interaction, ctf_name: str
+        self, interaction: discord.Interaction, guild_id: int, ctf_name: str
     ) -> None:
-        if interaction.guild_id is None:
-            await send_interaction(interaction, f"募集 '{ctf_name}' が見つかりません。")
-            return
         active = await asyncio.to_thread(
             self.db.find_campaign_by_name,
-            guild_id=interaction.guild_id,
+            guild_id=guild_id,
             ctf_name=ctf_name.strip(),
             status=CampaignStatus.ACTIVE,
         )
@@ -467,7 +451,7 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
             return
         archived = await asyncio.to_thread(
             self.db.find_campaign_by_name,
-            guild_id=interaction.guild_id,
+            guild_id=guild_id,
             ctf_name=ctf_name.strip(),
             status=CampaignStatus.CLOSED,
             archived=True,

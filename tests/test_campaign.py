@@ -42,11 +42,8 @@ class CampaignLogicTest(unittest.TestCase):
             max_active_per_creator=campaign.MAX_ACTIVE_PER_USER,
         )
 
-    def test_validate_and_build_draft(self) -> None:
-        draft = campaign.validate_and_build_draft(
-            self.db,
-            guild_id=1,
-            created_by=10,
+    def test_parse_campaign_draft(self) -> None:
+        draft = campaign.parse_campaign_draft(
             ctf_name="  Example   CTF ",
             start_at_raw="2026-01-01 10:00",
             end_at_raw="2026-01-02 10:00",
@@ -57,7 +54,7 @@ class CampaignLogicTest(unittest.TestCase):
         assert draft.end_at_unix is not None
         self.assertLess(draft.start_at_unix, draft.end_at_unix)
 
-    def test_invalid_names_and_datetime(self) -> None:
+    def test_parse_rejects_invalid_input(self) -> None:
         cases = [
             {"ctf_name": "", "start_at_raw": "2026-01-01 10:00", "end_at_raw": ""},
             {
@@ -74,35 +71,33 @@ class CampaignLogicTest(unittest.TestCase):
         ]
         for kwargs in cases:
             with self.subTest(kwargs=kwargs), self.assertRaises(ServiceError):
-                campaign.validate_and_build_draft(
-                    self.db, guild_id=1, created_by=10, timezone=self.tz, **kwargs
-                )
+                campaign.parse_campaign_draft(timezone=self.tz, **kwargs)
 
-    def test_active_limit(self) -> None:
+    def test_ensure_rejects_active_limit(self) -> None:
         for i in range(campaign.MAX_ACTIVE_PER_USER):
             self.create_campaign(name=f"CTF {i}", message_id=100 + i)
+        draft = campaign.parse_campaign_draft(
+            ctf_name="New",
+            start_at_raw="2026-01-01 10:00",
+            end_at_raw="",
+            timezone=self.tz,
+        )
         with self.assertRaises(ServiceError):
-            campaign.validate_and_build_draft(
-                self.db,
-                guild_id=1,
-                created_by=10,
-                ctf_name="New",
-                start_at_raw="2026-01-01 10:00",
-                end_at_raw="",
-                timezone=self.tz,
+            campaign.ensure_campaign_can_be_created(
+                self.db, guild_id=1, created_by=10, draft=draft
             )
 
-    def test_duplicate_active_name(self) -> None:
+    def test_ensure_rejects_duplicate_name(self) -> None:
         self.create_campaign(name="Same")
+        draft = campaign.parse_campaign_draft(
+            ctf_name="same",
+            start_at_raw="2026-01-01 10:00",
+            end_at_raw="",
+            timezone=self.tz,
+        )
         with self.assertRaises(ServiceError):
-            campaign.validate_and_build_draft(
-                self.db,
-                guild_id=1,
-                created_by=20,
-                ctf_name="same",
-                start_at_raw="2026-01-01 10:00",
-                end_at_raw="",
-                timezone=self.tz,
+            campaign.ensure_campaign_can_be_created(
+                self.db, guild_id=1, created_by=20, draft=draft
             )
 
     def test_calculate_close(self) -> None:

@@ -5,8 +5,16 @@ from collections.abc import Sequence
 import discord
 from discord.ext import commands
 
+from bot.errors import ServiceError
 from bot.log import logger
 from bot.runtime import get_runtime
+
+
+def require_guild(interaction: discord.Interaction) -> discord.Guild:
+    guild = interaction.guild
+    if guild is None:
+        raise ServiceError("サーバー内で実行してください。")
+    return guild
 
 
 async def send_safely(

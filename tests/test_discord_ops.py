@@ -4,8 +4,30 @@ from unittest import mock
 
 import discord
 
+from bot.errors import ServiceError
 from bot.features.ctf_team import discord_ops
 from bot.features.ctf_team.models import CampaignDraft
+
+
+class RequireCategoryTest(unittest.TestCase):
+    def test_returns_category_channel(self) -> None:
+        guild = mock.Mock(spec=discord.Guild)
+        category = mock.Mock(spec=discord.CategoryChannel)
+        guild.get_channel.return_value = category
+        result = discord_ops.require_category(guild, 123)
+        self.assertIs(result, category)
+
+    def test_raises_when_not_found(self) -> None:
+        guild = mock.Mock(spec=discord.Guild)
+        guild.get_channel.return_value = None
+        with self.assertRaises(ServiceError):
+            discord_ops.require_category(guild, 123)
+
+    def test_raises_when_wrong_type(self) -> None:
+        guild = mock.Mock(spec=discord.Guild)
+        guild.get_channel.return_value = mock.Mock(spec=discord.TextChannel)
+        with self.assertRaises(ServiceError):
+            discord_ops.require_category(guild, 123)
 
 
 class DiscordOpsTest(unittest.TestCase):
