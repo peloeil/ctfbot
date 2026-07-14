@@ -66,12 +66,12 @@ class CloseCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
                 self.make_guild(), self.item
             )
 
-        self.assertIsInstance(result, int)
         closed = self.db.find_closed_campaign_by_name(
             guild_id=1,
             ctf_name="Example",
         )
-        self.assertIsNotNone(closed)
+        assert closed is not None
+        self.assertEqual(result, closed.archive_at_unix)
         snapshot.assert_awaited_once()
 
     async def test_retry_after_close_does_not_resend_snapshot(self) -> None:
@@ -87,8 +87,8 @@ class CloseCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
             first_result = await self.cog._close_campaign_resources(guild, self.item)
             second_result = await self.cog._close_campaign_resources(guild, self.item)
 
-        self.assertIsInstance(first_result, int)
-        self.assertIsInstance(second_result, int)
+        self.assertIsNotNone(first_result)
+        self.assertIsNotNone(second_result)
         self.assertEqual(snapshot.await_count, 1)
 
     async def test_discord_failure_keeps_campaign_active(self) -> None:
