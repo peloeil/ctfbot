@@ -10,7 +10,7 @@ from bot.log import logger
 
 MAX_CHANNEL_NAME_LENGTH = 100
 CLOSED_HEADER = "🔒 **この募集は終了しました。**"
-MENTION_CHUNK_SIZE = 1700
+MENTION_CHUNK_SIZE = 1700  # Margin under Discord's 2000-char message limit
 ROLE_ANNOUNCE_CHANNEL_NAME = "role"
 type OverwriteMap = dict[
     discord.Role | discord.Member | discord.Object, discord.PermissionOverwrite
@@ -178,6 +178,7 @@ async def archive_discussion_channel(
         )
         return True
     except discord.NotFound:
+        # Already gone: success, keeps the periodic loop idempotent (docs/design.md)
         return True
     except discord.Forbidden:
         logger.warning("Forbidden while archiving discussion channel %s", discussion.id)
@@ -199,6 +200,7 @@ async def delete_voice_channel(
         try:
             fetched = await bot.fetch_channel(channel_id)
         except discord.NotFound:
+            # Already gone: success, keeps the periodic loop idempotent (docs/design.md)
             return True
         except discord.Forbidden, discord.HTTPException:
             logger.warning("Failed to fetch voice channel %s", channel_id)
@@ -210,6 +212,7 @@ async def delete_voice_channel(
         await channel.delete()
         return True
     except discord.NotFound:
+        # Already gone: success, keeps the periodic loop idempotent (docs/design.md)
         return True
     except discord.Forbidden, discord.HTTPException:
         logger.warning("Failed to delete voice channel %s", channel_id)
@@ -223,6 +226,7 @@ async def cleanup_resources(
     discussion: discord.TextChannel | None = None,
     voice: discord.VoiceChannel | None = None,
 ) -> None:
+    # Reverse of the creation order in /ctfteam open
     for resource in (message, voice, discussion, role):
         if resource is None:
             continue
@@ -243,6 +247,7 @@ async def mark_message_closed(
         await message.edit(content=f"{CLOSED_HEADER}\n\n{message.content}")
         return True
     except discord.NotFound:
+        # Already gone: success, keeps the periodic loop idempotent (docs/design.md)
         return True
     except discord.Forbidden, discord.HTTPException:
         logger.warning("Failed to mark recruitment message %s closed", message_id)

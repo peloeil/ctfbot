@@ -9,6 +9,8 @@ from bot.errors import ServiceError
 from bot.log import logger
 from bot.runtime import get_runtime
 
+MAX_AUDIT_CONTENT_LENGTH = 1900  # Margin under Discord's 2000-char message limit
+
 
 def require_guild(interaction: discord.Interaction) -> discord.Guild:
     guild = interaction.guild
@@ -24,6 +26,7 @@ async def send_safely(
     allowed_mentions: discord.AllowedMentions | None = None,
 ) -> discord.Message | None:
     try:
+        # discord.py's send() overloads reject explicit None for embed/allowed_mentions
         if embed is not None and allowed_mentions is not None:
             return await channel.send(
                 content, embed=embed, allowed_mentions=allowed_mentions
@@ -84,6 +87,7 @@ def format_timestamp_with_relative(value: int | None, *, style: str = "f") -> st
 
 def sanitize_audit_text(value: object) -> str:
     normalized = re.sub(r"\s+", " ", str(value)).strip()
+    # Zero-width space keeps user input from pinging
     return normalized.replace("<@", "<@\u200b")
 
 
@@ -115,8 +119,8 @@ async def log_audit(
     ]
     lines.extend(f"- {sanitize_audit_text(item)}" for item in details)
     content = "\n".join(lines)
-    if len(content) > 1900:
-        content = content[:1897] + "..."
+    if len(content) > MAX_AUDIT_CONTENT_LENGTH:
+        content = content[: MAX_AUDIT_CONTENT_LENGTH - 3] + "..."
     await send_safely(channel, content, allowed_mentions=discord.AllowedMentions.none())
 
 
