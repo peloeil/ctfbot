@@ -7,7 +7,7 @@ from unittest import mock
 
 from bot.db import CURRENT_SCHEMA_VERSION, Database
 from bot.errors import ConflictError, RepositoryError
-from bot.features.ctf_team.models import CampaignStatus
+from bot.features.ctf_team.models import ActiveCampaign, CampaignStatus
 
 
 class DatabaseTest(unittest.TestCase):
@@ -172,6 +172,38 @@ class DatabaseTest(unittest.TestCase):
                 guild_id=1, channel_id=2, message_id=999
             )
         )
+
+    def test_decoder_rejects_active_with_closed_fields(self) -> None:
+        c = self.create_campaign()
+        with sqlite3.connect(self.path) as conn:
+            conn.execute(
+                "UPDATE ctf_team_campaign SET closed_at_unix=1 WHERE id=?",
+                (c.id,),
+            )
+            conn.commit()
+        with self.assertRaises(RepositoryError):
+            self.db.find_active_campaign_by_message(
+                guild_id=1, channel_id=2, message_id=3
+            )
+
+    def test_decoder_rejects_closed_without_required_fields(self) -> None:
+        c = self.create_campaign()
+        self.db.close_campaign(c.id, 21, 30)
+        with sqlite3.connect(self.path) as conn:
+            conn.execute(
+                "UPDATE ctf_team_campaign SET closed_at_unix=NULL WHERE id=?",
+                (c.id,),
+            )
+            conn.commit()
+        with self.assertRaises(RepositoryError):
+            self.db.find_campaign_by_name(
+                guild_id=1, ctf_name="Example", status=CampaignStatus.CLOSED
+            )
+
+    def test_create_campaign_returns_active_type(self) -> None:
+        c = self.create_campaign()
+        self.assertIsInstance(c, ActiveCampaign)
+        self.assertEqual(c.status, CampaignStatus.ACTIVE)
 
     def test_duplicate_active_name_conflicts(self) -> None:
         self.create_campaign("Example")

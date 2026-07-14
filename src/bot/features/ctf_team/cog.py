@@ -6,7 +6,7 @@ from discord.ext import commands, tasks
 
 from bot.errors import ConflictError, ServiceError
 from bot.features.ctf_team import campaign, discord_ops
-from bot.features.ctf_team.models import Campaign, CampaignStatus
+from bot.features.ctf_team.models import Campaign, CampaignStatus, ClosedCampaign
 from bot.helpers import (
     fetch_member,
     format_timestamp_with_relative,
@@ -516,7 +516,7 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
             self.db.close_campaign, item.id, closed_at, archive_at
         )
         if not was_closed:
-            return item.archive_at_unix or archive_at
+            return archive_at
 
         disc_ch = guild.get_channel(item.discussion_channel_id or 0)
         role = guild.get_role(item.role_id)
@@ -608,7 +608,7 @@ def _build_campaigns_embed(
             f"ロール: <@&{item.role_id}>",
             f"作成者: <@{item.created_by}>",
         ]
-        if item.status is CampaignStatus.CLOSED:
+        if isinstance(item, ClosedCampaign):
             block_lines.append(
                 f"archive予定: {format_timestamp_with_relative(item.archive_at_unix)}"
             )

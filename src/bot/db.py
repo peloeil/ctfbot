@@ -4,7 +4,12 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from bot.errors import ConflictError, RepositoryError
-from bot.features.ctf_team.models import Campaign, CampaignStatus
+from bot.features.ctf_team.models import (
+    ActiveCampaign,
+    Campaign,
+    CampaignStatus,
+    ClosedCampaign,
+)
 
 CURRENT_SCHEMA_VERSION = 2
 _MIGRATIONS: dict[int, str] = {
@@ -88,6 +93,26 @@ _CAMPAIGN_COLUMNS = (
     "discussion_channel_id, voice_channel_id"
 )
 
+type _CampaignRow = tuple[
+    int,
+    int,
+    int,
+    int,
+    int,
+    str,
+    int,
+    int | None,
+    str,
+    int,
+    int,
+    int | None,
+    int | None,
+    int | None,
+    int | None,
+    int | None,
+    int | None,
+]
+
 
 class Database:
     def __init__(self, path: str) -> None:
@@ -142,8 +167,19 @@ class Database:
             conn.commit()
 
     @staticmethod
-    def _to_campaign(row: tuple) -> Campaign:
-        return Campaign(
+    def _to_campaign(row: _CampaignRow) -> Campaign:
+        status = CampaignStatus(row[8])
+        if status == CampaignStatus.ACTIVE:
+            return Database._to_active_campaign(row)
+        return Database._to_closed_campaign(row)
+
+    @staticmethod
+    def _to_active_campaign(row: _CampaignRow) -> ActiveCampaign:
+        if row[12] is not None or row[13] is not None or row[14] is not None:
+            raise RepositoryError(
+                f"Active campaign {row[0]} has closed/archive fields set."
+            )
+        return ActiveCampaign(
             id=row[0],
             guild_id=row[1],
             channel_id=row[2],
@@ -152,10 +188,32 @@ class Database:
             ctf_name=row[5],
             start_at_unix=row[6],
             end_at_unix=row[7],
-            status=CampaignStatus(row[8]),
+            status=CampaignStatus.ACTIVE,
             created_by=row[9],
             created_at_unix=row[10],
             start_notified_at_unix=row[11],
+            discussion_channel_id=row[15],
+            voice_channel_id=row[16],
+        )
+
+    @staticmethod
+    def _to_closed_campaign(row: _CampaignRow) -> ClosedCampaign:
+        if row[12] is None or row[13] is None:
+            raise RepositoryError(
+                f"Closed campaign {row[0]} is missing closed_at or archive_at."
+            )
+        return ClosedCampaign(
+            id=row[0],
+            guild_id=row[1],
+            channel_id=row[2],
+            message_id=row[3],
+            role_id=row[4],
+            ctf_name=row[5],
+            start_at_unix=row[6],
+            end_at_unix=row[7],
+            status=CampaignStatus.CLOSED,
+            created_by=row[9],
+            created_at_unix=row[10],
             closed_at_unix=row[12],
             archive_at_unix=row[13],
             archived_at_unix=row[14],
@@ -255,7 +313,7 @@ class Database:
         created_by: int,
         created_at_unix: int,
         max_active_per_creator: int,
-    ) -> Campaign:
+    ) -> ActiveCampaign:
         with self._connection() as conn:
             conn.execute("BEGIN IMMEDIATE")
             active_count = conn.execute(
@@ -293,11 +351,11 @@ class Database:
                 f"SELECT {_CAMPAIGN_COLUMNS} FROM ctf_team_campaign WHERE id=?",
                 (cur.lastrowid,),
             ).fetchone()
-        return self._to_campaign(row)
+        return self._to_active_campaign(row)
 
     def find_active_campaign_by_message(
         self, *, guild_id: int, channel_id: int, message_id: int
-    ) -> Campaign | None:
+    ) -> ActiveCampaign | None:
         with self._connection() as conn:
             row = conn.execute(
                 f"SELECT {_CAMPAIGN_COLUMNS} FROM ctf_team_campaign "
@@ -305,7 +363,7 @@ class Database:
                 "AND message_id=? AND status='active'",
                 (guild_id, channel_id, message_id),
             ).fetchone()
-        return self._to_campaign(row) if row else None
+        return self._to_active_campaign(row) if row else None
 
     def find_campaign_by_name(
         self,
@@ -329,15 +387,17 @@ class Database:
             row = conn.execute(sql, params).fetchone()
         return self._to_campaign(row) if row else None
 
-    def list_due_campaigns(self, now_unix: int, limit: int = 20) -> list[Campaign]:
-        return self._list(
+    def list_due_campaigns(
+        self, now_unix: int, limit: int = 20
+    ) -> list[ActiveCampaign]:
+        return self._list_active(
             "WHERE status='active' AND end_at_unix IS NOT NULL AND end_at_unix <= ? "
             "ORDER BY end_at_unix ASC LIMIT ?",
             (now_unix, limit),
         )
 
-    def list_due_starts(self, now_unix: int, limit: int = 20) -> list[Campaign]:
-        return self._list(
+    def list_due_starts(self, now_unix: int, limit: int = 20) -> list[ActiveCampaign]:
+        return self._list_active(
             "WHERE status='active' AND start_notified_at_unix IS NULL "
             "AND start_at_unix <= ? ORDER BY start_at_unix ASC LIMIT ?",
             (now_unix, limit),
@@ -359,8 +419,8 @@ class Database:
             (closed_at_unix, archive_at_unix, campaign_id),
         )
 
-    def list_due_archives(self, now_unix: int, limit: int = 20) -> list[Campaign]:
-        return self._list(
+    def list_due_archives(self, now_unix: int, limit: int = 20) -> list[ClosedCampaign]:
+        return self._list_closed(
             "WHERE status='closed' AND archive_at_unix IS NOT NULL "
             "AND archive_at_unix <= ? AND archived_at_unix IS NULL "
             "ORDER BY archive_at_unix ASC LIMIT ?",
@@ -393,6 +453,24 @@ class Database:
                 f"SELECT {_CAMPAIGN_COLUMNS} FROM ctf_team_campaign {suffix}", params
             ).fetchall()
         return [self._to_campaign(row) for row in rows]
+
+    def _list_active(
+        self, suffix: str, params: tuple[object, ...]
+    ) -> list[ActiveCampaign]:
+        with self._connection() as conn:
+            rows = conn.execute(
+                f"SELECT {_CAMPAIGN_COLUMNS} FROM ctf_team_campaign {suffix}", params
+            ).fetchall()
+        return [self._to_active_campaign(row) for row in rows]
+
+    def _list_closed(
+        self, suffix: str, params: tuple[object, ...]
+    ) -> list[ClosedCampaign]:
+        with self._connection() as conn:
+            rows = conn.execute(
+                f"SELECT {_CAMPAIGN_COLUMNS} FROM ctf_team_campaign {suffix}", params
+            ).fetchall()
+        return [self._to_closed_campaign(row) for row in rows]
 
     def _update(self, sql: str, params: tuple[object, ...]) -> bool:
         with self._connection() as conn:
