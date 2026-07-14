@@ -7,7 +7,11 @@ from unittest import mock
 
 from bot.db import CURRENT_SCHEMA_VERSION, Database
 from bot.errors import ConflictError, RepositoryError
-from bot.features.ctf_team.models import ActiveCampaign, CampaignStatus
+from bot.features.ctf_team.models import (
+    ActiveCampaign,
+    CampaignStatus,
+    ClosedCampaign,
+)
 
 
 class DatabaseTest(unittest.TestCase):
@@ -196,9 +200,7 @@ class DatabaseTest(unittest.TestCase):
             )
             conn.commit()
         with self.assertRaises(RepositoryError):
-            self.db.find_campaign_by_name(
-                guild_id=1, ctf_name="Example", status=CampaignStatus.CLOSED
-            )
+            self.db.find_closed_campaign_by_name(guild_id=1, ctf_name="Example")
 
     def test_create_campaign_returns_active_type(self) -> None:
         c = self.create_campaign()
@@ -218,56 +220,81 @@ class DatabaseTest(unittest.TestCase):
 
     def test_close_start_archive_and_lists(self) -> None:
         c = self.create_campaign(start_at_unix=10, end_at_unix=20)
-        self.assertEqual([x.id for x in self.db.list_due_starts(10)], [c.id])
+        due_starts = self.db.list_due_starts(10)
+        self.assertEqual([x.id for x in due_starts], [c.id])
+        self.assertIsInstance(due_starts[0], ActiveCampaign)
         self.assertTrue(self.db.mark_started(c.id, 11))
         self.assertFalse(self.db.mark_started(c.id, 12))
-        self.assertEqual([x.id for x in self.db.list_due_campaigns(20)], [c.id])
+        due_campaigns = self.db.list_due_campaigns(20)
+        self.assertEqual([x.id for x in due_campaigns], [c.id])
+        self.assertIsInstance(due_campaigns[0], ActiveCampaign)
         self.assertTrue(self.db.close_campaign(c.id, 21, 30))
         self.assertIsNone(
-            self.db.find_campaign_by_name(
+            self.db.find_closed_campaign_by_name(
                 guild_id=1,
                 ctf_name="Example",
-                status=CampaignStatus.CLOSED,
                 archived=True,
             )
         )
-        self.assertEqual([x.id for x in self.db.list_due_archives(30)], [c.id])
+        due_archives = self.db.list_due_archives(30)
+        self.assertEqual([x.id for x in due_archives], [c.id])
+        self.assertIsInstance(due_archives[0], ClosedCampaign)
         self.assertTrue(self.db.mark_archived(c.id, 31))
-        archived = self.db.find_campaign_by_name(
+        archived = self.db.find_closed_campaign_by_name(
             guild_id=1,
             ctf_name="Example",
-            status=CampaignStatus.CLOSED,
             archived=True,
         )
         self.assertIsNotNone(archived)
         assert archived is not None
         self.assertEqual(archived.id, c.id)
 
-    def test_find_campaign_by_name_archived_filters(self) -> None:
+    def test_lifecycle_specific_name_lookups_filter_archived(self) -> None:
         c = self.create_campaign("FilterMe")
         self.assertIsNotNone(
-            self.db.find_campaign_by_name(
+            self.db.find_active_campaign_by_name(
                 guild_id=1,
                 ctf_name="filterme",
-                status=CampaignStatus.ACTIVE,
             )
         )
         self.assertTrue(self.db.close_campaign(c.id, 21, 30))
-        closed = self.db.find_campaign_by_name(
+        closed = self.db.find_closed_campaign_by_name(
             guild_id=1,
             ctf_name="FILTERME",
-            status=CampaignStatus.CLOSED,
             archived=False,
         )
         self.assertIsNotNone(closed)
+        self.assertIsInstance(closed, ClosedCampaign)
         self.assertIsNone(
-            self.db.find_campaign_by_name(
+            self.db.find_closed_campaign_by_name(
                 guild_id=1,
                 ctf_name="FilterMe",
-                status=CampaignStatus.CLOSED,
                 archived=True,
             )
         )
+
+    def test_decoder_normalizes_zero_optional_channel_ids(self) -> None:
+        c = self.create_campaign()
+        with sqlite3.connect(self.path) as conn:
+            conn.execute(
+                "UPDATE ctf_team_campaign SET discussion_channel_id=0, "
+                "voice_channel_id=0 WHERE id=?",
+                (c.id,),
+            )
+            conn.commit()
+
+        active = self.db.find_active_campaign_by_name(guild_id=1, ctf_name="Example")
+        self.assertIsNotNone(active)
+        assert active is not None
+        self.assertIsNone(active.discussion_channel_id)
+        self.assertIsNone(active.voice_channel_id)
+
+        self.assertTrue(self.db.close_campaign(c.id, 21, 30))
+        closed = self.db.find_closed_campaign_by_name(guild_id=1, ctf_name="Example")
+        self.assertIsNotNone(closed)
+        assert closed is not None
+        self.assertIsNone(closed.discussion_channel_id)
+        self.assertIsNone(closed.voice_channel_id)
 
     def test_list_campaigns_filters_status_and_orders_desc(self) -> None:
         active_old = self.create_campaign("Old", message_id=10, created_at_unix=10)

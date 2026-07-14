@@ -365,14 +365,42 @@ class Database:
             ).fetchone()
         return self._to_active_campaign(row) if row else None
 
-    def find_campaign_by_name(
+    def find_active_campaign_by_name(
+        self,
+        *,
+        guild_id: int,
+        ctf_name: str,
+    ) -> ActiveCampaign | None:
+        row = self._find_campaign_by_name_row(
+            guild_id=guild_id,
+            ctf_name=ctf_name,
+            status=CampaignStatus.ACTIVE,
+        )
+        return self._to_active_campaign(row) if row else None
+
+    def find_closed_campaign_by_name(
+        self,
+        *,
+        guild_id: int,
+        ctf_name: str,
+        archived: bool | None = None,
+    ) -> ClosedCampaign | None:
+        row = self._find_campaign_by_name_row(
+            guild_id=guild_id,
+            ctf_name=ctf_name,
+            status=CampaignStatus.CLOSED,
+            archived=archived,
+        )
+        return self._to_closed_campaign(row) if row else None
+
+    def _find_campaign_by_name_row(
         self,
         *,
         guild_id: int,
         ctf_name: str,
         status: CampaignStatus,
         archived: bool | None = None,
-    ) -> Campaign | None:
+    ) -> _CampaignRow | None:
         sql = (
             f"SELECT {_CAMPAIGN_COLUMNS} FROM ctf_team_campaign "
             "WHERE guild_id=? AND ctf_name=? AND status=?"
@@ -384,8 +412,7 @@ class Database:
             sql += " AND archived_at_unix IS NULL"
         sql += " ORDER BY created_at_unix DESC LIMIT 1"
         with self._connection() as conn:
-            row = conn.execute(sql, params).fetchone()
-        return self._to_campaign(row) if row else None
+            return conn.execute(sql, params).fetchone()
 
     def list_due_campaigns(
         self, now_unix: int, limit: int = 20

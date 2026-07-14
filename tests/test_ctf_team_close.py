@@ -11,7 +11,6 @@ import discord
 from bot.db import Database
 from bot.features.ctf_team import discord_ops
 from bot.features.ctf_team.cog import CTFTeamCampaigns
-from bot.features.ctf_team.models import CampaignStatus
 
 
 class CloseCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
@@ -68,10 +67,9 @@ class CloseCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertIsInstance(result, int)
-        closed = self.db.find_campaign_by_name(
+        closed = self.db.find_closed_campaign_by_name(
             guild_id=1,
             ctf_name="Example",
-            status=CampaignStatus.CLOSED,
         )
         self.assertIsNotNone(closed)
         snapshot.assert_awaited_once()
@@ -107,10 +105,23 @@ class CloseCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertIsNone(result)
-        active = self.db.find_campaign_by_name(
+        active = self.db.find_active_campaign_by_name(
             guild_id=1,
             ctf_name="Example",
-            status=CampaignStatus.ACTIVE,
         )
         self.assertIsNotNone(active)
         snapshot.assert_not_awaited()
+
+
+class GuildRequirementTest(unittest.IsolatedAsyncioTestCase):
+    async def test_list_command_reports_service_error(self) -> None:
+        cog = CTFTeamCampaigns.__new__(CTFTeamCampaigns)
+        interaction = mock.Mock(spec=discord.Interaction)
+        interaction.guild = None
+        interaction.response = mock.Mock()
+        interaction.response.defer = mock.AsyncMock()
+        send = mock.AsyncMock()
+
+        with mock.patch("bot.features.ctf_team.cog.send_interaction", new=send):
+            await CTFTeamCampaigns.list_campaigns.callback(cog, interaction)
+            send.assert_awaited_once_with(interaction, "サーバー内で実行してください。")

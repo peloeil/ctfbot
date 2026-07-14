@@ -6,7 +6,12 @@ from discord.ext import commands, tasks
 
 from bot.errors import ConflictError, ServiceError
 from bot.features.ctf_team import campaign, discord_ops
-from bot.features.ctf_team.models import Campaign, CampaignStatus, ClosedCampaign
+from bot.features.ctf_team.models import (
+    ActiveCampaign,
+    Campaign,
+    CampaignStatus,
+    ClosedCampaign,
+)
 from bot.helpers import (
     fetch_member,
     format_timestamp_with_relative,
@@ -245,7 +250,11 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
     async def list_campaigns(
         self, interaction: discord.Interaction, status: str = "active"
     ) -> None:
-        guild = require_guild(interaction)
+        try:
+            guild = require_guild(interaction)
+        except ServiceError as exc:
+            await send_interaction(interaction, str(exc))
+            return
         guild_id = guild.id
         filter_status = None if status == "all" else CampaignStatus(status)
         campaigns = await asyncio.to_thread(
@@ -262,12 +271,15 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         self, interaction: discord.Interaction, ctf_name: str
     ) -> None:
         await interaction.response.defer(ephemeral=True)
-        guild = require_guild(interaction)
+        try:
+            guild = require_guild(interaction)
+        except ServiceError as exc:
+            await send_interaction(interaction, str(exc))
+            return
         found = await asyncio.to_thread(
-            self.db.find_campaign_by_name,
+            self.db.find_active_campaign_by_name,
             guild_id=guild.id,
             ctf_name=ctf_name.strip(),
-            status=CampaignStatus.ACTIVE,
         )
         if found is None:
             await send_interaction(
@@ -305,12 +317,15 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         self, interaction: discord.Interaction, ctf_name: str
     ) -> None:
         await interaction.response.defer(ephemeral=True)
-        guild = require_guild(interaction)
+        try:
+            guild = require_guild(interaction)
+        except ServiceError as exc:
+            await send_interaction(interaction, str(exc))
+            return
         found = await asyncio.to_thread(
-            self.db.find_campaign_by_name,
+            self.db.find_closed_campaign_by_name,
             guild_id=guild.id,
             ctf_name=ctf_name.strip(),
-            status=CampaignStatus.CLOSED,
             archived=False,
         )
         if found is None:
@@ -441,10 +456,9 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         self, interaction: discord.Interaction, guild_id: int, ctf_name: str
     ) -> None:
         active = await asyncio.to_thread(
-            self.db.find_campaign_by_name,
+            self.db.find_active_campaign_by_name,
             guild_id=guild_id,
             ctf_name=ctf_name.strip(),
-            status=CampaignStatus.ACTIVE,
         )
         if active is not None:
             await send_interaction(
@@ -454,10 +468,9 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
             )
             return
         archived = await asyncio.to_thread(
-            self.db.find_campaign_by_name,
+            self.db.find_closed_campaign_by_name,
             guild_id=guild_id,
             ctf_name=ctf_name.strip(),
-            status=CampaignStatus.CLOSED,
             archived=True,
         )
         if archived is not None:
@@ -471,7 +484,7 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         self,
         discussion: discord.TextChannel,
         role: discord.Role,
-        item: Campaign,
+        item: ActiveCampaign,
     ) -> None:
         claimed = await asyncio.to_thread(
             self.db.mark_started,
@@ -482,7 +495,7 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
             await discord_ops.send_start_announcement(discussion, item.ctf_name, role)
 
     async def _close_campaign_resources(
-        self, guild: discord.Guild, item: Campaign
+        self, guild: discord.Guild, item: ActiveCampaign
     ) -> int | None:
         closed_at, archive_at = campaign.calculate_close(self.settings.tzinfo)
 
@@ -517,7 +530,7 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         return archive_at
 
     async def _archive_campaign_resources(
-        self, guild: discord.Guild, item: Campaign
+        self, guild: discord.Guild, item: ClosedCampaign
     ) -> bool:
         archive_category = guild.get_channel(self.settings.ctf_team_archive_category_id)
         if not isinstance(archive_category, discord.CategoryChannel):

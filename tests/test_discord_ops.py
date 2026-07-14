@@ -30,6 +30,25 @@ class RequireCategoryTest(unittest.TestCase):
             discord_ops.require_category(guild, 123)
 
 
+class RequireRoleChannelTest(unittest.TestCase):
+    def test_returns_role_channel(self) -> None:
+        category = mock.Mock(spec=discord.CategoryChannel)
+        role_channel = mock.Mock(spec=discord.TextChannel)
+        role_channel.name = discord_ops.ROLE_ANNOUNCE_CHANNEL_NAME
+        category.text_channels = [role_channel]
+
+        result = discord_ops.require_role_channel(category)
+
+        self.assertIs(result, role_channel)
+
+    def test_raises_when_not_found(self) -> None:
+        category = mock.Mock(spec=discord.CategoryChannel)
+        category.text_channels = []
+
+        with self.assertRaises(ServiceError):
+            discord_ops.require_role_channel(category)
+
+
 class DiscordOpsTest(unittest.TestCase):
     def test_normalize_channel_name_lowercases_and_replaces_spaces(self) -> None:
         self.assertEqual(
