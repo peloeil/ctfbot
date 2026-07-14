@@ -13,12 +13,12 @@ from bot.errors import ConfigurationError
 @dataclass(frozen=True, slots=True)
 class Settings:
     discord_token: str
-    bot_channel_id: int
-    bot_status_channel_id: int
+    bot_channel_id: int | None
+    bot_status_channel_id: int | None
     ctf_team_category_id: int
     ctf_team_archive_category_id: int
-    ctftime_channel_id: int
-    alpacahack_channel_id: int
+    ctftime_channel_id: int | None
+    alpacahack_channel_id: int | None
     timezone: str
     tzinfo: ZoneInfo
     log_level: str
@@ -101,12 +101,12 @@ def load_settings(
 
     return Settings(
         discord_token=discord_token,
-        bot_channel_id=_read_int(env, "BOT_CHANNEL_ID", 0),
-        bot_status_channel_id=_read_int(env, "BOT_STATUS_CHANNEL_ID", 0),
+        bot_channel_id=_read_int(env, "BOT_CHANNEL_ID", 0) or None,
+        bot_status_channel_id=_read_int(env, "BOT_STATUS_CHANNEL_ID", 0) or None,
         ctf_team_category_id=ctf_team_category_id,
         ctf_team_archive_category_id=ctf_team_archive_category_id,
-        ctftime_channel_id=_read_int(env, "CTFTIME_CHANNEL_ID", 0),
-        alpacahack_channel_id=_read_int(env, "ALPACAHACK_CHANNEL_ID", 0),
+        ctftime_channel_id=_read_int(env, "CTFTIME_CHANNEL_ID", 0) or None,
+        alpacahack_channel_id=_read_int(env, "ALPACAHACK_CHANNEL_ID", 0) or None,
         timezone=timezone,
         tzinfo=tzinfo,
         log_level=env.get("LOG_LEVEL", "INFO").strip() or "INFO",

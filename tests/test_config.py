@@ -23,10 +23,6 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(settings.discord_token, "token")
         self.assertEqual(settings.ctf_team_category_id, 123)
         self.assertEqual(settings.ctf_team_archive_category_id, 456)
-        self.assertEqual(settings.bot_channel_id, 0)
-        self.assertEqual(settings.bot_status_channel_id, 0)
-        self.assertEqual(settings.ctftime_channel_id, 0)
-        self.assertEqual(settings.alpacahack_channel_id, 0)
         self.assertEqual(settings.timezone, "Asia/Tokyo")
         self.assertEqual(settings.tzinfo, ZoneInfo("Asia/Tokyo"))
         self.assertEqual(settings.log_level, "INFO")
@@ -41,6 +37,36 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(settings.ctftime_window_days, 14)
         self.assertEqual(settings.ctftime_event_limit, 20)
         self.assertEqual(settings.ctftime_user_agent, "ctfbot/2.0 (+discord)")
+
+    def test_optional_channel_ids_default_to_none(self) -> None:
+        defaults = load_settings(environ=self.env())
+        explicit_zeroes = load_settings(
+            environ=self.env(
+                BOT_CHANNEL_ID="0",
+                BOT_STATUS_CHANNEL_ID="0",
+                CTFTIME_CHANNEL_ID="0",
+                ALPACAHACK_CHANNEL_ID="0",
+            )
+        )
+        for settings in (defaults, explicit_zeroes):
+            self.assertIsNone(settings.bot_channel_id)
+            self.assertIsNone(settings.bot_status_channel_id)
+            self.assertIsNone(settings.ctftime_channel_id)
+            self.assertIsNone(settings.alpacahack_channel_id)
+
+    def test_optional_channel_ids_accept_positive_values(self) -> None:
+        settings = load_settings(
+            environ=self.env(
+                BOT_CHANNEL_ID="42",
+                BOT_STATUS_CHANNEL_ID="43",
+                CTFTIME_CHANNEL_ID="44",
+                ALPACAHACK_CHANNEL_ID="45",
+            )
+        )
+        self.assertEqual(settings.bot_channel_id, 42)
+        self.assertEqual(settings.bot_status_channel_id, 43)
+        self.assertEqual(settings.ctftime_channel_id, 44)
+        self.assertEqual(settings.alpacahack_channel_id, 45)
 
     def test_missing_token_raises(self) -> None:
         env = self.env()

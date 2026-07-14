@@ -374,7 +374,7 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         except discord.Forbidden, discord.HTTPException:
             logger.warning("Failed to add role to member %s", payload.user_id)
             return
-        if found.discussion_channel_id:
+        if found.discussion_channel_id is not None:
             disc_ch = guild.get_channel(found.discussion_channel_id)
             if isinstance(disc_ch, discord.TextChannel):
                 await discord_ops.send_join_announcement(
@@ -390,7 +390,11 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
                 guild = self.bot.get_guild(item.guild_id)
                 if guild is None:
                     continue
-                disc_ch = guild.get_channel(item.discussion_channel_id or 0)
+                disc_ch = (
+                    guild.get_channel(item.discussion_channel_id)
+                    if item.discussion_channel_id is not None
+                    else None
+                )
                 role = guild.get_role(item.role_id)
                 if isinstance(disc_ch, discord.TextChannel) and role is not None:
                     await self._send_start_if_claimed(disc_ch, role, item)
@@ -502,7 +506,11 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         if not was_closed:
             return archive_at
 
-        disc_ch = guild.get_channel(item.discussion_channel_id or 0)
+        disc_ch = (
+            guild.get_channel(item.discussion_channel_id)
+            if item.discussion_channel_id is not None
+            else None
+        )
         role = guild.get_role(item.role_id)
         if isinstance(disc_ch, discord.TextChannel) and role is not None:
             await discord_ops.send_close_snapshot(disc_ch, item.ctf_name, role)
@@ -520,7 +528,11 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
             return False
 
         ok = True
-        disc_ch = guild.get_channel(item.discussion_channel_id or 0)
+        disc_ch = (
+            guild.get_channel(item.discussion_channel_id)
+            if item.discussion_channel_id is not None
+            else None
+        )
         role = guild.get_role(item.role_id)
         if isinstance(disc_ch, discord.TextChannel):
             ok = await discord_ops.archive_discussion_channel(

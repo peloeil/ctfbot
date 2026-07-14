@@ -99,7 +99,7 @@ async def log_audit(
     except RuntimeError:
         return
     channel_id = runtime.settings.bot_channel_id
-    if channel_id <= 0:
+    if channel_id is None:
         return
 
     channel = await resolve_messageable(bot, channel_id)
@@ -122,9 +122,9 @@ async def log_audit(
 
 async def resolve_messageable(
     bot: commands.Bot,
-    channel_id: int,
+    channel_id: int | None,
 ) -> discord.abc.Messageable | None:
-    if channel_id <= 0:
+    if channel_id is None:
         return None
     channel = bot.get_channel(channel_id)
     if channel is None:

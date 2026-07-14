@@ -192,7 +192,7 @@ async def delete_voice_channel(
     guild: discord.Guild,
     channel_id: int | None,
 ) -> bool:
-    if not channel_id:
+    if channel_id is None:
         return True
     channel = guild.get_channel(channel_id)
     if channel is None:

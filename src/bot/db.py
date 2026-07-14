@@ -192,8 +192,8 @@ class Database:
             created_by=row[9],
             created_at_unix=row[10],
             start_notified_at_unix=row[11],
-            discussion_channel_id=row[15],
-            voice_channel_id=row[16],
+            discussion_channel_id=row[15] or None,
+            voice_channel_id=row[16] or None,
         )
 
     @staticmethod
@@ -217,8 +217,8 @@ class Database:
             closed_at_unix=row[12],
             archive_at_unix=row[13],
             archived_at_unix=row[14],
-            discussion_channel_id=row[15],
-            voice_channel_id=row[16],
+            discussion_channel_id=row[15] or None,
+            voice_channel_id=row[16] or None,
         )
 
     def add_alpacahack_user(self, name: str) -> bool:
