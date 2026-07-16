@@ -26,7 +26,7 @@
 
 ## アーキテクチャ制約
 
-実装時に必ず守ること。`tests/test_architecture.py` で静的に検証されている。
+実装時に必ず守ること。制約 2〜6（import 境界）は `tests/test_architecture.py` で静的に検証されている。それ以外はレビューでのみ担保される。
 
 1. **型の境界でモジュールを分割する** — Discord 非依存ロジックを独立してテスト・再利用する必要がある場合は別モジュールに分ける。単一ファイルで完結する小規模 feature（alpacahack, ctftime, times 等）は同居してよい
 2. **`db.py` は discord を import しない** — feature からの import は `models.py` のみ許可
@@ -37,7 +37,7 @@
 7. **BotRuntime は Settings + Database のみ** — `bot/runtime.py` に定義。API クライアントは各 cog の `__init__` でローカル生成する
 8. **バリデーションは例外ベース** — 複数ステップの検証は `ServiceError` を raise し cog で `try/except ServiceError` で統一。単純な Discord 入力チェック（空文字・guild 存在確認など）は cog 内で直接応答してよい
 9. **Database は 1 クラスに集約** — 全テーブル・全 SQL が `db.py` に収まる
-10. **blocking I/O は `asyncio.to_thread`** — DB アクセス、HTTP リクエストなど同期処理は必ずスレッド委譲
+10. **async context の blocking I/O は `asyncio.to_thread`** — イベントループ上で実行される同期 I/O（DB アクセス、HTTP リクエスト）は必ずスレッド委譲。イベントループ外（起動時の初期化、同期テスト）は対象外
 11. **定期ループから呼ばれる処理は冪等にする** — 非冪等な副作用（通知送信）は DB の状態遷移確定後に置く。`discord.NotFound` は成功扱い（docs/design.md 参照）
 
 ## コーディング規約
@@ -53,21 +53,22 @@
 **コードには How、テストコードには What、コミットログには Why、コードコメントには Why not。**
 
 - **コード (How)**: 処理の流れは命名と分割だけで追えるようにする。コメントで補わない
-- **テスト (What)**: テスト名は振る舞い仕様を記述する（例: `test_retry_after_close_does_not_resend_snapshot`）。assert は型ではなく期待値そのものを検証する
+- **テスト (What)**: テスト名は振る舞い仕様を記述する（例: `test_retry_after_close_does_not_resend_snapshot`）。assert は期待値そのものを検証し、型だけを検証して終わらない（状態別戻り値型の契約確認としての `assertIsInstance` は可）
 - **コミットログ (Why)**: subject は変更内容の要約、本文に「何が問題で、なぜこの変更か」を書く。fix / refactor / revert / 削除系コミットでは本文 1〜3 行を必須とする
 - **コメント (Why not)**: 原則書かない。素直な書き方をあえて避けた箇所（一見バグに見える処理、マジックナンバーの根拠、意味のある実行順序など）のみ、理由を 1 行で書く
 
 ## 実装パターン
 
-新しい cog を追加するときの典型的な手順。既存の `features/times.py` が最小の参考例。
+新しい cog を追加するときの典型的な手順。既存の `features/times.py` が最小の参考例（runtime 不使用）、`features/alpacahack.py` が runtime・DB・定期タスクを使う例。
 
 1. `src/bot/features/` にファイルを作成する
 2. `commands.Cog`（単発コマンド）または `commands.GroupCog`（サブコマンド群）を継承したクラスを定義する
-3. `__init__` で `get_runtime(bot)` を呼び、`self.settings` / `self.db` を保持する
+3. settings / db が必要なら `__init__` で `get_runtime(bot)` を呼び、`self.settings` / `self.db` を保持する（不要なら `self.bot` のみでよい）
 4. 外部 API クライアントが必要なら `__init__` でインスタンスを作る（BotRuntime には追加しない）
 5. ファイル末尾に `async def setup(bot: commands.Bot) -> None:` を必ず置く
 6. `cogs_loader.py` の `DEFAULT_EXTENSIONS` にモジュールパスを追加する
-7. DB テーブルが必要なら `db.py` の `_SCHEMA_DDL` に DDL を追加し、`CURRENT_SCHEMA_VERSION` をインクリメントし、`_MIGRATIONS` に旧 version からの移行 SQL を追加する
+7. `tests/test_architecture.py` の `feature_modules` に新 feature のモジュールパスを追加する
+8. DB テーブルが必要なら `db.py` の `_SCHEMA_DDL` に DDL を追加し、`CURRENT_SCHEMA_VERSION` をインクリメントし、`_MIGRATIONS` に旧 version からの移行 SQL を追加する
 
 ```python
 # 最小の cog テンプレート
@@ -95,6 +96,8 @@ async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(MyCog(bot))
 ```
 
+settings / db が不要な cog は `get_runtime` と `self.settings` / `self.db` の 3 行を省く（`times.py` 参照）。
+
 ## 検証
 
 Codex が検証できるのは以下の 3 つ。すべてパスさせてから完了とすること。
@@ -106,9 +109,3 @@ uv run python -m unittest discover -s tests -v
 ```
 
 **bot の実行（`uv run python src/main.py`）は行わないこと。** Discord トークンが必要であり、実際の Discord 動作確認は人間が行う。
-
-## 変更時の注意
-
-- 新しい feature を追加する場合は `cogs_loader.py` の `DEFAULT_EXTENSIONS` に登録する
-- 新しい DB テーブルやカラムを追加する場合は `db.py` の `_SCHEMA_DDL`・`CURRENT_SCHEMA_VERSION`・`_MIGRATIONS` の 3 点を更新する
-- `test_architecture.py` を実行してモジュール境界が壊れていないことを確認する
