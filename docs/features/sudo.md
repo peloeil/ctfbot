@@ -30,15 +30,18 @@
 2. `ADMIN_ROLE_ID` / `SUDOER_ROLE_ID` が未設定なら「sudo 機能が設定されていません。」で中断
 3. 実行者が `SUDOER_ROLE_ID` のロールを保持していなければ「このコマンドを実行するには sudoer ロールが必要です。」で中断
 4. guild に `ADMIN_ROLE_ID` のロールが存在しなければ「付与対象のロールが見つかりません。」で中断
-5. 実行者が既にロールを保持しているのに grant レコードがない(bot を介さない恒常保持者)場合は「既に管理者ロールを保持しています。」で中断。恒常保持を期限付き grant に変換して自動剥奪してしまわないため
-6. `expires_at_unix = now + SUDO_DURATION_MINUTES * 60` として DB に grant レコードを upsert
-7. 実行者にロールを付与(`member.add_roles`)
-8. 付与に失敗(`discord.Forbidden` 等)したら grant レコードを削除し「ロールを付与できません。bot のロール権限と順位を確認してください(`/perms`)。」で中断
-9. ephemeral 応答 + `log_audit`
+5. grant レコードがあれば、設定変更後もレコードの `role_id` を今回の付与対象として維持する。保存されたロールが削除済みなら古いレコードを削除し、現在の `ADMIN_ROLE_ID` を新規 grant として扱う
+6. 実行者が付与対象ロールを既に保持しているのに grant レコードがない(bot を介さない恒常保持者)場合は「既に管理者ロールを保持しています。」で中断。恒常保持を期限付き grant に変換して自動剥奪してしまわないため
+7. `expires_at_unix = now + SUDO_DURATION_MINUTES * 60` として DB に grant レコードを upsert
+8. 実行者が付与対象ロールを保持していなければロールを付与(`member.add_roles`)
+9. 付与に失敗(`discord.Forbidden` 等)した場合、新規 grant ならレコードを削除し、更新 grant なら更新前のレコードに戻す。その後「ロールを付与できません。bot のロール権限と順位を確認してください(`/perms`)。」で中断
+10. ephemeral 応答 + `log_audit`
 
 既に昇格中の場合も同じ流れで、有効期限が `now + SUDO_DURATION_MINUTES * 60` に更新される(Unix sudo のタイムスタンプ更新と同じ挙動)。`granted_at_unix` は初回付与時の値を維持する。
 
-処理順序の理由: ロール付与より先に DB へ記録する。逆順だと「付与成功 → DB 書き込み失敗」で剥奪されない永続昇格が残る。DB 記録後に付与が失敗した場合はレコード削除を試み、削除に失敗しても自動剥奪タスクが回収する(剥奪は冪等)。
+有効な grant の更新では保存済みの `role_id` を維持する。`ADMIN_ROLE_ID` の設定変更を即座に既存 grant へ反映すると、以前に付与したロールが追跡対象から外れて剥奪されないため。新しい設定は既存 grant の終了後、次回の新規付与から使う。
+
+処理順序の理由: ロール付与より先に DB へ記録する。逆順だと「付与成功 → DB 書き込み失敗」で剥奪されない永続昇格が残る。DB 記録後に新規付与が失敗した場合はレコード削除を試み、削除に失敗しても自動剥奪タスクが回収する。更新時は既存ロールを追跡不能にしないよう、失敗時に更新前のレコードへ戻す。
 
 ### `/unsudo`
 
@@ -68,6 +71,8 @@
 5. 剥奪したら BOT_CHANNEL に自動剥奪の通知を送る(送信失敗は剥奪を巻き戻さない)
 
 bot 停止中に期限が切れた grant は、再起動後の初回実行で剥奪される。
+
+`/sudo`・`/unsudo`・自動剥奪は `(guild_id, user_id)` ごとに直列化する。自動剥奪は期限切れ一覧の取得後、ロック内で最新レコードを再取得し、更新後の期限が未到達なら処理しない。これにより、期限更新と古い期限切れスナップショットが競合して更新済み grant を削除することを防ぐ。
 
 ## データモデル
 
@@ -102,6 +107,8 @@ CREATE INDEX IF NOT EXISTS idx_sudo_grant_expires
 ```
 
 schema version 2 → 3。upsert は `ON CONFLICT (guild_id, user_id) DO UPDATE` で `role_id` と `expires_at_unix` のみ更新する(`granted_at_unix` は維持)。
+
+既存 grant の期限更新では保存済みの `role_id` を upsert に渡すため、通常は `expires_at_unix` のみが変化する。保存されたロールが guild から削除済みの場合だけ古いレコードを削除し、現在の `ADMIN_ROLE_ID` で新規 grant を作成する。
 
 Database メソッド:
 

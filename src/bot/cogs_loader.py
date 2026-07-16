@@ -7,6 +7,7 @@ DEFAULT_EXTENSIONS = (
     "bot.features.ctf_team.cog",
     "bot.features.ctftime",
     "bot.features.audit_log",
+    "bot.features.sudo.cog",
 )
 
 

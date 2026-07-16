@@ -10,8 +10,9 @@ from bot.features.ctf_team.models import (
     CampaignStatus,
     ClosedCampaign,
 )
+from bot.features.sudo.models import SudoGrant
 
-CURRENT_SCHEMA_VERSION = 2
+CURRENT_SCHEMA_VERSION = 3
 _MIGRATIONS: dict[int, str] = {
     1: """\
 CREATE TABLE IF NOT EXISTS audit_log_entry (
@@ -29,6 +30,19 @@ CREATE TABLE IF NOT EXISTS audit_log_entry (
 
 CREATE INDEX IF NOT EXISTS idx_audit_log_guild_created
     ON audit_log_entry (guild_id, created_at_unix);
+""",
+    2: """\
+CREATE TABLE IF NOT EXISTS sudo_grant (
+    guild_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    role_id INTEGER NOT NULL,
+    granted_at_unix INTEGER NOT NULL,
+    expires_at_unix INTEGER NOT NULL,
+    PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sudo_grant_expires
+    ON sudo_grant (expires_at_unix);
 """,
 }
 
@@ -84,6 +98,18 @@ CREATE TABLE IF NOT EXISTS audit_log_entry (
 
 CREATE INDEX IF NOT EXISTS idx_audit_log_guild_created
     ON audit_log_entry (guild_id, created_at_unix);
+
+CREATE TABLE IF NOT EXISTS sudo_grant (
+    guild_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    role_id INTEGER NOT NULL,
+    granted_at_unix INTEGER NOT NULL,
+    expires_at_unix INTEGER NOT NULL,
+    PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sudo_grant_expires
+    ON sudo_grant (expires_at_unix);
 """
 
 _CAMPAIGN_COLUMNS = (
@@ -112,6 +138,8 @@ type _CampaignRow = tuple[
     int | None,
     int | None,
 ]
+
+type _SudoGrantRow = tuple[int, int, int, int, int]
 
 
 class Database:
@@ -280,6 +308,67 @@ class Database:
             )
             conn.commit()
             return cur.rowcount > 0
+
+    @staticmethod
+    def _to_sudo_grant(row: _SudoGrantRow) -> SudoGrant:
+        return SudoGrant(
+            guild_id=row[0],
+            user_id=row[1],
+            role_id=row[2],
+            granted_at_unix=row[3],
+            expires_at_unix=row[4],
+        )
+
+    def upsert_sudo_grant(
+        self,
+        guild_id: int,
+        user_id: int,
+        role_id: int,
+        granted_at_unix: int,
+        expires_at_unix: int,
+    ) -> SudoGrant:
+        with self._connection() as conn:
+            conn.execute(
+                "INSERT INTO sudo_grant (guild_id, user_id, role_id, "
+                "granted_at_unix, expires_at_unix) VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT (guild_id, user_id) DO UPDATE SET "
+                "role_id=excluded.role_id, expires_at_unix=excluded.expires_at_unix",
+                (guild_id, user_id, role_id, granted_at_unix, expires_at_unix),
+            )
+            conn.commit()
+            row = conn.execute(
+                "SELECT guild_id, user_id, role_id, granted_at_unix, "
+                "expires_at_unix FROM sudo_grant WHERE guild_id=? AND user_id=?",
+                (guild_id, user_id),
+            ).fetchone()
+        return self._to_sudo_grant(row)
+
+    def get_sudo_grant(self, guild_id: int, user_id: int) -> SudoGrant | None:
+        with self._connection() as conn:
+            row = conn.execute(
+                "SELECT guild_id, user_id, role_id, granted_at_unix, "
+                "expires_at_unix FROM sudo_grant WHERE guild_id=? AND user_id=?",
+                (guild_id, user_id),
+            ).fetchone()
+        return self._to_sudo_grant(row) if row else None
+
+    def delete_sudo_grant(self, guild_id: int, user_id: int) -> None:
+        with self._connection() as conn:
+            conn.execute(
+                "DELETE FROM sudo_grant WHERE guild_id=? AND user_id=?",
+                (guild_id, user_id),
+            )
+            conn.commit()
+
+    def list_expired_sudo_grants(self, now_unix: int) -> list[SudoGrant]:
+        with self._connection() as conn:
+            rows = conn.execute(
+                "SELECT guild_id, user_id, role_id, granted_at_unix, "
+                "expires_at_unix FROM sudo_grant WHERE expires_at_unix <= ? "
+                "ORDER BY expires_at_unix ASC",
+                (now_unix,),
+            ).fetchall()
+        return [self._to_sudo_grant(row) for row in rows]
 
     def count_active_campaigns_by_creator(self, guild_id: int, created_by: int) -> int:
         with self._connection() as conn:

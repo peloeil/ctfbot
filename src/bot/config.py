@@ -19,6 +19,9 @@ class Settings:
     ctf_team_archive_category_id: int
     ctftime_channel_id: int | None
     alpacahack_channel_id: int | None
+    admin_role_id: int | None
+    sudoer_role_id: int | None
+    sudo_duration_minutes: int
     timezone: str
     tzinfo: ZoneInfo
     log_level: str
@@ -99,6 +102,13 @@ def load_settings(
     if not parent.exists():
         raise ConfigurationError(f"DATABASE_PATH parent does not exist: {parent}")
 
+    admin_role_id = _read_int(env, "ADMIN_ROLE_ID", 0) or None
+    sudoer_role_id = _read_int(env, "SUDOER_ROLE_ID", 0) or None
+    if (admin_role_id is None) != (sudoer_role_id is None):
+        raise ConfigurationError(
+            "ADMIN_ROLE_ID and SUDOER_ROLE_ID must both be set or both be unset."
+        )
+
     return Settings(
         discord_token=discord_token,
         bot_channel_id=_read_int(env, "BOT_CHANNEL_ID", 0) or None,
@@ -107,6 +117,11 @@ def load_settings(
         ctf_team_archive_category_id=ctf_team_archive_category_id,
         ctftime_channel_id=_read_int(env, "CTFTIME_CHANNEL_ID", 0) or None,
         alpacahack_channel_id=_read_int(env, "ALPACAHACK_CHANNEL_ID", 0) or None,
+        admin_role_id=admin_role_id,
+        sudoer_role_id=sudoer_role_id,
+        sudo_duration_minutes=_require_positive(
+            _read_int(env, "SUDO_DURATION_MINUTES", 30), "SUDO_DURATION_MINUTES"
+        ),
         timezone=timezone,
         tzinfo=tzinfo,
         log_level=env.get("LOG_LEVEL", "INFO").strip() or "INFO",

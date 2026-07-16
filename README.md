@@ -9,6 +9,7 @@ CTF サーバー向けの Discord bot です。
 - **AlpacaHack 連携** — `/alpaca add|del|list|solve` でユーザー管理と週次 solve 集計
 - **times チャンネル** — `/times create` でカテゴリ配下にチャンネルを一括作成
 - **ユーティリティ** — `/help`, `/perms`
+- **一時的な管理者昇格** — `/sudo`, `/unsudo` で期限付きロールを管理
 - **接続状態通知** — Bot の接続・切断をステータスチャンネルへ通知
 
 ## Quick Start
@@ -33,6 +34,9 @@ uv run python src/main.py
 | `BOT_STATUS_CHANNEL_ID` | | 接続状態通知の送信先（0 で無効） |
 | `CTFTIME_CHANNEL_ID` | | CTFtime 通知の送信先（0 で無効） |
 | `ALPACAHACK_CHANNEL_ID` | | AlpacaHack 通知の送信先（0 で無効） |
+| `ADMIN_ROLE_ID` | | `/sudo` で一時付与する管理者ロール ID |
+| `SUDOER_ROLE_ID` | | `/sudo` の実行を許可するロール ID |
+| `SUDO_DURATION_MINUTES` | | 昇格の有効時間（デフォルト `30` 分） |
 | `TIMEZONE` | | タイムゾーン（デフォルト `Asia/Tokyo`） |
 | `LOG_LEVEL` | | ログレベル（デフォルト `INFO`） |
 | `DATABASE_PATH` | | SQLite DB パス（デフォルト `ctfbot.db`） |

@@ -37,6 +37,9 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(settings.ctftime_window_days, 14)
         self.assertEqual(settings.ctftime_event_limit, 20)
         self.assertEqual(settings.ctftime_user_agent, "ctfbot/2.0 (+discord)")
+        self.assertIsNone(settings.admin_role_id)
+        self.assertIsNone(settings.sudoer_role_id)
+        self.assertEqual(settings.sudo_duration_minutes, 30)
 
     def test_optional_channel_ids_default_to_none(self) -> None:
         defaults = load_settings(environ=self.env())
@@ -112,6 +115,25 @@ class ConfigTest(unittest.TestCase):
             load_settings(environ=self.env(CTFTIME_WINDOW_DAYS="0"))
         with self.assertRaises(ConfigurationError):
             load_settings(environ=self.env(CTFTIME_EVENT_LIMIT="0"))
+        with self.assertRaises(ConfigurationError):
+            load_settings(environ=self.env(SUDO_DURATION_MINUTES="0"))
+
+    def test_sudo_role_ids_must_be_configured_together(self) -> None:
+        with self.assertRaises(ConfigurationError):
+            load_settings(environ=self.env(ADMIN_ROLE_ID="10"))
+        with self.assertRaises(ConfigurationError):
+            load_settings(environ=self.env(SUDOER_ROLE_ID="20"))
+
+        settings = load_settings(
+            environ=self.env(
+                ADMIN_ROLE_ID="10",
+                SUDOER_ROLE_ID="20",
+                SUDO_DURATION_MINUTES="45",
+            )
+        )
+        self.assertEqual(settings.admin_role_id, 10)
+        self.assertEqual(settings.sudoer_role_id, 20)
+        self.assertEqual(settings.sudo_duration_minutes, 45)
 
     def test_integer_settings_reject_negative_and_non_integer(self) -> None:
         with self.assertRaises(ConfigurationError):

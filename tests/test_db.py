@@ -12,6 +12,7 @@ from bot.features.ctf_team.models import (
     CampaignStatus,
     ClosedCampaign,
 )
+from bot.features.sudo.models import SudoGrant
 
 
 class DatabaseTest(unittest.TestCase):
@@ -62,11 +63,13 @@ class DatabaseTest(unittest.TestCase):
         self.assertIn("alpacahack_user", tables)
         self.assertIn("ctf_team_campaign", tables)
         self.assertIn("audit_log_entry", tables)
+        self.assertIn("sudo_grant", tables)
         self.assertIn("idx_campaign_guild_message", indexes)
         self.assertIn("idx_campaign_status_end", indexes)
         self.assertIn("idx_campaign_guild_status", indexes)
         self.assertIn("idx_campaign_active_name_unique", indexes)
         self.assertIn("idx_audit_log_guild_created", indexes)
+        self.assertIn("idx_sudo_grant_expires", indexes)
         self.assertEqual(version, CURRENT_SCHEMA_VERSION)
         Database(self.path)
 
@@ -134,6 +137,27 @@ class DatabaseTest(unittest.TestCase):
         self.assertIn("idx_audit_log_guild_created", indexes)
         self.assertEqual(version, CURRENT_SCHEMA_VERSION)
 
+    def test_migration_from_version_two_adds_sudo_schema(self) -> None:
+        with sqlite3.connect(self.path) as conn:
+            conn.execute("DROP TABLE sudo_grant")
+            conn.execute("PRAGMA user_version = 2")
+        Database(self.path)
+        with sqlite3.connect(self.path) as conn:
+            tables = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )
+            }
+            indexes = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='index'"
+                )
+            }
+        self.assertIn("sudo_grant", tables)
+        self.assertIn("idx_sudo_grant_expires", indexes)
+
     def test_alpacahack_users(self) -> None:
         self.assertTrue(self.db.add_alpacahack_user(" zeta "))
         self.assertFalse(self.db.add_alpacahack_user("zeta"))
@@ -162,6 +186,23 @@ class DatabaseTest(unittest.TestCase):
                 "changes_json, extra_text, created_at_unix FROM audit_log_entry"
             ).fetchone()
         self.assertEqual(row, tuple(values.values()))
+
+    def test_sudo_grant_upsert_preserves_initial_granted_time(self) -> None:
+        initial = self.db.upsert_sudo_grant(1, 2, 3, 100, 200)
+        renewed = self.db.upsert_sudo_grant(1, 2, 4, 150, 300)
+
+        self.assertEqual(initial, SudoGrant(1, 2, 3, 100, 200))
+        self.assertEqual(renewed, SudoGrant(1, 2, 4, 100, 300))
+        self.assertEqual(self.db.get_sudo_grant(1, 2), renewed)
+
+    def test_expired_sudo_grants_are_ordered_and_deletable(self) -> None:
+        later = self.db.upsert_sudo_grant(1, 2, 3, 100, 300)
+        earlier = self.db.upsert_sudo_grant(1, 4, 3, 100, 200)
+        self.db.upsert_sudo_grant(1, 5, 3, 100, 400)
+
+        self.assertEqual(self.db.list_expired_sudo_grants(300), [earlier, later])
+        self.db.delete_sudo_grant(1, 4)
+        self.assertIsNone(self.db.get_sudo_grant(1, 4))
 
     def test_create_and_find_campaign(self) -> None:
         created = self.create_campaign()

@@ -58,6 +58,7 @@ class ArchitectureTest(unittest.TestCase):
             "bot.features.utility",
             "bot.features.audit_log",
             "bot.features.ctf_team",
+            "bot.features.sudo",
         }
         for path in (SRC / "features").rglob("*.py"):
             if path.name == "__init__.py":
@@ -72,19 +73,13 @@ class ArchitectureTest(unittest.TestCase):
                 for feature in feature_modules
                 if imported == feature or imported.startswith(f"{feature}.")
             }
+            feature_module = ".".join(module.split(".")[:3])
             allowed_self = {
                 name
                 for name in forbidden
-                if name == module or name.startswith(f"{module}.")
+                if name == feature_module or name.startswith(f"{feature_module}.")
             }
             forbidden -= allowed_self
-            if module.startswith("bot.features.ctf_team."):
-                forbidden = {
-                    name
-                    for name in forbidden
-                    if name != "bot.features.ctf_team"
-                    and not name.startswith("bot.features.ctf_team.")
-                }
             self.assertFalse(forbidden, f"{module} imports {sorted(forbidden)}")
 
 
