@@ -21,6 +21,7 @@
 | times チャンネルの仕様 | `docs/features/times.md` |
 | ユーティリティコマンドの仕様 | `docs/features/utility.md` |
 | 監査ログ保存の仕様 | `docs/features/audit-log.md` |
+| 一時的な管理者昇格 (sudo) の仕様 | `docs/features/sudo.md` |
 | セットアップ・環境変数・Discord 設定 | `README.md` |
 
 ## アーキテクチャ制約
