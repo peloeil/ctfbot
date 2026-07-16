@@ -8,14 +8,15 @@ CTFtime API から近日開催の CTF イベントを取得し、週次で通知
 
 ### `/ctftime`
 
-`interaction.response.defer()` → イベント取得 → Embed で応答。
-取得失敗時は「CTFtime からの取得に失敗しました。」と応答。
+`interaction.response.defer()` → イベント取得 → Embed で応答（public）。
+取得失敗時は「CTFtime からの取得に失敗しました。」と応答（ephemeral）。
 
 ## 週次通知
 
 - 毎日 `CTFTIME_NOTIFICATION_TIME` に起動し、月曜（`weekday() == 0`）のみ実行
 - `CTFTIME_CHANNEL_ID` に Embed を送信（0 なら何もしない）
-- 実行時刻の設定は cog の `__init__` で `.start()` の前に `change_interval(time=...)` で行う（`before_loop` で設定すると bot 再起動時に即時実行が 1 回走り、二重送信になる。docs/design.md「週次通知の実行時刻は start 前に設定する」参照）
+- 取得失敗（`ExternalAPIError`）時は例外をログに記録し、通知チャンネルに「CTFtime からの取得に失敗しました。」を送信する
+- 実行時刻の設定は cog の `__init__` で `.start()` の前に `change_interval(time=...)` で行う（理由は docs/design.md「週次通知の実行時刻は start 前に設定する」）
 
 ## API クライアント (CTFTimeClient)
 
@@ -25,17 +26,21 @@ Headers: User-Agent={ctftime_user_agent}
 ```
 
 - `start` = 現在時刻、`finish` = 現在 + `CTFTIME_WINDOW_DAYS` 日
-- リトライ: 最大 `max_retries`（デフォルト 3）回。間隔 = `retry_backoff * attempt` 秒
+- リトライ: 最大 `max_retries`（デフォルト 3）回。間隔 = `retry_backoff * attempt` 秒。対象は `requests.RequestException`・`ValueError`（JSON パース失敗）・`ExternalAPIError`（不正レスポンス）
 - 全失敗 → `ExternalAPIError`
 
 ### レスポンスパース
 
 JSON 配列の各要素から:
-- `title`: str
+- `title`: str（なければ `"Untitled"`）
 - `start` / `finish`: ISO 8601 文字列 → `datetime.fromisoformat` → タイムゾーン変換
-- `ctftime_url`: str（なければ `url` フィールド）
+- `ctftime_url`: str（なければ `url` フィールド。両方なければ `""`）
 
-"Z" 付き・オフセット付き両方の ISO datetime をサポート。
+"Z" 付き・オフセット付き両方の ISO datetime をサポート。tzinfo なしは UTC とみなす。
+
+異常系（いずれもリトライ対象）:
+- payload が配列でない → `ExternalAPIError("Unexpected CTFtime response.")`
+- 要素が dict でない、または `start` / `finish` が欠落 → `ExternalAPIError("Unexpected CTFtime event.")`
 
 ## Embed 形式
 
