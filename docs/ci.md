@@ -15,46 +15,13 @@ PR と main ブランチへの push で lint・型チェック・テストを自
 | `push` | `main` ブランチ |
 | `pull_request` | `main` ブランチ向け |
 
-### マトリクス
+### 実行環境
 
-Python 3.14 のみ。OS は `ubuntu-latest` のみ。
+Python 3.14・`ubuntu-latest` のみ（`strategy.matrix` は使わない）。
 
-### ジョブ: `lint`
+### ジョブ
 
-Ruff による lint とフォーマットチェック。テストや型チェックと独立して高速に失敗できるよう分離する。
-
-```
-steps:
-  - uses: actions/checkout@v4
-  - uses: astral-sh/setup-uv@v6
-  - run: uv sync --group dev
-  - run: uv run ruff check src/ tests/
-  - run: uv run ruff format --check src/ tests/
-```
-
-### ジョブ: `type-check`
-
-ty による型チェック。
-
-```
-steps:
-  - uses: actions/checkout@v4
-  - uses: astral-sh/setup-uv@v6
-  - run: uv sync --group dev
-  - run: uv run ty check
-```
-
-### ジョブ: `test`
-
-unittest によるテスト実行。
-
-```
-steps:
-  - uses: actions/checkout@v4
-  - uses: astral-sh/setup-uv@v6
-  - run: uv sync --group dev
-  - run: uv run python -m unittest discover -s tests -v
-```
+`lint`（Ruff の check + format --check）、`type-check`（ty）、`test`（unittest）の 3 ジョブ。いずれも checkout → `astral-sh/setup-uv` → `uv sync --group dev` → 各コマンドの構成。具体的な steps とコマンドは `ci.yml` を正とする（このドキュメントに写しを持たない）。
 
 ## 設計判断
 
@@ -67,7 +34,7 @@ steps:
 ### `astral-sh/setup-uv` を使う理由
 
 - uv のインストールとキャッシュを 1 アクションで処理できる
-- `uv python install` による Python 3.14 のセットアップも自動化される（`actions/setup-python` は 3.14 未対応の可能性がある）
+- `uv python install` による Python 3.14 のセットアップも自動化される
 
 ### Python バージョンの指定方法
 
