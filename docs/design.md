@@ -17,7 +17,7 @@
 
 ### 型の境界でモジュールを分割する
 
-Discord 非依存ロジックを独立してテスト・再利用する必要がある場合は別モジュールに分ける。単一ファイルで完結する小規模 feature（alpacahack, ctftime, times 等）では同居してよい。分割の判断基準は行数ではなく「Discord のモック無しでテストしたいか」「他の feature から再利用するか」。
+Discord 非依存ロジックを独立してテスト・再利用する必要がある場合は別モジュールに分ける。単一ファイルで完結する小規模 feature（alpacahack, ctftime, times 等）では同居してよい。分割の判断基準は行数ではなく「Discord のモック無しでテストしたいか」「他の feature から再利用するか」。ただし feature 間の相互 import は禁止のため、feature をまたいで再利用するロジックは `helpers.py`（Discord 依存）またはコア層（db.py 等）へ昇格させる。
 
 ### `discord_ops.py` を ctf_team cog から分離する
 
@@ -177,6 +177,17 @@ optional_channel_id = read_int(..., default=0) or None
 - DB の nullable ID column は decoder で `0` も `None` に正規化する
 
 これにより、同じ「未設定」が `0` と `None` の 2 通りで内部を流れることを防ぎ、型 narrowing と実行時判定を一致させる。
+
+### 設定値の検証契約
+
+環境変数は `load_settings` が起動時に検証し、違反は `ConfigurationError` で fail-fast する。環境変数を追加・変更するときはこの契約に合わせる。
+
+- ID 系は `_read_int` で読む: 整数でない・負値は起動拒否。optional ID は `0` を未設定として `or None` に正規化し、必須 ID は正数を要求する
+- 時刻は `HH:MM` 形式のみ受け付け、`tzinfo` 付き `datetime.time` に変換する
+- 期間・件数系（`SUDO_DURATION_MINUTES`, `CTFTIME_WINDOW_DAYS`, `CTFTIME_EVENT_LIMIT`）は `_require_positive` で正数を要求する
+- `TIMEZONE` は `ZoneInfo` で解決できなければ起動拒否
+- `DATABASE_PATH` は親ディレクトリが存在しなければ起動拒否
+- 文字列系は strip し、空文字はデフォルト値へフォールバックする
 
 ### 境界変更のテスト方針
 
