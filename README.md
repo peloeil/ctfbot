@@ -10,6 +10,7 @@ CTF サーバー向けの Discord bot です。
 - **times チャンネル** — `/times create` でカテゴリ配下にチャンネルを一括作成
 - **ユーティリティ** — `/help`, `/perms`
 - **一時的な管理者昇格** — `/sudo`, `/unsudo` で期限付きロールを管理
+- **監査ログ保存** — Discord の監査ログエントリを DB に保存
 - **接続状態通知** — Bot の接続・切断をステータスチャンネルへ通知
 
 ## Quick Start
@@ -34,8 +35,8 @@ uv run python src/main.py
 | `BOT_STATUS_CHANNEL_ID` | | 接続状態通知の送信先（0 で無効） |
 | `CTFTIME_CHANNEL_ID` | | CTFtime 通知の送信先（0 で無効） |
 | `ALPACAHACK_CHANNEL_ID` | | AlpacaHack 通知の送信先（0 で無効） |
-| `ADMIN_ROLE_ID` | | `/sudo` で一時付与する管理者ロール ID |
-| `SUDOER_ROLE_ID` | | `/sudo` の実行を許可するロール ID |
+| `ADMIN_ROLE_ID` | | `/sudo` で一時付与する管理者ロール ID（`SUDOER_ROLE_ID` とセットで設定。片方だけだと起動拒否） |
+| `SUDOER_ROLE_ID` | | `/sudo` の実行を許可するロール ID（同上） |
 | `SUDO_DURATION_MINUTES` | | 昇格の有効時間（デフォルト `30` 分） |
 | `TIMEZONE` | | タイムゾーン（デフォルト `Asia/Tokyo`） |
 | `LOG_LEVEL` | | ログレベル（デフォルト `INFO`） |
@@ -68,4 +69,4 @@ uv run python src/main.py
 
 - `/ctfteam open` で作成される discussion / voice チャンネルは `CTF_TEAM_CATEGORY_ID` のカテゴリ配下に作成されます
 - `/ctfteam archive` は discussion チャンネルを `CTF_TEAM_ARCHIVE_CATEGORY_ID` のカテゴリに移動します
-- DB スキーマはバージョン管理されており、バージョンが一致しない DB では起動を拒否します
+- DB スキーマはバージョン管理されており、旧バージョンの DB は起動時に自動 migration されます。起動を拒否するのは、バージョン管理外の DB（バージョン 0 でテーブルあり）・bot より新しいバージョンの DB・migration path の無いバージョンの DB です
