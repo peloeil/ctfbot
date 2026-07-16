@@ -33,7 +33,7 @@
 3. **feature の `models.py` は discord を import しない** — `db.py` が import するため純粋なデータモデルに限定
 4. **`campaign.py` は discord を import しない**
 5. **`discord_ops.py` は `bot.db` を import しない**
-6. **feature 間の相互 import 禁止** — `alpacahack`, `ctftime`, `times`, `utility`, `ctf_team` は互いを import しない
+6. **feature 間の相互 import 禁止** — `src/bot/features/` 直下のすべての feature が対象。互いを import しない
 7. **BotRuntime は Settings + Database のみ** — `bot/runtime.py` に定義。API クライアントは各 cog の `__init__` でローカル生成する
 8. **バリデーションは例外ベース** — 複数ステップの検証は `ServiceError` を raise し cog で `try/except ServiceError` で統一。単純な Discord 入力チェック（空文字・guild 存在確認など）は cog 内で直接応答してよい
 9. **Database は 1 クラスに集約** — 全テーブル・全 SQL が `db.py` に収まる
