@@ -15,7 +15,7 @@ tools:
 1. **db.py は discord を import しない**
 2. **campaign.py は discord を import しない**
 3. **discord_ops.py は bot.db を import しない**
-4. **feature 間の相互 import 禁止** — alpacahack, ctftime, times, utility, ctf_team は互いを import しない
+4. **feature 間の相互 import 禁止** — features/ 直下のすべての feature が対象。互いを import しない
 5. **BotRuntime は Settings + Database のみ** — API クライアントは各 cog の `__init__` でローカル生成
 6. **バリデーションは ServiceError ベース**
 7. **blocking I/O は asyncio.to_thread 経由**
