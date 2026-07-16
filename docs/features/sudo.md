@@ -34,23 +34,21 @@
 6. 実行者が付与対象ロールを既に保持しているのに grant レコードがない(bot を介さない恒常保持者)場合は「既に管理者ロールを保持しています。」で中断。恒常保持を期限付き grant に変換して自動剥奪してしまわないため
 7. `expires_at_unix = now + SUDO_DURATION_MINUTES * 60` として DB に grant レコードを upsert
 8. 実行者が付与対象ロールを保持していなければロールを付与(`member.add_roles`)
-9. 付与に失敗(`discord.Forbidden` 等)した場合、新規 grant ならレコードを削除し、更新 grant なら更新前のレコードに戻す。その後「ロールを付与できません。bot のロール権限と順位を確認してください(`/perms`)。」で中断
-10. ephemeral 応答 + `log_audit`
+9. 付与に失敗(`discord.Forbidden`・`discord.HTTPException`)した場合、新規 grant ならレコードを削除し、更新 grant なら更新前のレコードに戻す。その後「ロールを付与できません。bot のロール権限と順位を確認してください(`/perms`)。」で中断
+10. ephemeral 応答 + `log_audit(command_name="sudo", details=["管理者ロール期限: <t:{expires_at_unix}:f>"])`
 
 既に昇格中の場合も同じ流れで、有効期限が `now + SUDO_DURATION_MINUTES * 60` に更新される(Unix sudo のタイムスタンプ更新と同じ挙動)。`granted_at_unix` は初回付与時の値を維持する。
 
-有効な grant の更新では保存済みの `role_id` を維持する。`ADMIN_ROLE_ID` の設定変更を即座に既存 grant へ反映すると、以前に付与したロールが追跡対象から外れて剥奪されないため。新しい設定は既存 grant の終了後、次回の新規付与から使う。
-
-処理順序の理由: ロール付与より先に DB へ記録する。逆順だと「付与成功 → DB 書き込み失敗」で剥奪されない永続昇格が残る。DB 記録後に新規付与が失敗した場合はレコード削除を試み、削除に失敗しても自動剥奪タスクが回収する。更新時は既存ロールを追跡不能にしないよう、失敗時に更新前のレコードへ戻す。
+処理順序の理由: ロール付与より先に DB へ記録する。逆順だと「付与成功 → DB 書き込み失敗」で剥奪されない永続昇格が残る。DB 記録後に新規付与が失敗した場合はレコード削除を試み、削除に失敗しても自動剥奪タスクが回収する。
 
 ### `/unsudo`
 
 1. guild 内実行を確認(`require_guild`)
-2. 自分の grant レコードがなければ「昇格中ではありません。」で中断
-3. レコードに保存された `role_id` のロールを剥奪(`member.remove_roles`)。ロールが guild から削除済みの場合は剥奪成功として扱う
-4. 剥奪に失敗(`discord.Forbidden` 等)したら「ロールを解除できません。bot のロール権限と順位を確認してください(`/perms`)。」で中断(レコードは残し、自動剥奪タスクのリトライに委ねる)
+2. 実行者が `discord.Member` でない、または自分の grant レコードがなければ「昇格中ではありません。」で中断
+3. レコードに保存された `role_id` のロールを剥奪(`member.remove_roles`)。ロールが guild から削除済みの場合、および `remove_roles` が `discord.NotFound` の場合は剥奪成功として扱う
+4. 剥奪に失敗(`discord.Forbidden`・`discord.HTTPException`)したら「ロールを解除できません。bot のロール権限と順位を確認してください(`/perms`)。」で中断(レコードは残し、自動剥奪タスクのリトライに委ねる)
 5. grant レコードを削除
-6. ephemeral 応答 + `log_audit`
+6. ephemeral 応答 + `log_audit(command_name="unsudo", details=["管理者ロールID: {grant.role_id}"])`
 
 処理順序の理由: ロール剥奪より先にレコードを消すと「レコードなし・ロールあり」の剥奪漏れが残る。剥奪成功までレコードを残すことでリトライ可能にする。
 
@@ -65,10 +63,10 @@
 各 grant について:
 
 1. guild を解決できなければスキップ(次回リトライ)
-2. メンバーが guild にいなければ(退出済み)レコードのみ削除
+2. メンバーを解決する。キャッシュになければ `guild.fetch_member` で照会し、`discord.NotFound`(退出済み)の場合のみレコードを削除する。照会自体の失敗(`discord.Forbidden`・`discord.HTTPException`)は退出と区別し、レコードを残して次回リトライ
 3. レコードの `role_id` が guild に存在しなければ剥奪成功として扱う
-4. ロールを剥奪 → レコード削除。剥奪失敗ならレコードを残して次回リトライ
-5. 剥奪したら BOT_CHANNEL に自動剥奪の通知を送る(送信失敗は剥奪を巻き戻さない)
+4. ロールを剥奪(`discord.NotFound` は剥奪成功扱い) → レコード削除。剥奪失敗(`discord.Forbidden`・`discord.HTTPException`)ならレコードを残して次回リトライ
+5. 剥奪したら BOT_CHANNEL に自動剥奪の通知を送る(`AllowedMentions.none()` 付き、ロックの外で送信。送信失敗は剥奪を巻き戻さない)
 
 bot 停止中に期限が切れた grant は、再起動後の初回実行で剥奪される。
 
@@ -88,7 +86,7 @@ class SudoGrant:
     expires_at_unix: int
 ```
 
-`role_id` は付与時点の `ADMIN_ROLE_ID` を保存する。設定変更後でも、実際に付与したロールを正確に剥奪するため。剥奪(`/unsudo`・自動剥奪)はこの ID を使う。
+`role_id` は付与時点の `ADMIN_ROLE_ID` を保存し、grant が有効な間は設定変更を反映せず維持する。即座に反映すると、実際に付与したロールが追跡対象から外れて剥奪されないため。剥奪(`/unsudo`・自動剥奪)はこの ID を使い、新しい設定値は次回の新規付与から使われる。
 
 ## DB スキーマ
 
@@ -106,9 +104,7 @@ CREATE INDEX IF NOT EXISTS idx_sudo_grant_expires
     ON sudo_grant (expires_at_unix);
 ```
 
-schema version 2 → 3。upsert は `ON CONFLICT (guild_id, user_id) DO UPDATE` で `role_id` と `expires_at_unix` のみ更新する(`granted_at_unix` は維持)。
-
-既存 grant の期限更新では保存済みの `role_id` を upsert に渡すため、通常は `expires_at_unix` のみが変化する。保存されたロールが guild から削除済みの場合だけ古いレコードを削除し、現在の `ADMIN_ROLE_ID` で新規 grant を作成する。
+`_MIGRATIONS[2]`(version 2 → 3 の移行)に登録されている。upsert は `ON CONFLICT (guild_id, user_id) DO UPDATE` で `role_id` と `expires_at_unix` のみ更新する(`granted_at_unix` は維持)。
 
 Database メソッド:
 
@@ -143,9 +139,9 @@ Database メソッド:
 | `SUDOER_ROLE_ID` | いいえ | なし | `/sudo` を実行できるメンバーのロール ID |
 | `SUDO_DURATION_MINUTES` | いいえ | 30 | 昇格の有効時間(分)。正の整数 |
 
-`ADMIN_ROLE_ID` と `SUDOER_ROLE_ID` は両方設定するか両方未設定にする。片方だけの設定は `load_settings` で `ConfigurationError` として fail-fast する(sudoer チェック抜けの昇格を構成ミスで許さないため)。両方未設定なら機能無効。
+`ADMIN_ROLE_ID` と `SUDOER_ROLE_ID` は両方設定するか両方未設定にする。片方だけの設定は `load_settings` で `ConfigurationError` として fail-fast する(sudoer チェック抜けの昇格を構成ミスで許さないため)。両方未設定なら機能無効。`0` は未設定として扱い(`or None` で正規化)、負値は `ConfigurationError`。
 
-`Settings` には `admin_role_id: int | None`、`sudoer_role_id: int | None`、`sudo_duration_minutes: int` として追加する。
+`Settings` は `admin_role_id: int | None`、`sudoer_role_id: int | None`、`sudo_duration_minutes: int` を持つ。
 
 ## Discord 側の前提
 
