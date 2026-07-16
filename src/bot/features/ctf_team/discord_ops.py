@@ -173,9 +173,6 @@ async def archive_discussion_channel(
         )
         if role is not None:
             await discussion.set_permissions(role, overwrite=None)
-        await send_safely(
-            discussion, "📦 このチャンネルは archive カテゴリに移動されました。"
-        )
         return True
     except discord.NotFound:
         # Already gone: success, keeps the periodic loop idempotent (docs/design.md)

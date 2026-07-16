@@ -86,7 +86,7 @@ close と同じく「Discord リソース → DB → 通知」の順で行う。
 
 **DB insert 後（手順 5〜6）の失敗**は募集を巻き戻さない（`cleanup_resources` は実行しない）:
 - 手順 5 のロール付与失敗（`discord.Forbidden`・`discord.HTTPException`）→ warning ログを記録し、成功応答に「⚠️ 作成者へのロール付与に失敗しました。募集メッセージに ✅ リアクションすると参加できます。」を改行で追記（警告付き成功）
-- 手順 6 の即時開始通知の失敗（claim の DB エラー・送信失敗）→ warning ログのみ。claim 未達なら毎分ループの `start_due_campaigns` が回収する
+- 手順 6 の即時開始通知の失敗 → ログのみ（送信失敗は warning、claim の例外は traceback 付き exception）。claim 未達なら毎分ループの `start_due_campaigns` が回収する
 
 成功時の応答は「**{ctf_name}** の募集を作成しました。」（ロール付与失敗時は上記警告行を追記）+ `log_audit(details=["CTF名: {ctf_name}"])`。
 

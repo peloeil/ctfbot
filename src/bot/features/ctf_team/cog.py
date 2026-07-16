@@ -18,6 +18,7 @@ from bot.helpers import (
     log_audit,
     require_guild,
     send_interaction,
+    send_safely,
 )
 from bot.log import logger
 from bot.runtime import get_runtime
@@ -182,61 +183,77 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
             )
             await recruit_msg.add_reaction(REACTION_EMOJI)
 
-            try:
-                created = await asyncio.to_thread(
-                    self.db.create_campaign,
-                    guild_id=guild.id,
-                    channel_id=role_channel.id,
-                    message_id=recruit_msg.id,
-                    role_id=role.id,
-                    discussion_channel_id=discussion.id,
-                    voice_channel_id=voice.id,
-                    ctf_name=draft.ctf_name,
-                    start_at_unix=draft.start_at_unix,
-                    end_at_unix=draft.end_at_unix,
-                    created_by=interaction.user.id,
-                    created_at_unix=campaign.now_unix(self.settings.tzinfo),
-                    max_active_per_creator=campaign.MAX_ACTIVE_PER_USER,
-                )
-            except ConflictError:
-                await discord_ops.cleanup_resources(
-                    message=recruit_msg,
-                    role=role,
-                    discussion=discussion,
-                    voice=voice,
-                )
-                await send_interaction(
-                    interaction,
-                    "同名の募集が作成されたか、active 募集数の上限に達しました。",
-                )
-                return
-
-            if isinstance(creator, discord.Member) and role not in creator.roles:
-                await creator.add_roles(role)
-
-            if campaign.is_started(created, self.settings.tzinfo):
-                await self._send_start_if_claimed(discussion, role, created)
-
+            created = await asyncio.to_thread(
+                self.db.create_campaign,
+                guild_id=guild.id,
+                channel_id=role_channel.id,
+                message_id=recruit_msg.id,
+                role_id=role.id,
+                discussion_channel_id=discussion.id,
+                voice_channel_id=voice.id,
+                ctf_name=draft.ctf_name,
+                start_at_unix=draft.start_at_unix,
+                end_at_unix=draft.end_at_unix,
+                created_by=interaction.user.id,
+                created_at_unix=campaign.now_unix(self.settings.tzinfo),
+                max_active_per_creator=campaign.MAX_ACTIVE_PER_USER,
+            )
+        except ConflictError:
+            await discord_ops.cleanup_resources(
+                message=recruit_msg, role=role, discussion=discussion, voice=voice
+            )
             await send_interaction(
-                interaction, f"**{draft.ctf_name}** の募集を作成しました。"
-            )
-            await log_audit(
-                self.bot,
                 interaction,
-                command_name="ctfteam open",
-                details=[f"CTF名: {draft.ctf_name}"],
+                "同名の募集が作成されたか、active 募集数の上限に達しました。",
             )
+            return
         except ServiceError as exc:
             await discord_ops.cleanup_resources(
                 message=recruit_msg, role=role, discussion=discussion, voice=voice
             )
             await send_interaction(interaction, str(exc))
+            return
         except Exception:
             logger.exception("Failed to create campaign: %s", ctf_name)
             await discord_ops.cleanup_resources(
                 message=recruit_msg, role=role, discussion=discussion, voice=voice
             )
             await send_interaction(interaction, "募集の作成中にエラーが発生しました。")
+            return
+
+        # Non-None: every except branch above returns, so the try block completed
+        assert role is not None
+        assert discussion is not None
+        role_assignment_failed = False
+        if isinstance(creator, discord.Member) and role not in creator.roles:
+            try:
+                await creator.add_roles(role)
+            except discord.Forbidden, discord.HTTPException:
+                logger.warning("Failed to add creator role for campaign %s", created.id)
+                role_assignment_failed = True
+
+        if campaign.is_started(created, self.settings.tzinfo):
+            try:
+                await self._send_start_if_claimed(discussion, role, created)
+            except Exception:
+                logger.exception(
+                    "Failed to send immediate start announcement for campaign %s",
+                    created.id,
+                )
+
+        response = f"**{draft.ctf_name}** の募集を作成しました。"
+        if role_assignment_failed:
+            response += (
+                "\n⚠️ 作成者へのロール付与に失敗しました。"
+                "募集メッセージに ✅ リアクションすると参加できます。"
+            )
+        await send_interaction(interaction, response)
+        await log_audit(
+            self.bot,
+            interaction,
+            command_name="ctfteam open",
+            details=[f"CTF名: {draft.ctf_name}"],
+        )
 
     @app_commands.command(name="list", description="CTF募集の一覧を表示します。")
     @app_commands.describe(status="表示するステータス")
@@ -492,7 +509,13 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
             campaign.now_unix(self.settings.tzinfo),
         )
         if claimed:
-            await discord_ops.send_start_announcement(discussion, item.ctf_name, role)
+            _, success = await discord_ops.send_start_announcement(
+                discussion, item.ctf_name, role
+            )
+            if not success:
+                logger.warning(
+                    "Failed to send start announcement for campaign %s", item.id
+                )
 
     async def _close_campaign_resources(
         self, guild: discord.Guild, item: ActiveCampaign
@@ -568,11 +591,16 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
                 "Failed to archive Discord resources for campaign %s", item.id
             )
             return False
-        await asyncio.to_thread(
+        claimed = await asyncio.to_thread(
             self.db.mark_archived,
             item.id,
             campaign.now_unix(self.settings.tzinfo),
         )
+        if claimed and isinstance(disc_ch, discord.TextChannel):
+            await send_safely(
+                disc_ch,
+                "📦 このチャンネルは archive カテゴリに移動されました。",
+            )
         return True
 
 
