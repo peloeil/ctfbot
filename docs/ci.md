@@ -2,44 +2,59 @@
 
 ## 概要
 
-PR と main ブランチへの push で lint・型チェック・テストを自動実行する。
+PR と main ブランチへの push で lint・型チェック・テストを自動実行する。この文書が `.github/workflows/ci.yml` の正本であり、この定義だけからワークフローを再作成できる。
 
-## ワークフロー
+## ワークフロー定義
 
-ファイル: `.github/workflows/ci.yml`
+```yaml
+name: CI
 
-### トリガー
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
-| イベント | 対象 |
-|---|---|
-| `push` | `main` ブランチ |
-| `pull_request` | `main` ブランチ向け |
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --group dev
+      - run: uv run ruff check src/ tests/
+      - run: uv run ruff format --check src/ tests/
 
-### 実行環境
+  type-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --group dev
+      - run: uv run ty check
 
-Python 3.14・`ubuntu-latest` のみ（`strategy.matrix` は使わない）。
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --group dev
+      - run: uv run python -m unittest discover -s tests -v
+```
 
-### ジョブ
-
-`lint`（Ruff の check + format --check）、`type-check`（ty）、`test`（unittest）の 3 ジョブ。いずれも checkout → `astral-sh/setup-uv` → `uv sync --group dev` → 各コマンドの構成。具体的な steps とコマンドは `ci.yml` を正とする（このドキュメントに写しを持たない）。
+- Python バージョンはワークフローで指定しない。`setup-uv@v6` がリポジトリの `.python-version`（内容: `3.14`）を読んで自動インストールする。バージョン変更は `.python-version` と `pyproject.toml` の `requires-python` を更新する（ワークフローに重複指定を持ち込まない）
+- 実行環境は `ubuntu-latest` のみ（`strategy.matrix` は使わない）
 
 ## 設計判断
 
 ### 3 ジョブに分離する理由
 
-- lint は数秒で終わるため、型チェックやテストの完了を待たずにフィードバックを返せる
+- ジョブは並列実行されるため、全体の所要時間は最も遅いジョブの時間で済み、lint のような数秒で終わる検査は先にフィードバックを返せる
 - 失敗原因が一目で分かる（lint 失敗 vs 型エラー vs テスト失敗）
-- ジョブは並列実行されるため、全体の所要時間は直列実行の合計ではなく最も遅いジョブの時間で済む
 
 ### `astral-sh/setup-uv` を使う理由
 
-- uv のインストールとキャッシュを 1 アクションで処理できる
-- `uv python install` による Python 3.14 のセットアップも自動化される
-
-### Python バージョンの指定方法
-
-`.python-version` ファイル（内容: `3.14`）が既にリポジトリにある。`setup-uv` はデフォルトでこのファイルを読み、対応する Python を自動インストールする。ワークフロー側でバージョンを重複指定しない。
-
-### キャッシュ
-
-`astral-sh/setup-uv@v6` は uv のキャッシュディレクトリを自動的にキャッシュする（`enable-cache` のデフォルトが true）。追加のキャッシュ設定は不要。
+- uv のインストール・キャッシュ・`.python-version` に基づく Python のセットアップを 1 アクションで処理できる
+- `setup-uv@v6` は uv のキャッシュディレクトリを自動的にキャッシュする（`enable-cache` のデフォルトが true）。追加のキャッシュ設定は不要
