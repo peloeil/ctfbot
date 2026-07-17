@@ -24,25 +24,7 @@ uv run python src/main.py
 
 ## 環境変数
 
-`.env.example` に全項目の一覧があります。
-
-| 変数 | 必須 | 説明 |
-|---|---|---|
-| `DISCORD_TOKEN` | Yes | Bot トークン |
-| `CTF_TEAM_CATEGORY_ID` | Yes | 募集チャンネルを作成するカテゴリ ID |
-| `CTF_TEAM_ARCHIVE_CATEGORY_ID` | Yes | アーカイブ先カテゴリ ID |
-| `BOT_CHANNEL_ID` | | コマンド実行ログの送信先（0 で無効） |
-| `BOT_STATUS_CHANNEL_ID` | | 接続状態通知の送信先（0 で無効） |
-| `CTFTIME_CHANNEL_ID` | | CTFtime 通知の送信先（0 で無効） |
-| `ALPACAHACK_CHANNEL_ID` | | AlpacaHack 通知の送信先（0 で無効） |
-| `ADMIN_ROLE_ID` | | `/sudo` で一時付与する管理者ロール ID（`SUDOER_ROLE_ID` とセットで設定。片方だけだと起動拒否） |
-| `SUDOER_ROLE_ID` | | `/sudo` の実行を許可するロール ID（同上） |
-| `SUDO_DURATION_MINUTES` | | 昇格の有効時間（デフォルト `30` 分） |
-| `TIMEZONE` | | タイムゾーン（デフォルト `Asia/Tokyo`） |
-| `LOG_LEVEL` | | ログレベル（デフォルト `INFO`） |
-| `DATABASE_PATH` | | SQLite DB パス（デフォルト `ctfbot.db`） |
-
-その他スケジュール関連の設定（`ALPACAHACK_SOLVE_TIME`, `CTFTIME_NOTIFICATION_TIME` 等）は `.env.example` を参照してください。
+必須は `DISCORD_TOKEN`・`CTF_TEAM_CATEGORY_ID`・`CTF_TEAM_ARCHIVE_CATEGORY_ID` の 3 つです。全項目の用途・型・必須性・デフォルト・検証規則は `docs/data-contracts.md`「設定契約」を参照してください（`.env.example` は同表と同期しています）。
 
 ## Discord の設定
 
@@ -69,4 +51,4 @@ uv run python src/main.py
 
 - `/ctfteam open` で作成される discussion / voice チャンネルは `CTF_TEAM_CATEGORY_ID` のカテゴリ配下に作成されます
 - `/ctfteam archive` は discussion チャンネルを `CTF_TEAM_ARCHIVE_CATEGORY_ID` のカテゴリに移動します
-- DB スキーマはバージョン管理されており、旧バージョンの DB は起動時に自動 migration されます。起動を拒否するのは、バージョン管理外の DB（バージョン 0 でテーブルあり）・bot より新しいバージョンの DB・migration path の無いバージョンの DB です
+- DB スキーマはバージョン管理されており、旧バージョンの DB は起動時に自動 migration されます。起動を拒否するのは、バージョン管理外の DB（バージョン 0 でテーブルあり）・bot より新しいバージョンの DB・migration path の無いバージョンの DB です（契約の正本は `docs/data-contracts.md`）
