@@ -133,8 +133,8 @@ CTF 名、AlpacaHack username・challenge 名、CTFtime title 等がメッセー
 | design-2 | 中 | B | SQLite の接続所有・スレッド安全性（to_thread と併用時）・DB 操作の直列化・busy timeout・トランザクション境界が未定義（L70-74） → **対応済み（手順 2）**: data-contracts.md「共通契約」に明文化 |
 | design-3 | 中 | B（補正あり→§4.1） | 非 atomic 適用＋再実行は既に明文（L74）だが、`IF NOT EXISTS` で再実行安全にできるのは DDL だけ。UPDATE・データ変換を含む migration の書き方指針（冪等 UPDATE 等）か、SQL 適用と version 更新の atomic 化かを決めて明記 → 非 atomic の維持と書き方指針（冪等な述語）を data-contracts.md に記載済み（手順 2） |
 | design-4 | 中 | B | 孤児リソースはプロセスクラッシュ時だけでなく **cleanup 自体の失敗**でも残る（L234-236）。検知（ログ・通知）と手動回収手順を書く |
-| design-5 | 低 | A | L20: Discord 非依存・DB 非依存の共有ロジックの行き先が「コア層（db.py 等）」の「等」に隠れている |
-| design-6 | 低 | A | 依存図の命名揺れ: ctf_team のファイルだけ裸名（`campaign.py`）、sudo は `sudo/cog.py` と修飾。配置が初読者に伝わらない |
+| design-5 | 低 | A | L20: Discord 非依存・DB 非依存の共有ロジックの行き先が「コア層（db.py 等）」の「等」に隠れている → **対応済み（手順 4）**: errors.py・log.py と同列のコア層モジュールとして追加、と明記 |
+| design-6 | 低 | A | 依存図の命名揺れ: ctf_team のファイルだけ裸名（`campaign.py`）、sudo は `sudo/cog.py` と修飾。配置が初読者に伝わらない → **対応済み（手順 4）**: 全行を `ctf_team/...` に修飾 |
 | design-7 | 低 | ◎ | DB 起動時の拒否 3 条件（version 0 でテーブルあり・bot より新しい・移行パス無し）が `README.md:72` の運用メモにしか無い。design.md の migration 契約（L74）へ移し、README は要約にする → **対応済み（手順 2）**: 契約は data-contracts.md「起動時のスキーマ検証・移行手続き」へ集約し、design.md・README は参照化 |
 | design-8 | 中 | ◎（V で S から再分類） | `design.md:45`「utility.py →（bot 内部依存なし）」と `core.md:9`「send_interaction: コマンド応答の共通経路」の関係が曖昧。utility が helpers を使わず同じ応答契約を直接満たす余地があるため厳密な矛盾ではないが、utility を明示的な例外とするか、依存図を直すか、「共通経路」の適用範囲を明記するかを決める |
 | design-9 | 低 | A（V で S から再分類） | コード例の `read_int`（L168）と本文の `_read_int`（L185）の命名揺れ。正本名に統一 |
@@ -157,7 +157,7 @@ CTF 名、AlpacaHack username・challenge 名、CTFtime title 等がメッセー
 | ci-1 | 中 | B+V（P1 の帰結） | 「具体的な steps とコマンドは `ci.yml` を正とする」（L24）を廃し、**完全な job 定義・使用 action と version・実行コマンドを文書に載せる**。文書だけで workflow を再作成できる状態が受け入れ条件 → **対応済み（手順 2）**: ci.md に完全なワークフロー定義を掲載 |
 | ci-2 | 中 | B | `uv sync --group dev` に lockfile 固定（`--frozen` 等）を要求するかが未定義で、CI の再現性契約が無い |
 | ci-3 | 低 | B | permissions・同一 branch の重複実行 cancel・timeout が未定義。採用しないなら非目標として明示 |
-| ci-4 | 低 | B+A | 3 ジョブ分離の理由（L30-32）は利点のみでコスト（checkout・sync × 3）が無く、かつ 1 点目と 3 点目は「並列で速い」の言い換え同士で冗長 |
+| ci-4 | 低 | B+A | 3 ジョブ分離の理由（L30-32）は利点のみでコスト（checkout・sync × 3）が無く、かつ 1 点目と 3 点目は「並列で速い」の言い換え同士で冗長 → **対応済み**（重複統合は手順 2、コスト面の追記は手順 4） |
 | ci-5 | 低 | A | L24 は `astral-sh/setup-uv`（版なし）、L45 は `@v6` 前提の挙動断定で、ピン留めの記述粒度が揺れている。「既にリポジトリにある」（L41）は P2 の対象 → **対応済み（手順 2）**: ci.md 書き換えで版表記を統一し時間依存表現を排除 |
 
 ### docs/features/ctf-team.md
@@ -177,7 +177,7 @@ CTF 名、AlpacaHack username・challenge 名、CTFtime title 等がメッセー
 | ct-11 | 低 | B（留保→§4.1） | 毎分 20 件の取得順（期日昇順等）が未定義。持続的に滞留が 20 件/分を超えると古い対象が飢餓し得る（L161） → 事実確定（手順 2）: due 系 query は期日昇順と data-contracts.md に契約化（古い順に処理され飢餓しない）。feature 文書への反映は手順 3 |
 | ct-12 | 低 | A | `pick_unique_channel_name` の「カテゴリ内で重複」の対象チャンネル種別が未定義（times は「テキストのみ」と明記しており非対称）（L178） |
 | ct-13 | 低 | A | 募集メッセージ形式（L200-209）の `#discussion`・`@role` が実メンション（`<#id>`/`<@&id>`）か文字列かが、list 節の厳密記法と比べ曖昧 |
-| ct-14 | 低 | B（留保あり） | 定数値が本文と L245-255 の表に重複。表を正本にし本文説明では定数名を使う（**メッセージ文字列内の数値は文字列の一部なのでそのまま**） |
+| ct-14 | 低 | B（留保あり） | 定数値が本文と L245-255 の表に重複。表を正本にし本文説明では定数名を使う（**メッセージ文字列内の数値は文字列の一部なのでそのまま**） → **対応済み（手順 4）** |
 | ct-15 | 低 | V | 日時入力を `settings.tzinfo` で解釈する際（L72）、DST を持つ TIMEZONE 設定で**存在しないローカル時刻・二重に存在する時刻**の扱いが未定義（デフォルト Asia/Tokyo は DST なしだが TIMEZONE は可変）。fold の既定挙動を許容と書くか、拒否するかを明記 |
 
 ### docs/features/sudo.md
@@ -198,7 +198,7 @@ CTF 名、AlpacaHack username・challenge 名、CTFtime title 等がメッセー
 | au-1 | 中 | B | `json.dumps` / `str()` 変換（L24-25）で発生する例外は `RepositoryError` でないため、L27 の contract（RepositoryError のみ捕捉）ではイベントハンドラから漏れる。捕捉範囲を定義 |
 | au-2 | 中 | B | 保持期間なし・全 action・サイズ上限なしで DB は無制限に増える（L62-66 は対象外宣言のみ）。想定増加量と手動削除の運用を書くか、上限を仕様化 |
 | au-3 | 低 | B | バックフィルなし・DB 失敗リトライなし＝ best-effort 保存であることを概要に明記 |
-| au-4 | 低 | B | burst 時のイベント毎 to_thread に queue 上限・backpressure が無い |
+| au-4 | 低 | B | burst 時のイベント毎 to_thread に queue 上限・backpressure が無い → **対応済み（手順 4）**: 非目標として明記 |
 | au-5 | 低 | A | 「読み取りパスがない」（L45）と明言しつつ `(guild_id, created_at_unix)` index（L52）を持つ理由が無説明 |
 
 ### docs/features/ctftime.md
@@ -269,7 +269,7 @@ CTF 名、AlpacaHack username・challenge 名、CTFtime title 等がメッセー
 | ID | 重大度 | 出典 | 内容 |
 |---|---|---|---|
 | cl-1 | 中 | A（V で表現緩和） | L16「1 ファイル以内の修正」: 回帰テストを伴うバグ修正は**通常** 2 ファイル以上になり、行数・責務を見ずファイル数だけで担当を決めると不自然な振り分けになる。「テストファイルは数えない」等、行数・責務も加味した基準へ明確化 |
-| cl-2 | 中 | ◎ | 開発コマンド・コーディング規約（L45-69）の AGENTS.md 重複。L69 は適用除外が脱落した劣化コピー（S10）になっており、「情報の書き分け原則」（L71-75）で採った参照方式へ一本化 |
+| cl-2 | 中 | ◎ | 開発コマンド・コーディング規約（L45-69）の AGENTS.md 重複。L69 は適用除外が脱落した劣化コピー（S10）になっており、「情報の書き分け原則」（L71-75）で採った参照方式へ一本化 → **対応済み（手順 4）** |
 | cl-3 | 低 | A | 参照ドキュメント表（L23-28）に `docs/ci.md` と `README.md` が無い（AGENTS.md 側の表には有る） |
 | cl-4 | 低 | A | L34「新機能の設計時は /design-spec」とスキル側の適用範囲（既存機能の変更も対象: SKILL.md:10）が不一致 |
 
@@ -319,7 +319,7 @@ CTF 名、AlpacaHack username・challenge 名、CTFtime title 等がメッセー
 1. **P1–P9 を確定する**（P1 は全廃で確定済み）。P3・P4・P6・P8・P9 の決定に依存する修正が多いため、S 修正より先に行う。→ **完了（2026-07-17 承認）**
 2. **正本構造を作る**: `docs/data-contracts.md`（モデル・DDL・Database API）、設定契約表（P3）、core.md のコマンド × 実行コンテキスト表（P6）、CI の完全な job 定義（ci-1）、DB 起動時契約の design.md への移設（design-7）。→ **完了（同日）**: data-contracts.md 新設（設定契約・データモデル・DDL・migration・起動時手続き・Database API・状態述語表）、core.md に実行コンテキスト表、ci.md を完全定義化、design.md は migration 契約を data-contracts 参照へ、README・feature docs のポインタを data-contracts へ切替、SKILL §1/§3 改訂、AGENTS.md・CLAUDE.md の参照表に行追加
 3. **確定した方針に従って S1–S11 と高・中の個別項目を修正する**（P に依存しない S1・S4・S6 等は 1 と並行して着手可能）。→ **完了（同日）**: 全実装を読解して事実を確定し、S1–S11・高・中項目および編集対象ファイル内の低項目を全文書へ反映（残: au-4、ct-14・cl-2 等の冗長削減 = 手順 4）。仕様変更を伴う項目は下記「実装追随タスク」に集約
-4. **冗長を削り、再発を防ぐ**: CLAUDE/AGENTS 一本化（cl-2）、定数・メッセージの表正本化（ct-14・su-6）、ci-4、design-spec テンプレートへの認可・実行コンテキスト項目追加（sk-1）、arch-check 補完（ac-1）。
+4. **冗長を削り、再発を防ぐ**: CLAUDE/AGENTS 一本化（cl-2）、定数・メッセージの表正本化（ct-14・su-6）、ci-4、design-spec テンプレートへの認可・実行コンテキスト項目追加（sk-1）、arch-check 補完（ac-1）。→ **完了（2026-07-18）**: cl-2（CLAUDE.md の開発コマンド・規約を AGENTS.md 参照へ）、sudo のメッセージ形式表を廃止して文字列を発生箇所へ一本化（表と本文の placeholder 揺れ {expires}/{expires_at_unix} も解消）、ct-14（定数表を正本化し本文は定数名参照。MAX_CHANNEL_NAME_LENGTH・MENTION_CHUNK_SIZE を表へ追加）、design-5/6（共有ロジックの行き先明確化・依存図の命名統一）、ci-3（コスト面を設計判断に追記）、au-4（backpressure を非目標として明記）、`.claude/rules` 2 件に正本ポインタを追加（P8）。sk-1・ac-1 は手順 3 で対応済み
 
 この順序なら正確性を先に確保しつつ、最終的に現在より短く、AI が読むべき場所の少ない文書構成へ収束する。
 
@@ -374,3 +374,4 @@ CI:
 - **v4**（同日）: P2〜P9 の決定を追記（ユーザー承認済み）。手順 1 完了、手順 2（正本構造の作成）へ着手。手順 2 以降は実装を参照する（正本へ移す内容の取得のため。レビュー段階の実装不参照制約は判定の独立性が目的であり、ここで解除）
 - **v5**（同日）: **手順 2 完了。** `docs/data-contracts.md` 新設、core.md 実行コンテキスト表、ci.md 完全定義化、design.md/README/feature docs の参照切替、SKILL 改訂、AGENTS/CLAUDE 参照表更新。design-2/3/7・ci-1/5・sk-2 を解消し、ct-1/9/10/11・al-9 の事実を実装から確定（§3 の各行に追記）。実装追随タスク 2 件（guild 制限・S3 conflict target）を記録
 - **v6**（同日）: **手順 3 完了。** 全実装（約 2,300 行）を読解し、S1–S11 と §3 の高・中項目（＋編集対象ファイル内の低項目）を全文書へ反映。S1 は実装が既に安全と判明し文書修正のみで解消（§2 S1 に追記）。実装追随タスクを 15 件に拡充（§5）。残作業は手順 4（冗長削減: cl-2・ct-14・ci-4・design-5/6・su 表の重複等）と au-4（低）、および実装追随タスクの指示書作成
+- **v7**（2026-07-18）: **手順 4 完了 — 文書修正フェーズ終了。** cl-2・ct-14・ci-3・design-5/6・au-4・sudo メッセージ表の二重管理を解消し、`.claude/rules` に正本ポインタを追加（P8）。本レビューの全指摘が「対応済み」または「実装追随タスク（15 件）」に収束。残作業は実装追随タスクの Codex 向け指示書作成と実装のみ
