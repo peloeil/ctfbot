@@ -86,6 +86,7 @@ CTF 名、AlpacaHack username・challenge 名、CTFtime title 等がメッセー
 ### S1. voice チャンネル名が Discord の 100 文字上限を超え得る 【B・公式仕様確認済み】高
 `ctf-team.md:174-178`。normalize が 100 文字に切った**後**、voice は `{normalize結果}-voice` を base とする（最大 106 文字）。`pick_unique_channel_name` の切り詰めは一意化 suffix（`-2` 等）付与時のみで、`-voice` には適用されない。Discord のチャンネル名上限は 100 文字。「`-voice` 込みで 100 文字に収める」規則を明記する。
 （Discord Channel Resource: https://docs.discord.com/developers/resources/channel）
+→ **対応済み（手順 3）**: 実装確認の結果、`pick_unique_channel_name` は**全候補を 100 文字に切り詰めており実装は上限を超えない**（切り詰めが suffix 時のみという文書の記述が不正確だった）。文書修正のみで解消し、実装追随は不要。
 
 ### S2. AlpacaHack 週次 Embed が Embed 上限（合計 6000 文字・field name 256 文字）を超え得る 【B+V・公式仕様確認済み】高
 `alpacahack.md:89-101`。最大 24 field × 各 value 1024 文字（＋name）は、field 単体の制限は守るが **Embed 全体の 6000 文字制限**を大幅に超え得る。さらに username に長さ制限が無いため（al-4）、field name `{username} ({n} solves)` が **field name の 256 文字上限**も超え得る（V 指摘）。合計・field name の双方への切り詰め規則を定義する。
@@ -317,15 +318,44 @@ CTF 名、AlpacaHack username・challenge 名、CTFtime title 等がメッセー
 
 1. **P1–P9 を確定する**（P1 は全廃で確定済み）。P3・P4・P6・P8・P9 の決定に依存する修正が多いため、S 修正より先に行う。→ **完了（2026-07-17 承認）**
 2. **正本構造を作る**: `docs/data-contracts.md`（モデル・DDL・Database API）、設定契約表（P3）、core.md のコマンド × 実行コンテキスト表（P6）、CI の完全な job 定義（ci-1）、DB 起動時契約の design.md への移設（design-7）。→ **完了（同日）**: data-contracts.md 新設（設定契約・データモデル・DDL・migration・起動時手続き・Database API・状態述語表）、core.md に実行コンテキスト表、ci.md を完全定義化、design.md は migration 契約を data-contracts 参照へ、README・feature docs のポインタを data-contracts へ切替、SKILL §1/§3 改訂、AGENTS.md・CLAUDE.md の参照表に行追加
-3. **確定した方針に従って S1–S11 と高・中の個別項目を修正する**（P に依存しない S1・S4・S6 等は 1 と並行して着手可能）。
+3. **確定した方針に従って S1–S11 と高・中の個別項目を修正する**（P に依存しない S1・S4・S6 等は 1 と並行して着手可能）。→ **完了（同日）**: 全実装を読解して事実を確定し、S1–S11・高・中項目および編集対象ファイル内の低項目を全文書へ反映（残: au-4、ct-14・cl-2 等の冗長削減 = 手順 4）。仕様変更を伴う項目は下記「実装追随タスク」に集約
 4. **冗長を削り、再発を防ぐ**: CLAUDE/AGENTS 一本化（cl-2）、定数・メッセージの表正本化（ct-14・su-6）、ci-4、design-spec テンプレートへの認可・実行コンテキスト項目追加（sk-1）、arch-check 補完（ac-1）。
 
 この順序なら正確性を先に確保しつつ、最終的に現在より短く、AI が読むべき場所の少ない文書構成へ収束する。
 
-### 実装追随タスク（文書が正本になったことで確定した既知の乖離）
+### 実装追随タスク（文書が正本になったことで確定した既知の乖離。手順 3 終了時点の全量）
 
-- **guild 制限（P6）**: `/help`・`/ctftime`・`/alpaca` 系は実装に guild チェックが無い（`/ctfteam`・`/sudo`・`/times`・`/perms` は実装済み）。core.md の実行コンテキスト表へ追随させる
-- **`insert_audit_log_entry`（S3）**: 現行実装は `INSERT OR IGNORE`。data-contracts.md の契約（`ON CONFLICT(entry_id) DO NOTHING`）へ追随させる
+共通・信頼性:
+
+1. **guild 制限（P6）**: `/help`・`/ctftime`・`/alpaca` 系に guild チェックを追加する（`/ctfteam`・`/sudo`・`/times`・`/perms` は実装済み）
+2. **`insert_audit_log_entry`（S3）**: `INSERT OR IGNORE` → `INSERT ... ON CONFLICT(entry_id) DO NOTHING`
+3. **`resolve_messageable`（core-2）**: 解決失敗（未設定を除く）に warning ログを追加する
+4. **週次ループの例外保護（P7）**: `alpacahack`・`ctftime` の週次ループ本体を `except Exception` で包む（`ctf_team`・`sudo` は実装済み）
+5. **audit_log の捕捉範囲（au-1）**: `json.dumps`・`str()` 変換を含む処理全体を捕捉してログする
+
+sudo:
+
+6. **付与対象の決定順序（S4）**: grant レコードを先に読んで対象 ID を決定し、その対象を解決する（現行は現在設定のロール存在確認が先）
+7. **同一ロール構成の拒否（su-2）**: `ADMIN_ROLE_ID == SUDOER_ROLE_ID` を `load_settings` で `ConfigurationError` にする
+
+ctf_team / ctftime:
+
+8. **list の 4096 予約（ct-7）**: 省略行「他 {m} 件は省略しています。」を含めて 4096 文字に収める
+9. **CTFtime の 🔗 行省略（cf-4/P9）**: `ctftime_url` が空・リンク構文を壊す場合は 🔗 行を出力しない（現行は壊れリンク `[CTFtime]()` を生成）
+
+alpacahack（仕様変更・ユーザー可視の挙動変更を含む）:
+
+10. **username 形式検証（al-2）**: `add` で 32 文字以内・`[0-9A-Za-z_-]` のみを検証（エラー文言は alpacahack.md）
+11. **登録上限（al-4）**: 50 人。超過時「登録数が上限（50人）に達しています。」
+12. **solve クールダウン（al-3）**: guild ごと 60 秒に 1 回（超過時は共通ハンドラの文言）
+13. **Embed 合計 6000 文字（S2）**: 超過する field 以降を打ち切り、省略人数を最終 field に合算
+14. **リンク構文破壊時の非リンク化（P9）**: challenge 名が `]`・`(`・`)` を含む場合は名前のみ表示
+
+CI:
+
+15. **lockfile 固定（ci-2）**: `ci.yml` の `uv sync --group dev` を `uv sync --frozen --group dev` にする
+
+これらは複数ファイルにまたがるため、CLAUDE.md の判断基準に従い Codex 向け実装指示書（`docs/tasks/`）を作成して実装する。10〜12 は新しいユーザー可視の制限であり、値（32 文字・50 人・60 秒）はユーザーが調整してよい。
 
 ---
 
@@ -343,3 +373,4 @@ CTF 名、AlpacaHack username・challenge 名、CTFtime title 等がメッセー
 - **v3**（同日・確定版）: V の再検証を反映。P1 の SKILL §3 改訂方針を訂正（文書が正本である以上、乖離時は原則**実装を文書へ合わせる**。仕様変更時は文書更新が先）。ag-1「確実に読む唯一の」→「常時与えられる」、付記「ポインタは全て」→「多くのポインタは」の過大表現を緩和
 - **v4**（同日）: P2〜P9 の決定を追記（ユーザー承認済み）。手順 1 完了、手順 2（正本構造の作成）へ着手。手順 2 以降は実装を参照する（正本へ移す内容の取得のため。レビュー段階の実装不参照制約は判定の独立性が目的であり、ここで解除）
 - **v5**（同日）: **手順 2 完了。** `docs/data-contracts.md` 新設、core.md 実行コンテキスト表、ci.md 完全定義化、design.md/README/feature docs の参照切替、SKILL 改訂、AGENTS/CLAUDE 参照表更新。design-2/3/7・ci-1/5・sk-2 を解消し、ct-1/9/10/11・al-9 の事実を実装から確定（§3 の各行に追記）。実装追随タスク 2 件（guild 制限・S3 conflict target）を記録
+- **v6**（同日）: **手順 3 完了。** 全実装（約 2,300 行）を読解し、S1–S11 と §3 の高・中項目（＋編集対象ファイル内の低項目）を全文書へ反映。S1 は実装が既に安全と判明し文書修正のみで解消（§2 S1 に追記）。実装追随タスクを 15 件に拡充（§5）。残作業は手順 4（冗長削減: cl-2・ct-14・ci-4・design-5/6・su 表の重複等）と au-4（低）、および実装追随タスクの指示書作成
