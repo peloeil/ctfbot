@@ -316,7 +316,7 @@ CREATE INDEX IF NOT EXISTS idx_sudo_grant_expires
 
 | メソッド | 契約 |
 |---|---|
-| `insert_audit_log_entry(*, entry_id, guild_id, action, user_id, target_id, reason, changes_json, extra_text, created_at_unix) -> bool` | 挿入したら `True`、**`entry_id` 重複のみ**を無視して `False`。それ以外の制約違反は `RepositoryError` として観測可能でなければならない（`INSERT ... ON CONFLICT(entry_id) DO NOTHING`。現行実装の `INSERT OR IGNORE` は本契約へ追随する） |
+| `insert_audit_log_entry(*, entry_id, guild_id, action, user_id, target_id, reason, changes_json, extra_text, created_at_unix) -> bool` | 挿入したら `True`、**`entry_id` 重複のみ**を無視して `False`。それ以外の制約違反は `RepositoryError` として観測可能でなければならない（`INSERT ... ON CONFLICT(entry_id) DO NOTHING`） |
 
 ### sudo_grant
 
