@@ -72,7 +72,4 @@ cog が処理しなかったコマンドの例外は `app.py` の `bot.tree.erro
 
 ## 関連設定
 
-| 環境変数 | デフォルト | 説明 |
-|---|---|---|
-| `BOT_CHANNEL_ID` | 0 | 監査ログの送信先（0 で無効） |
-| `BOT_STATUS_CHANNEL_ID` | 0 | 接続状態通知の送信先（0 で無効） |
+環境変数の定義は `docs/data-contracts.md`「設定契約」を正本とする。

@@ -16,7 +16,7 @@ CTFtime API から近日開催の CTF イベントを取得し、週次で通知
 - 毎日 `CTFTIME_NOTIFICATION_TIME` に起動し、月曜（`weekday() == 0`）のみ実行
 - `CTFTIME_CHANNEL_ID` のチャンネルへ Embed を送信する。チャンネルが未設定・解決不能ならこの回は API 取得自体を行わずスキップする
 - 取得失敗（`ExternalAPIError`）時は例外をログに記録し、通知チャンネルに「CTFtime からの取得に失敗しました。」を送信する
-- 実行時刻の設定は cog の `__init__` で `.start()` の前に `change_interval(time=...)` で行う（理由は docs/design.md「週次通知の実行時刻は start 前に設定する」）
+- 実行時刻の設定順序は `docs/design.md`「週次通知の実行時刻は start 前に設定する」に従う
 
 ## API クライアント (CTFTimeClient)
 
@@ -67,10 +67,4 @@ JSON 配列の各要素から:
 
 ## 関連設定
 
-| 環境変数 | デフォルト | 説明 |
-|---|---|---|
-| `CTFTIME_CHANNEL_ID` | 0 | 通知先チャンネル（0 で無効） |
-| `CTFTIME_NOTIFICATION_TIME` | 09:00 | 通知時刻（月曜のみ実行） |
-| `CTFTIME_WINDOW_DAYS` | 14 | 取得する期間（日数） |
-| `CTFTIME_EVENT_LIMIT` | 20 | 取得するイベント数上限 |
-| `CTFTIME_USER_AGENT` | `ctfbot/2.0 (+discord)` | API リクエストの User-Agent |
+環境変数の定義は `docs/data-contracts.md`「設定契約」を正本とする。
