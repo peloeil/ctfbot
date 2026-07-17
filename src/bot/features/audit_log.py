@@ -4,7 +4,6 @@ import json
 import discord
 from discord.ext import commands
 
-from bot.errors import RepositoryError
 from bot.log import logger
 from bot.runtime import get_runtime
 
@@ -18,15 +17,15 @@ class AuditLog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_audit_log_entry_create(self, entry: discord.AuditLogEntry) -> None:
-        changes_json = json.dumps(
-            {
-                "before": dict(entry.changes.before),
-                "after": dict(entry.changes.after),
-            },
-            default=str,
-            ensure_ascii=False,
-        )
         try:
+            changes_json = json.dumps(
+                {
+                    "before": dict(entry.changes.before),
+                    "after": dict(entry.changes.after),
+                },
+                default=str,
+                ensure_ascii=False,
+            )
             await asyncio.to_thread(
                 self.db.insert_audit_log_entry,
                 entry_id=entry.id,
@@ -39,7 +38,7 @@ class AuditLog(commands.Cog):
                 extra_text=str(entry.extra) if entry.extra is not None else None,
                 created_at_unix=int(entry.created_at.timestamp()),
             )
-        except RepositoryError as exc:
+        except Exception as exc:
             logger.error("Failed to save audit log entry %s: %s", entry.id, exc)
 
 

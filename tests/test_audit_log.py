@@ -18,6 +18,11 @@ class StringValue:
         return "string value"
 
 
+class UnserializableValue:
+    def __str__(self) -> str:
+        raise ValueError("cannot stringify")
+
+
 class AuditLogTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.db = mock.Mock()
@@ -28,7 +33,9 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
         self.cog = AuditLog(bot)
 
     @staticmethod
-    def make_entry() -> discord.AuditLogEntry:
+    def make_entry(before_object: object | None = None) -> discord.AuditLogEntry:
+        if before_object is None:
+            before_object = StringValue()
         return cast(
             discord.AuditLogEntry,
             SimpleNamespace(
@@ -39,7 +46,7 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
                 target=SimpleNamespace(id=300),
                 reason="理由",
                 changes=SimpleNamespace(
-                    before={"name": "以前", "object": StringValue()},
+                    before={"name": "以前", "object": before_object},
                     after={"name": "以後"},
                 ),
                 extra=StringValue(),
@@ -86,6 +93,19 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
         ):
             await self.cog.on_audit_log_entry_create(entry)
 
+        log_error.assert_called_once_with(
+            "Failed to save audit log entry %s: %s", entry.id, error
+        )
+
+    async def test_event_with_unserializable_value_is_logged_and_suppressed(
+        self,
+    ) -> None:
+        entry = self.make_entry(UnserializableValue())
+        with mock.patch("bot.features.audit_log.logger.error") as log_error:
+            await self.cog.on_audit_log_entry_create(entry)
+
+        error = log_error.call_args.args[2]
+        self.assertIsInstance(error, ValueError)
         log_error.assert_called_once_with(
             "Failed to save audit log entry %s: %s", entry.id, error
         )
