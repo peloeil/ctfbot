@@ -55,7 +55,7 @@ feature 間の相互 import は禁止（features/ 直下のすべての feature 
 
 `tests/test_architecture.py` が AST で静的に検証するのは ✗ の禁止制約・db.py の feature import が models のみであること・feature 間の相互 import 禁止で、→ の依存関係はレビューでのみ担保される。新 feature 追加時は同テストの `feature_modules` 一覧への追加が必要（手順は `AGENTS.md`）。
 
-コア層の db.py が feature の models.py に依存するのは「Database を 1 クラスに集約する」方針の意図的な帰結。この辺を安全に保つため、feature の models.py は discord に依存しない純粋なデータモデルに限定する（アーキテクチャテストで検証）。
+コア層の db.py が feature の models.py に依存するのは「Database を 1 クラスに集約する」方針の意図的な帰結。この依存を安全に保つため、feature の models.py は discord に依存しない純粋なデータモデルに限定する（アーキテクチャテストで検証）。
 
 ## 技術選定
 
