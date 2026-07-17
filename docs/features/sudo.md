@@ -24,6 +24,8 @@
 
 ## コマンド
 
+コマンド応答はすべて ephemeral。
+
 ### `/sudo`
 
 1. guild 内実行を確認（`require_guild`）
@@ -34,8 +36,8 @@
 6. 実行者が付与対象ロールを既に保持しているのに grant レコードがない（bot を介さない恒常保持者）場合は「既に管理者ロールを保持しています。」で中断。恒常保持を期限付き grant に変換して自動剥奪してしまわないため
 7. `expires_at_unix = now + SUDO_DURATION_MINUTES * 60` として DB に grant レコードを upsert
 8. 実行者が付与対象ロールを保持していなければロールを付与（`member.add_roles`）
-9. 付与に失敗（`discord.Forbidden`・`discord.HTTPException`）した場合、新規 grant ならレコードを削除し、更新 grant なら更新前のレコードに戻す。その後、付与失敗メッセージ（「メッセージ形式」表）で中断。レコードの削除・復元自体が失敗した場合は exception ログのみ残す（応答は同じ。残った新期限のレコードは自動剥奪タスクが期限到達時に回収する）
-10. ephemeral 応答 + `log_audit(command_name="sudo", details=["管理者ロール期限: <t:{expires_at_unix}:f>"])`
+9. 付与に失敗（`discord.Forbidden`・`discord.HTTPException`）した場合、新規 grant ならレコードを削除し、更新 grant なら更新前のレコードに戻す。その後「ロールを付与できません。bot のロール権限と順位を確認してください(/perms)。」で中断。レコードの削除・復元自体が失敗した場合は exception ログのみ残す（応答は同じ。残った新期限のレコードは自動剥奪タスクが期限到達時に回収する）
+10. 「⏫ 管理者ロールを付与しました。<t:{expires_at_unix}:R> に自動解除されます。」（延長時は「⏫ 有効期限を <t:{expires_at_unix}:R> に延長しました。」）で応答 + `log_audit(command_name="sudo", details=["管理者ロール期限: <t:{expires_at_unix}:f>"])`
 
 既に昇格中の場合も同じ流れで、有効期限が `now + SUDO_DURATION_MINUTES * 60` に更新される（Unix sudo のタイムスタンプ更新と同じ挙動）。`granted_at_unix` は初回付与時の値を維持する。
 
@@ -46,9 +48,9 @@
 1. guild 内実行を確認（`require_guild`）
 2. 実行者が `discord.Member` でない、または自分の grant レコードがなければ「昇格中ではありません。」で中断
 3. レコードに保存された `role_id` のロールを剥奪（`member.remove_roles`）。ロールが guild から削除済みの場合、および `remove_roles` が `discord.NotFound` の場合は剥奪成功として扱う
-4. 剥奪に失敗（`discord.Forbidden`・`discord.HTTPException`）したら剥奪失敗メッセージ（「メッセージ形式」表）で中断（レコードは残し、自動剥奪タスクのリトライに委ねる）
+4. 剥奪に失敗（`discord.Forbidden`・`discord.HTTPException`）したら「ロールを解除できません。bot のロール権限と順位を確認してください(/perms)。」で中断（レコードは残し、自動剥奪タスクのリトライに委ねる）
 5. grant レコードを削除
-6. ephemeral 応答 + `log_audit(command_name="unsudo", details=["管理者ロールID: {grant.role_id}"])`
+6. 「⏬ 管理者ロールを解除しました。」で応答 + `log_audit(command_name="unsudo", details=["管理者ロールID: {grant.role_id}"])`
 
 処理順序の理由: ロール剥奪より先にレコードを消すと「レコードなし・ロールあり」の剥奪漏れが残る。剥奪成功までレコードを残すことでリトライ可能にする。
 
@@ -66,7 +68,7 @@
 2. メンバーを解決する。キャッシュになければ `guild.fetch_member` で照会し、`discord.NotFound`（退出済み）の場合のみレコードを削除する。照会自体の失敗（`discord.Forbidden`・`discord.HTTPException`）は退出と区別し、レコードを残して次回リトライ
 3. レコードの `role_id` が guild に存在しなければ剥奪成功として扱う
 4. ロールを剥奪（`discord.NotFound` は剥奪成功扱い） → レコード削除。剥奪失敗（`discord.Forbidden`・`discord.HTTPException`）ならレコードを残して次回リトライ
-5. 剥奪した場合、およびロール不在で剥奪成功扱いにした場合は、BOT_CHANNEL に自動剥奪の通知を送る（`AllowedMentions.none()` 付き、ロックの外で送信。送信失敗は剥奪を巻き戻さない）。メンバー退出でレコードを削除した場合は送らない
+5. 剥奪した場合、およびロール不在で剥奪成功扱いにした場合は、BOT_CHANNEL に「⏬ {display_name} (id={user_id}) の管理者ロールを自動解除しました。」を送る（`AllowedMentions.none()` 付き、ロックの外で送信。送信失敗は剥奪を巻き戻さない）。メンバー退出でレコードを削除した場合は送らない
 
 bot 停止中に期限が切れた grant は、再起動後の初回実行で剥奪される。
 
@@ -85,24 +87,6 @@ bot 停止中に期限が切れた grant は、再起動後の初回実行で剥
 - PRIMARY KEY は `(guild_id, user_id)`（1 ユーザー同時 1 grant）
 - `expires_at_unix` に index（期限切れ一覧の取得用）
 - upsert は `ON CONFLICT (guild_id, user_id) DO UPDATE` で `role_id` と `expires_at_unix` のみ更新する（`granted_at_unix` は維持）
-
-## メッセージ形式
-
-コマンド応答はすべて ephemeral。
-
-| 場面 | メッセージ |
-|---|---|
-| 昇格成功 | `⏫ 管理者ロールを付与しました。<t:{expires}:R> に自動解除されます。` |
-| 昇格延長（昇格中に再実行） | `⏫ 有効期限を <t:{expires}:R> に延長しました。` |
-| 解除成功 | `⏬ 管理者ロールを解除しました。` |
-| 昇格していない | `昇格中ではありません。` |
-| sudoer ロールなし | `このコマンドを実行するには sudoer ロールが必要です。` |
-| 未設定 | `sudo 機能が設定されていません。` |
-| 付与対象ロール不在 | `付与対象のロールが見つかりません。` |
-| 恒常保持者が実行 | `既に管理者ロールを保持しています。` |
-| 付与失敗 | `ロールを付与できません。bot のロール権限と順位を確認してください(/perms)。` |
-| 剥奪失敗 | `ロールを解除できません。bot のロール権限と順位を確認してください(/perms)。` |
-| 自動剥奪通知（BOT_CHANNEL） | `⏬ {display_name} (id={user_id}) の管理者ロールを自動解除しました。` |
 
 ## 関連設定
 
