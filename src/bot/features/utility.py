@@ -63,6 +63,7 @@ class UtilityCommands(commands.Cog):
             ("Channel read_message_history", channel_permissions.read_message_history),
             ("Channel add_reactions", channel_permissions.add_reactions),
             ("Channel manage_channels", channel_permissions.manage_channels),
+            ("Channel embed_links", channel_permissions.embed_links),
         ]
         content = "\n".join(f"{'✅' if ok else '❌'} {name}" for name, ok in checks)
         await interaction.response.send_message(content, ephemeral=True)
