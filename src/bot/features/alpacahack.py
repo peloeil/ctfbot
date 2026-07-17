@@ -15,6 +15,7 @@ from discord.ext import commands, tasks
 from bot.db import Database
 from bot.errors import ExternalAPIError
 from bot.helpers import log_audit, resolve_messageable, send_interaction, send_safely
+from bot.log import logger
 from bot.runtime import get_runtime
 
 MAX_EMBED_FIELDS = 25
@@ -264,20 +265,23 @@ class Alpacahack(commands.GroupCog, group_name="alpaca"):
 
     @tasks.loop(hours=24)
     async def weekly_solve_report(self) -> None:
-        if datetime.datetime.now(self.settings.tzinfo).weekday() != 6:
-            return
-        channel = await resolve_messageable(
-            self.bot, self.settings.alpacahack_channel_id
-        )
-        if channel is None:
-            return
-        summary = await asyncio.to_thread(
-            collect_weekly_summary,
-            self.db,
-            self.client,
-            timezone=self.settings.tzinfo,
-        )
-        await send_safely(channel, embed=_build_summary_embed(summary))
+        try:
+            if datetime.datetime.now(self.settings.tzinfo).weekday() != 6:
+                return
+            channel = await resolve_messageable(
+                self.bot, self.settings.alpacahack_channel_id
+            )
+            if channel is None:
+                return
+            summary = await asyncio.to_thread(
+                collect_weekly_summary,
+                self.db,
+                self.client,
+                timezone=self.settings.tzinfo,
+            )
+            await send_safely(channel, embed=_build_summary_embed(summary))
+        except Exception:
+            logger.exception("Error in weekly_solve_report")
 
     @weekly_solve_report.before_loop
     async def before_weekly_solve(self) -> None:

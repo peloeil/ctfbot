@@ -132,23 +132,28 @@ class CTFTimeNotifications(commands.Cog):
 
     @tasks.loop(hours=24)
     async def weekly_ctf_notification(self) -> None:
-        if datetime.datetime.now(self.settings.tzinfo).weekday() != 0:
-            return
-        channel = await resolve_messageable(self.bot, self.settings.ctftime_channel_id)
-        if channel is None:
-            return
         try:
-            events = await asyncio.to_thread(
-                self.client.fetch_events,
-                self.settings.ctftime_window_days,
-                self.settings.ctftime_event_limit,
+            if datetime.datetime.now(self.settings.tzinfo).weekday() != 0:
+                return
+            channel = await resolve_messageable(
+                self.bot, self.settings.ctftime_channel_id
             )
-        except ExternalAPIError:
-            logger.exception("Failed to fetch CTFtime events")
-            await send_safely(channel, "CTFtime からの取得に失敗しました。")
-            return
-        embed = _build_events_embed(events, self.settings.ctftime_window_days)
-        await send_safely(channel, embed=embed)
+            if channel is None:
+                return
+            try:
+                events = await asyncio.to_thread(
+                    self.client.fetch_events,
+                    self.settings.ctftime_window_days,
+                    self.settings.ctftime_event_limit,
+                )
+            except ExternalAPIError:
+                logger.exception("Failed to fetch CTFtime events")
+                await send_safely(channel, "CTFtime からの取得に失敗しました。")
+                return
+            embed = _build_events_embed(events, self.settings.ctftime_window_days)
+            await send_safely(channel, embed=embed)
+        except Exception:
+            logger.exception("Error in weekly_ctf_notification")
 
     @weekly_ctf_notification.before_loop
     async def before_weekly(self) -> None:
