@@ -25,6 +25,7 @@
 | 分割方針・命名契約・型パターン・validation 境界などの設計判断基準 | `docs/design.md` |
 | Codex 向けの実装制約・cog 追加手順・検証コマンド | `AGENTS.md` |
 | 各機能の仕様 | `docs/features/*.md` |
+| bot 共通挙動（エラーハンドラ・監査ログ・状態通知）の仕様 | `docs/core.md` |
 
 設計・レビュー時は `docs/design.md` の基準に照らして判断する。
 
