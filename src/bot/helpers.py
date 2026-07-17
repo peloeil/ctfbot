@@ -85,6 +85,10 @@ def format_timestamp_with_relative(value: int | None, *, style: str = "f") -> st
     return f"<t:{value}:{style}> (<t:{value}:R>)"
 
 
+def is_markdown_link_safe(value: str) -> bool:
+    return bool(value) and not any(ch in value for ch in "]()")
+
+
 def sanitize_audit_text(value: object) -> str:
     normalized = re.sub(r"\s+", " ", str(value)).strip()
     # Zero-width space keeps user input from pinging

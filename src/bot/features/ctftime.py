@@ -10,7 +10,12 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from bot.errors import ExternalAPIError
-from bot.helpers import resolve_messageable, send_interaction, send_safely
+from bot.helpers import (
+    is_markdown_link_safe,
+    resolve_messageable,
+    send_interaction,
+    send_safely,
+)
 from bot.log import logger
 from bot.runtime import get_runtime
 
@@ -100,10 +105,15 @@ def _build_events_embed(events: list[CTFEvent], window_days: int) -> discord.Emb
     for event in events:
         start_unix = int(event.start.timestamp())
         finish_unix = int(event.finish.timestamp())
+        link_line = (
+            f"\n🔗 [CTFtime]({event.ctftime_url})"
+            if is_markdown_link_safe(event.ctftime_url)
+            else ""
+        )
         block = (
             f"**{event.title}**\n"
-            f"🕐 <t:{start_unix}:f> 〜 <t:{finish_unix}:f>\n"
-            f"🔗 [CTFtime]({event.ctftime_url})"
+            f"🕐 <t:{start_unix}:f> 〜 <t:{finish_unix}:f>"
+            f"{link_line}"
         )
         candidate = "\n\n".join([*lines, block])
         if len(candidate) > 4096:

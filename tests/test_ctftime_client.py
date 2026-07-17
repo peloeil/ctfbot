@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 import requests
 
 from bot.errors import ExternalAPIError
-from bot.features.ctftime import CTFTimeClient
+from bot.features.ctftime import CTFEvent, CTFTimeClient, _build_events_embed
 
 
 class CTFTimeClientTest(unittest.TestCase):
@@ -64,6 +64,22 @@ class CTFTimeClientTest(unittest.TestCase):
             events[0].start, datetime.datetime(2026, 1, 1, 12, tzinfo=self.tz)
         )
         self.assertEqual(events[0].ctftime_url, "https://example.test")
+
+    def test_events_embed_omits_unsafe_and_empty_links(self) -> None:
+        start = datetime.datetime(2026, 1, 1, tzinfo=self.tz)
+        finish = start + datetime.timedelta(hours=1)
+        events = [
+            CTFEvent("Empty", start, finish, ""),
+            CTFEvent("Unsafe", start, finish, "https://example.test/event)"),
+            CTFEvent("Safe", start, finish, "https://example.test/event"),
+        ]
+
+        description = _build_events_embed(events, 1).description or ""
+
+        self.assertEqual(description.count("🔗 [CTFtime]"), 1)
+        self.assertIn("🔗 [CTFtime](https://example.test/event)", description)
+        self.assertNotIn("[CTFtime]()", description)
+        self.assertNotIn("https://example.test/event))", description)
 
     @patch("bot.features.ctftime.time.sleep")
     @patch("bot.features.ctftime.requests.get")
