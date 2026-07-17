@@ -187,7 +187,7 @@ class WeeklySolveSummary:
 
 ### audit_log
 
-dataclass は定義しない（書き込み専用で読み取りパスを持たないため。`docs/features/audit-log.md`）。
+dataclass は定義しない（書き込み専用で読み取りパスを持たないため）。
 
 ## DB スキーマ
 
