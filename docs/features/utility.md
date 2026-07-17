@@ -10,7 +10,7 @@
 
 `bot.tree.get_commands()` で全コマンド取得。Group コマンドは 1 段だけ展開して `/group subcommand — description` 形式で（ネストした subgroup の子は列挙しない）、単発コマンドは `/command — description` 形式で列挙し、行の文字列を辞書順にソートして応答。description は各コマンド定義の値をそのまま表示する。
 
-応答の分割・切り詰めは行わない（非目標）。コマンド数 × 行長が Discord の 2000 文字上限に近づいた場合に分割送信を導入する。
+応答の分割・切り詰めは非目標とする。
 
 ### `/perms [channel]`
 

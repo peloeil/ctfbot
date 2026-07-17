@@ -241,11 +241,11 @@ API クライアントは各 cog の `__init__` でローカル生成する。fe
 
 - `/ctfteam close|archive` — 作成者 または `manage_guild` 権限保持者のみ（他人の募集を壊せないように）
 - `/sudo` — sudoer ロール保持者のみ。管理者昇格はサーバー破壊につながるため fail-closed に倒す（詳細は `docs/features/sudo.md`）
-- リソース量の暴走はコマンド側の上限で防ぐ（`/ctfteam open` は 1 人 active 5 件まで、`/times create` は 1 回 10 チャンネルまで、`/alpaca add` は登録 50 人まで、`/alpaca solve` は guild ごと 60 秒に 1 回）
+- リソース量の暴走は、各 feature 仕様で定めるコマンド側の上限で防ぐ
 
 ### 募集作成は Discord 先行・DB 後行
 
-`/ctfteam open` は Discord リソース（ロール・チャンネル・メッセージ）を作成してから DB に記録する。例外時は `cleanup_resources` で補償削除する。DB insert 前のプロセスクラッシュ時、および補償削除自体の失敗時（リソースごとに warning ログを記録して継続する）は孤児リソースが残り自動回収されない — 発生頻度が低いため、warning ログで検知して手動掃除で許容する（意図的なトレードオフ）。
+`/ctfteam open` は Discord リソース（ロール・チャンネル・メッセージ）を作成してから DB に記録する。例外時は `cleanup_resources` で補償削除する。DB insert 前のプロセスクラッシュ時、および補償削除自体の失敗時（リソースごとに warning ログを記録して継続する）は孤児リソースが残り自動回収されない。発生頻度が低いため、warning ログで検知して手動掃除で許容する。
 
 ### 例外階層
 

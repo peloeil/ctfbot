@@ -47,14 +47,12 @@
 
 ## 開発コマンド
 
-依存インストールは `uv sync --group dev`。lint・型チェック・テストの検証コマンドは `AGENTS.md`「検証」を正とする（重複記載しない）。bot の実行（`uv run python src/main.py`）には Discord トークンが必要。
+依存インストールは `uv sync --group dev`。lint・型チェック・テストの検証コマンドは `AGENTS.md`「検証」を正とする。bot の実行（`uv run python src/main.py`）には Discord トークンが必要。
 
 ## コーディング規約
 
-`AGENTS.md`「コーディング規約」および「アーキテクチャ制約」を正とする（重複記載しない）。
+`AGENTS.md`「コーディング規約」および「アーキテクチャ制約」を正とする。
 
 ## 情報の書き分け原則（必須）
 
-**コードには How、テストコードには What、コミットログには Why、コードコメントには Why not。**
-
-各項目の具体基準は `AGENTS.md` の「情報の書き分け原則」を正とする（重複記載しない）。
+`AGENTS.md` の「情報の書き分け原則」を正とする。
