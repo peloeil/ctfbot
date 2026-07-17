@@ -114,11 +114,15 @@ async def log_audit(
     if channel is None:
         return
 
-    channel_name = getattr(interaction.channel, "name", "unknown")
-    user_name = getattr(interaction.user, "display_name", str(interaction.user))
+    channel_ref = (
+        f"<#{interaction.channel_id}>"
+        if interaction.channel_id is not None
+        else "unknown"
+    )
+    # AllowedMentions.none() で送信するためメンション表示でも通知は飛ばない
     lines = [
-        f"📝 `{sanitize_audit_text(user_name)}` (id={interaction.user.id}) "
-        f"が #{sanitize_audit_text(channel_name)} で "
+        f"📝 <@{interaction.user.id}> "
+        f"が {channel_ref} で "
         f"`/{sanitize_audit_text(command_name)}` を実行しました。"
     ]
     lines.extend(f"- {sanitize_audit_text(item)}" for item in details)

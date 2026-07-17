@@ -46,14 +46,14 @@ cog が処理しなかったコマンドの例外は `app.py` の `bot.tree.erro
 コマンド実行の記録を `BOT_CHANNEL_ID` のチャンネルへ送信する（未設定・チャンネル解決失敗時は何もしない）。Discord AuditLog を DB へ保存する「Discord 監査ログ保存」（`docs/features/audit-log.md`）とは別機能。
 
 ```
-📝 `{実行者 display_name}` (id={user_id}) が #{実行チャンネル名} で `/{command_name}` を実行しました。
+📝 <@{user_id}> が <#{channel_id}> で `/{command_name}` を実行しました。
 - {details の各行}
 ```
 
-- 全フィールドを sanitize する: 空白を 1 つに正規化し、`<@` にゼロ幅スペースを挿入（ユーザー入力による ping を無効化）
-- `AllowedMentions.none()` 付きで送信
+- `AllowedMentions.none()` 付きで送信する（実行者・チャンネルのメンションは表示のみで通知は飛ばない）
+- command_name・details を sanitize する: 空白を 1 つに正規化し、`<@` にゼロ幅スペースを挿入（ユーザー入力による ping を無効化）
 - 1900 文字（`MAX_AUDIT_CONTENT_LENGTH`。2000 文字制限へのマージン）を超える場合は 1897 文字に切り詰めて `...` を付ける（`...` 込みで 1900 文字以内）
-- 実行チャンネル名を持たないコンテキストでは `unknown` と表示する（全コマンド guild 限定のため通常は発生しない）
+- `channel_id` を持たないコンテキストでは `unknown` と表示する（全コマンド guild 限定のため通常は発生しない）
 
 ## 表示テキストの escape 方針
 
