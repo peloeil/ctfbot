@@ -24,6 +24,7 @@ from bot.log import logger
 from bot.runtime import get_runtime
 
 REACTION_EMOJI = "✅"
+_OMISSION_RESERVE = 30  # Room for the omission line under the 4096-char limit
 
 ROLE_COLOR_SUGGESTIONS = (
     ("🟥 Red", "#ef4444"),
@@ -650,8 +651,9 @@ def _build_campaigns_embed(
                 f"archive予定: {format_timestamp_with_relative(item.archive_at_unix)}"
             )
         block = "\n".join(block_lines)
+        limit = 4096 if index == len(campaigns) else 4096 - _OMISSION_RESERVE
         candidate = "\n\n".join([*lines, block])
-        if len(candidate) > 4096:
+        if len(candidate) > limit:
             remaining = len(campaigns) - (len(lines) - 1)
             lines.append(f"他 {remaining} 件は省略しています。")
             break
