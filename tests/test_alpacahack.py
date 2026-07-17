@@ -3,12 +3,18 @@ import os
 import tempfile
 import unittest
 from contextlib import suppress
+from types import SimpleNamespace
+from typing import Any, cast
+from unittest import mock
 from unittest.mock import Mock, patch
 from zoneinfo import ZoneInfo
+
+import discord
 
 from bot.db import Database
 from bot.errors import ExternalAPIError
 from bot.features.alpacahack import (
+    Alpacahack,
     AlpacaHackClient,
     SolveRecord,
     WeeklySolveSummary,
@@ -146,6 +152,149 @@ class AlpacaHackTest(unittest.TestCase):
         embed = _build_summary_embed(summary)
         self.assertLessEqual(len(embed.fields), 25)
         self.assertEqual(embed.fields[-1].name, "その他 / 取得失敗")
+
+    def test_summary_embed_stays_within_total_limit_and_reports_omitted_users(
+        self,
+    ) -> None:
+        solved_at = datetime.datetime(2026, 6, 15, tzinfo=self.tz)
+        weekly_solves = {
+            f"user{i:02d}": [SolveRecord("x" * 200, None, solved_at) for _ in range(12)]
+            for i in range(24)
+        }
+        summary = WeeklySolveSummary(
+            week_start=datetime.date(2026, 6, 15),
+            week_end=datetime.date(2026, 6, 21),
+            total_users=24,
+            weekly_solves=weekly_solves,
+            failed_users=[],
+        )
+
+        embed = _build_summary_embed(summary)
+        total = (
+            len(embed.title or "")
+            + len(embed.description or "")
+            + sum(
+                len(field.name or "") + len(field.value or "") for field in embed.fields
+            )
+        )
+        shown = len(embed.fields) - 1
+
+        self.assertLessEqual(total, 6000)
+        self.assertEqual(embed.fields[-1].name, "その他")
+        self.assertEqual(
+            embed.fields[-1].value,
+            f"他 {len(weekly_solves) - shown} 人は省略しました。",
+        )
+
+    def test_summary_embed_renders_unsafe_challenge_name_without_link(self) -> None:
+        summary = WeeklySolveSummary(
+            week_start=datetime.date(2026, 6, 15),
+            week_end=datetime.date(2026, 6, 21),
+            total_users=1,
+            weekly_solves={
+                "alice": [
+                    SolveRecord(
+                        "broken)",
+                        "https://example.test/challenge",
+                        datetime.datetime(2026, 6, 15, tzinfo=self.tz),
+                    )
+                ]
+            },
+            failed_users=[],
+        )
+
+        embed = _build_summary_embed(summary)
+
+        self.assertEqual(embed.fields[0].value, "- broken)")
+
+
+class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        self.cog = object.__new__(Alpacahack)
+        self.cog.bot = Mock()
+        self.cog.db = Mock()
+        self.cog.settings = SimpleNamespace(tzinfo=ZoneInfo("Asia/Tokyo"))
+        self.interaction = cast(
+            discord.Interaction,
+            SimpleNamespace(guild=SimpleNamespace(id=1)),
+        )
+
+    async def invoke_add(self, username: str) -> None:
+        callback = cast(Any, self.cog.add_user.callback)
+        await callback(self.cog, self.interaction, username)
+
+    async def test_add_rejects_too_long_and_invalid_usernames(self) -> None:
+        invalid_names = ["a" * 33, "invalid/name", "日本語"]
+        with patch(
+            "bot.features.alpacahack.send_interaction",
+            new_callable=mock.AsyncMock,
+        ) as send_interaction:
+            for name in invalid_names:
+                with self.subTest(name=name):
+                    await self.invoke_add(name)
+                    send_interaction.assert_awaited_once_with(
+                        self.interaction,
+                        "ユーザー名は 32 文字以内の英数字と "
+                        "`-` `_` で入力してください。",
+                    )
+                    send_interaction.reset_mock()
+        self.cog.db.list_alpacahack_users.assert_not_called()
+
+    async def test_add_accepts_32_character_username_with_dash_and_underscore(
+        self,
+    ) -> None:
+        name = "a" * 29 + "-_x"
+        self.cog.db.list_alpacahack_users.return_value = []
+        self.cog.db.add_alpacahack_user.return_value = True
+        with (
+            patch(
+                "bot.features.alpacahack.send_interaction",
+                new_callable=mock.AsyncMock,
+            ) as send_interaction,
+            patch(
+                "bot.features.alpacahack.log_audit",
+                new_callable=mock.AsyncMock,
+            ),
+        ):
+            await self.invoke_add(name)
+
+        self.cog.db.add_alpacahack_user.assert_called_once_with(name)
+        send_interaction.assert_awaited_once_with(
+            self.interaction, f"`{name}` を登録しました。"
+        )
+
+    async def test_add_rejects_new_user_when_registration_limit_is_reached(
+        self,
+    ) -> None:
+        self.cog.db.list_alpacahack_users.return_value = [
+            f"user{i:02d}" for i in range(50)
+        ]
+        with patch(
+            "bot.features.alpacahack.send_interaction",
+            new_callable=mock.AsyncMock,
+        ) as send_interaction:
+            await self.invoke_add("new_user")
+
+        send_interaction.assert_awaited_once_with(
+            self.interaction, "登録数が上限(50人)に達しています。"
+        )
+        self.cog.db.add_alpacahack_user.assert_not_called()
+
+    async def test_add_reports_existing_user_when_registration_limit_is_reached(
+        self,
+    ) -> None:
+        users = [f"user{i:02d}" for i in range(49)] + ["alice"]
+        self.cog.db.list_alpacahack_users.return_value = users
+        with patch(
+            "bot.features.alpacahack.send_interaction",
+            new_callable=mock.AsyncMock,
+        ) as send_interaction:
+            await self.invoke_add("alice")
+
+        send_interaction.assert_awaited_once_with(
+            self.interaction, "`alice` は既に登録されています。"
+        )
+        self.cog.db.add_alpacahack_user.assert_not_called()
 
 
 if __name__ == "__main__":

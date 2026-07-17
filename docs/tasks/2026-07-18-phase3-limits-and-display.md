@@ -90,12 +90,12 @@ _USERNAME_PATTERN = re.compile(r"[0-9A-Za-z_-]+")
             await send_interaction(interaction, f"`{name}` は既に登録されています。")
             return
         if len(users) >= _MAX_USERS:
-            await send_interaction(interaction, "登録数が上限（50人）に達しています。")
+            await send_interaction(interaction, "登録数が上限(50人)に達しています。")
             return
         created = await asyncio.to_thread(self.db.add_alpacahack_user, name)
 ```
 
-以降の分岐（`created` が False なら「`{name}` は既に登録されています。」）は競合時の保険として維持する。丸括弧は全角（上限（50人））。
+以降の分岐（`created` が False なら「`{name}` は既に登録されています。」）は競合時の保険として維持する。丸括弧は半角(上限(50人))。既存メッセージの様式（`(上限: 5)`・`(/perms)`）と ruff の RUF001（全角括弧の ambiguous 警告）に合わせる。
 
 ### 4-3. `/alpaca solve` のクールダウン
 

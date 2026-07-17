@@ -14,7 +14,13 @@ from discord.ext import commands, tasks
 
 from bot.db import Database
 from bot.errors import ExternalAPIError
-from bot.helpers import log_audit, resolve_messageable, send_interaction, send_safely
+from bot.helpers import (
+    is_markdown_link_safe,
+    log_audit,
+    resolve_messageable,
+    send_interaction,
+    send_safely,
+)
 from bot.log import logger
 from bot.runtime import get_runtime
 
@@ -22,6 +28,11 @@ MAX_EMBED_FIELDS = 25
 ALPACAHACK_EMBED_COLOR = 0xFD8028
 _MAX_PAGES = 20
 _PAGE_SIZE = 10
+_MAX_USERNAME_LENGTH = 32
+_USERNAME_PATTERN = re.compile(r"[0-9A-Za-z_-]+")
+_MAX_USERS = 50
+_EMBED_TOTAL_LIMIT = 6000
+_FINAL_FIELD_RESERVE = 1100  # Room for the final summary field (name + value)
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,12 +222,17 @@ def _build_summary_embed(summary: WeeklySolveSummary) -> discord.Embed:
         description=description,
         color=ALPACAHACK_EMBED_COLOR,
     )
+    total = len(embed.title or "") + len(description)
     visible_items = list(summary.weekly_solves.items())[: MAX_EMBED_FIELDS - 1]
-    omitted_users = max(len(summary.weekly_solves) - len(visible_items), 0)
+    shown = 0
     for username, solves in visible_items:
         value_lines: list[str] = []
         for record in solves[:12]:
-            if record.challenge_url:
+            if (
+                record.challenge_url
+                and is_markdown_link_safe(record.challenge_url)
+                and is_markdown_link_safe(record.challenge_name)
+            ):
                 value_lines.append(
                     f"- [{record.challenge_name}]({record.challenge_url})"
                 )
@@ -227,11 +243,17 @@ def _build_summary_embed(summary: WeeklySolveSummary) -> discord.Embed:
         value = "\n".join(value_lines) or "-"
         if len(value) > 1024:
             value = value[:1021] + "..."
+        name = f"{username} ({len(solves)} solves)"
+        if total + len(name) + len(value) > _EMBED_TOTAL_LIMIT - _FINAL_FIELD_RESERVE:
+            break
         embed.add_field(
-            name=f"{username} ({len(solves)} solves)",
+            name=name,
             value=value,
             inline=False,
         )
+        total += len(name) + len(value)
+        shown += 1
+    omitted_users = max(len(summary.weekly_solves) - shown, 0)
     if omitted_users or summary.failed_users:
         extra_lines: list[str] = []
         if omitted_users:
@@ -297,6 +319,19 @@ class Alpacahack(commands.GroupCog, group_name="alpaca"):
         if not name:
             await send_interaction(interaction, "ユーザー名が空です。")
             return
+        if len(name) > _MAX_USERNAME_LENGTH or not _USERNAME_PATTERN.fullmatch(name):
+            await send_interaction(
+                interaction,
+                "ユーザー名は 32 文字以内の英数字と `-` `_` で入力してください。",
+            )
+            return
+        users = await asyncio.to_thread(self.db.list_alpacahack_users)
+        if name in users:
+            await send_interaction(interaction, f"`{name}` は既に登録されています。")
+            return
+        if len(users) >= _MAX_USERS:
+            await send_interaction(interaction, "登録数が上限(50人)に達しています。")
+            return
         created = await asyncio.to_thread(self.db.add_alpacahack_user, name)
         if created:
             await send_interaction(interaction, f"`{name}` を登録しました。")
@@ -350,6 +385,7 @@ class Alpacahack(commands.GroupCog, group_name="alpaca"):
         )
 
     @app_commands.command(name="solve", description="今週のsolve状況を表示します。")
+    @app_commands.checks.cooldown(1, 60.0, key=lambda i: i.guild_id)
     async def show_solves(self, interaction: discord.Interaction) -> None:
         if interaction.guild is None:
             await send_interaction(interaction, "サーバー内で実行してください。")
