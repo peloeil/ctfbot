@@ -8,8 +8,8 @@ CTFtime API から近日開催の CTF イベントを取得し、週次で通知
 
 ### `/ctftime`
 
-`interaction.response.defer()` → イベント取得 → Embed で応答（public）。
-取得失敗時は「CTFtime からの取得に失敗しました。」と応答（ephemeral）。
+`interaction.response.defer()` → イベント取得 → Embed で応答。
+取得失敗時は「CTFtime からの取得に失敗しました。」と応答。defer を含めいずれも public。
 
 ## 週次通知
 
