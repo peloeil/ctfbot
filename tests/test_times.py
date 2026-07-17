@@ -17,9 +17,14 @@ class TimesChannelsTest(unittest.IsolatedAsyncioTestCase):
     def make_interaction(
         category: SimpleNamespace,
     ) -> tuple[mock.AsyncMock, discord.Interaction]:
+        channel_ids = iter(range(101, 200))
         guild = SimpleNamespace(
             categories=[category],
-            create_text_channel=mock.AsyncMock(),
+            create_text_channel=mock.AsyncMock(
+                side_effect=lambda name, category: SimpleNamespace(
+                    name=name, mention=f"<#{next(channel_ids)}>"
+                )
+            ),
         )
         interaction = SimpleNamespace(guild=guild)
         return guild.create_text_channel, cast(discord.Interaction, interaction)
@@ -50,7 +55,7 @@ class TimesChannelsTest(unittest.IsolatedAsyncioTestCase):
             self.bot,
             interaction,
             command_name="times create",
-            details=["作成: #alpha, #beta"],
+            details=["作成: <#101>, <#102>"],
         )
 
 

@@ -57,20 +57,22 @@ class TimesChannels(commands.GroupCog, group_name="times"):
             return
 
         existing = {channel.name for channel in category.text_channels}
-        created: list[str] = []
+        created: list[discord.TextChannel] = []
         skipped: list[str] = []
         for name in requested:
             if name in existing:
                 skipped.append(name)
                 continue
-            await guild.create_text_channel(name=name, category=category)
+            channel = await guild.create_text_channel(name=name, category=category)
             existing.add(name)
-            created.append(name)
+            created.append(channel)
 
         lines: list[str] = []
         if created:
             lines.append(
-                "✅ " + ", ".join(f"#{name}" for name in created) + " を作成しました。"
+                "✅ "
+                + ", ".join(f"#{channel.name}" for channel in created)
+                + " を作成しました。"
             )
         if skipped:
             lines.append(
@@ -82,7 +84,7 @@ class TimesChannels(commands.GroupCog, group_name="times"):
                 self.bot,
                 interaction,
                 command_name="times create",
-                details=["作成: " + ", ".join(f"#{name}" for name in created)],
+                details=["作成: " + ", ".join(channel.mention for channel in created)],
             )
 
 

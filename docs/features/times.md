@@ -26,4 +26,4 @@
 - 両方あれば ✅ 行 → ⏭️ 行の順に改行で結合して表示
 - `#name` はプレーンテキスト（チャンネルメンションではない）
 
-作成が 1 件以上あれば `log_audit(command_name="times create", details=["作成: #name1, #name2"])` を送信する。
+作成が 1 件以上あれば `log_audit(command_name="times create", details=["作成: <#id1>, <#id2>"])` を送信する（`<#idN>` は作成したチャンネルのメンション）。
