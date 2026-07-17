@@ -2,7 +2,22 @@
 
 ## 概要
 
-全 feature が共有する応答・通知の挙動を定義する。実装は `helpers.py`・`app.py` を正とする。
+全 feature が共有する応答・通知の挙動を定義する。この文書が正本である。
+
+## 実行コンテキスト
+
+**全コマンドは guild 限定とする。** guild 外（DM）での実行には「サーバー内で実行してください。」を ephemeral で応答する（`require_guild` の `ServiceError`）。DM でのコマンド対応は非目標。
+
+| コマンド | 実行コンテキスト |
+|---|---|
+| `/ctfteam open` / `list` / `close` / `archive` | guild 限定 |
+| `/ctftime` | guild 限定 |
+| `/alpaca add` / `del` / `list` / `solve` | guild 限定 |
+| `/times create` | guild 限定 |
+| `/help` / `/perms` | guild 限定 |
+| `/sudo` / `/unsudo` | guild 限定 |
+
+この宣言により、`log_audit` の書式（`#{実行チャンネル名}` を含む）は guild コンテキストを前提としてよい。
 
 ## コマンド応答
 
