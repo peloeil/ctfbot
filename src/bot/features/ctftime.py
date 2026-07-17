@@ -163,6 +163,9 @@ class CTFTimeNotifications(commands.Cog):
         name="ctftime", description="CTFtimeの予定を手動で取得します。"
     )
     async def manual_ctf_check(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None:
+            await send_interaction(interaction, "サーバー内で実行してください。")
+            return
         await interaction.response.defer()
         try:
             events = await asyncio.to_thread(

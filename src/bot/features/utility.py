@@ -11,6 +11,11 @@ class UtilityCommands(commands.Cog):
         name="help", description="利用可能なコマンド一覧を表示します。"
     )
     async def help_command(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "サーバー内で実行してください。", ephemeral=True
+            )
+            return
         lines: list[str] = []
         for command in self.bot.tree.get_commands():
             if isinstance(command, app_commands.Group):

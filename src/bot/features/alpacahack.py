@@ -290,6 +290,9 @@ class Alpacahack(commands.GroupCog, group_name="alpaca"):
     @app_commands.command(name="add", description="AlpacaHackユーザーを登録します。")
     @app_commands.describe(username="AlpacaHackのユーザー名")
     async def add_user(self, interaction: discord.Interaction, username: str) -> None:
+        if interaction.guild is None:
+            await send_interaction(interaction, "サーバー内で実行してください。")
+            return
         name = username.strip()
         if not name:
             await send_interaction(interaction, "ユーザー名が空です。")
@@ -311,6 +314,9 @@ class Alpacahack(commands.GroupCog, group_name="alpaca"):
     )
     @app_commands.describe(username="AlpacaHackのユーザー名")
     async def del_user(self, interaction: discord.Interaction, username: str) -> None:
+        if interaction.guild is None:
+            await send_interaction(interaction, "サーバー内で実行してください。")
+            return
         name = username.strip()
         if not name:
             await send_interaction(interaction, "ユーザー名が空です。")
@@ -331,6 +337,9 @@ class Alpacahack(commands.GroupCog, group_name="alpaca"):
         name="list", description="登録済みAlpacaHackユーザー一覧を表示します。"
     )
     async def list_users(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None:
+            await send_interaction(interaction, "サーバー内で実行してください。")
+            return
         users = await asyncio.to_thread(self.db.list_alpacahack_users)
         if not users:
             await send_interaction(interaction, "登録ユーザーはいません。")
@@ -342,6 +351,9 @@ class Alpacahack(commands.GroupCog, group_name="alpaca"):
 
     @app_commands.command(name="solve", description="今週のsolve状況を表示します。")
     async def show_solves(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None:
+            await send_interaction(interaction, "サーバー内で実行してください。")
+            return
         await interaction.response.defer()
         summary = await asyncio.to_thread(
             collect_weekly_summary,
