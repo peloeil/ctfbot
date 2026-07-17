@@ -10,13 +10,13 @@ CTF サーバー向けの Discord bot です。
 - **times チャンネル** — `/times create` でカテゴリ配下にチャンネルを一括作成
 - **ユーティリティ** — `/help`, `/perms`
 - **一時的な管理者昇格** — `/sudo`, `/unsudo` で期限付きロールを管理
-- **監査ログ保存** — Discord の監査ログエントリを DB に保存
+- **Discord 監査ログ保存** — Discord の監査ログエントリを DB に保存
 - **接続状態通知** — Bot の接続・切断をステータスチャンネルへ通知
 
 ## Quick Start
 
 ```bash
-uv sync --group dev
+uv sync --group dev  # 開発ツール込み。本番運用は uv sync で可
 cp .env.example .env
 # .env を編集（下記「環境変数」参照）
 uv run python src/main.py
@@ -39,6 +39,7 @@ uv run python src/main.py
 - `View Channel`
 - `Send Messages`
 - `Send Messages in Threads`
+- `Embed Links`
 - `Read Message History`
 - `Add Reactions`
 - `Manage Channels`
@@ -46,6 +47,11 @@ uv run python src/main.py
 - `View Audit Log`
 
 `Manage Roles` を使うため、Bot のロールは操作対象のロールより上位に配置してください。
+
+### サーバー側の準備
+
+- `CTF_TEAM_CATEGORY_ID` のカテゴリ内に、名前が `role` のテキストチャンネルを作成してください（`/ctfteam open` の募集メッセージ投稿先。無いと open が失敗します）
+- 名前が `times` のカテゴリを作成してください（`/times create` の作成先）
 
 ## 運用メモ
 
