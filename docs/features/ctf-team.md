@@ -32,7 +32,7 @@ DB の `status` は `'active'` / `'closed'` の 2 値のみ。archived は独立
 - 募集メッセージに `🔒 **この募集は終了しました。**` ヘッダーが追加される
 - voice チャンネルは削除される
 - discussion チャンネルに参加メンバースナップショットが投稿される
-- `archive_at_unix = closed_at_unix + 30日` が設定される
+- `archive_at_unix` = `closed_at_unix` + `ARCHIVE_DELAY_DAYS` 日が設定される（定数表参照）
 
 #### close 処理の順序（冪等性保証）
 
@@ -91,7 +91,7 @@ close と同じく「Discord リソース → DB → 通知」の順で行う。
 DB insert（`create_campaign`）は `BEGIN IMMEDIATE` トランザクション内で作成者の active 募集数を再カウントし、超過または同名 active の unique index 違反で `ConflictError` を raise する。手順 2 の事前確認とこの DB レベル再チェックの二段構えで、同時実行の競合を防ぐ。
 
 バリデーションルール（`ServiceError` のメッセージ）:
-- CTF 名: 空白正規化。空なら「CTF名を入力してください。」、60 文字超なら「CTF名が長すぎます。60文字以内で入力してください。」
+- CTF 名: 空白正規化。空なら「CTF名を入力してください。」、`MAX_CTF_NAME_LENGTH` 超なら「CTF名が長すぎます。60文字以内で入力してください。」
 - 日時: `YYYY-MM-DD HH:MM` 形式。不正なら「開始/終了日時の形式が不正です。YYYY-MM-DD HH:MM 形式で入力してください。」
 - 終了日時: 省略可（常設）。開始日時以前なら「終了日時は開始日時より後にしてください。常設CTFの場合は終了日時を空欄にしてください。」
 - 作成者の active 募集数上限: 「同時に作成できる active 募集数の上限に達しています。(上限: 5)」
@@ -225,7 +225,7 @@ discussion チャンネルは normalize 結果を、voice チャンネルは `{n
 
 ### メンション分割
 
-`MENTION_CHUNK_SIZE = 1700` 文字ごとに分割して複数メッセージで送信。Discord の 2000 文字制限にマージンを持たせている。
+`MENTION_CHUNK_SIZE`（定数表）ごとに分割して複数メッセージで送信。Discord の 2000 文字制限にマージンを持たせている。
 
 ## データモデル
 
@@ -261,6 +261,8 @@ discussion チャンネルは normalize 結果を、voice チャンネルは `{n
 | `INPUT_DATETIME_FORMAT` | `%Y-%m-%d %H:%M` | 日時入力形式 |
 | `REACTION_EMOJI` | ✅ | 参加リアクション |
 | `ROLE_ANNOUNCE_CHANNEL_NAME` | `role` | 募集メッセージの投稿先チャンネル名 |
+| `MAX_CHANNEL_NAME_LENGTH` | 100 | チャンネル名の最大長（Discord の上限に一致） |
+| `MENTION_CHUNK_SIZE` | 1700 | メンション分割の 1 メッセージ上限 |
 
 ## 対象外
 
