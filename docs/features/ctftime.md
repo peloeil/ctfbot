@@ -59,7 +59,7 @@ JSON 配列の各要素から:
 
 ## データモデル
 
-`CTFEvent` の定義は `ctftime.py` を正とする。
+`CTFEvent` の定義は `docs/data-contracts.md`「ctftime」を正本とする。
 
 ## 関連設定
 

@@ -74,13 +74,13 @@ bot 停止中に期限が切れた grant は、再起動後の初回実行で剥
 
 ## データモデル
 
-`SudoGrant` の定義は `models.py` を正とする。
+`SudoGrant` の定義は `docs/data-contracts.md`「sudo」を正本とする。
 
 `role_id` は付与時点の `ADMIN_ROLE_ID` を保存し、grant が有効な間は設定変更を反映せず維持する。即座に反映すると、実際に付与したロールが追跡対象から外れて剥奪されないため。剥奪（`/unsudo`・自動剥奪）はこの ID を使い、新しい設定値は次回の新規付与から使われる。
 
 ## DB スキーマ
 
-テーブル `sudo_grant` の DDL と `Database` メソッドは `db.py` を正とする（`_MIGRATIONS[2]`、version 2 → 3 の移行にも登録）。設計上のポイント:
+テーブル `sudo_grant` の DDL と `Database` メソッドの契約は `docs/data-contracts.md` を正本とする（version 2 → 3 の移行にも登録）。設計上のポイント:
 
 - PRIMARY KEY は `(guild_id, user_id)`（1 ユーザー同時 1 grant）
 - `expires_at_unix` に index（期限切れ一覧の取得用）

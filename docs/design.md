@@ -71,7 +71,7 @@ feature 間の相互 import は禁止（features/ 直下のすべての feature 
 
 単一プロセスの bot で十分な規模。WAL mode で読み取りの並行性を確保する。blocking I/O は全て `asyncio.to_thread` 経由。
 
-スキーマ変更は `db.py` の `_MIGRATIONS`（`{from_version: SQL スクリプト}`）に version N → N+1 の移行 SQL を登録する方式。起動時に `user_version` から `CURRENT_SCHEMA_VERSION` まで順に適用する。移行パスが無い version の DB は起動拒否（fail-fast）。移行スクリプトは再実行に耐える形（`IF NOT EXISTS` 等）で書く — スクリプト適用と version 更新の間にクラッシュすると再実行されるため。
+スキーマ変更は `_MIGRATIONS`（`{from_version: SQL スクリプト}`）に version N → N+1 の移行 SQL を登録する方式。起動時の検証・移行手続き・拒否条件（バージョン管理外の DB・bot より新しい version・移行パスの無い version はいずれも起動拒否 = fail-fast）の契約は `docs/data-contracts.md`「起動時のスキーマ検証・移行手続き」を正本とする。移行スクリプトは再実行に耐える形で書く — スクリプト適用と version 更新は atomic でなく、間にクラッシュすると再実行されるため。
 
 ### requests（同期 HTTP）
 

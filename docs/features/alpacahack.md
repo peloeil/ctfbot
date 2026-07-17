@@ -103,11 +103,11 @@ value: 「他 {omitted} 人は省略しました。」「取得失敗: {name}, .
 
 ## データモデル
 
-`SolveRecord` / `WeeklySolveSummary` の定義は `alpacahack.py` を正とする。`weekly_solves` は username → 今週の solve list で、取得に失敗したユーザーは含まれず `failed_users` にのみ入る。
+`SolveRecord` / `WeeklySolveSummary` の定義は `docs/data-contracts.md`「alpacahack」を正本とする。`weekly_solves` は username → 今週の solve list で、取得に失敗したユーザーは含まれず `failed_users` にのみ入る。
 
 ## DB スキーマ
 
-テーブル `alpacahack_user` の DDL は `db.py` の `_SCHEMA_DDL` を正とする。設計上のポイント: `name` は UNIQUE（`/alpaca add` の重複判定）。
+テーブル `alpacahack_user` の DDL は `docs/data-contracts.md` を正本とする。設計上のポイント: `name` は UNIQUE（`/alpaca add` の重複判定）。
 
 ## 関連設定
 

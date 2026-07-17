@@ -220,7 +220,7 @@ discussion チャンネルは normalize 結果を、voice チャンネルは `{n
 
 ## データモデル
 
-定義は `models.py` を正とする（このドキュメントに写しを持たない）。設計上のポイント:
+定義は `docs/data-contracts.md`「ctf_team」を正本とする。設計上のポイント:
 
 - `ActiveCampaign` / `ClosedCampaign` は `Literal[CampaignStatus.*]` の discriminator を持つ状態別 dataclass で、`type Campaign = ActiveCampaign | ClosedCampaign` の union にまとめる（docs/design.md「状態依存データは型で表す」のパターン）
 - `closed_at_unix` / `archive_at_unix` / `archived_at_unix` は `ClosedCampaign` のみが持つ
@@ -229,7 +229,7 @@ discussion チャンネルは normalize 結果を、voice チャンネルは `{n
 
 ## DB スキーマ
 
-テーブル `ctf_team_campaign` の DDL は `db.py` の `_SCHEMA_DDL` を正とする（このドキュメントに写しを持たない）。設計上のポイント:
+テーブル `ctf_team_campaign` の DDL・query 契約は `docs/data-contracts.md` を正本とする。設計上のポイント:
 
 - `ctf_name` は `COLLATE NOCASE` で大文字小文字無視
 - `(guild_id, ctf_name)` に partial unique index（`WHERE status = 'active'`）で同名 active 重複を防ぐ
