@@ -47,29 +47,11 @@
 
 ## 開発コマンド
 
-```bash
-# 依存インストール
-uv sync --group dev
-
-# lint
-uv run ruff check src/ tests/
-uv run ruff format --check src/ tests/
-
-# 型チェック
-uv run ty check
-
-# テスト
-uv run python -m unittest discover -s tests -v
-
-# 実行（Discord トークンが必要）
-uv run python src/main.py
-```
+依存インストールは `uv sync --group dev`。lint・型チェック・テストの検証コマンドは `AGENTS.md`「検証」を正とする（重複記載しない）。bot の実行（`uv run python src/main.py`）には Discord トークンが必要。
 
 ## コーディング規約
 
-- コード・変数名は英語。Discord に送信するユーザー向けメッセージは日本語
-- dataclass は `frozen=True, slots=True`
-- blocking I/O は `asyncio.to_thread` 経由（適用範囲は AGENTS.md アーキテクチャ制約 10 を正とする）
+`AGENTS.md`「コーディング規約」および「アーキテクチャ制約」を正とする（重複記載しない）。
 
 ## 情報の書き分け原則（必須）
 
