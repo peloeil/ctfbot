@@ -7,3 +7,4 @@ paths:
 - campaign.py / models.py は discord を import しない
 - discord_ops.py は bot.db を import しない
 - 複数ステップの検証は ServiceError を raise し cog で try/except ServiceError で統一。単純な入力チェックは cog 内で直接応答してよい
+- 規範の正本は AGENTS.md（アーキテクチャ制約）。乖離時はそちらが正
