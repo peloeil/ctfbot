@@ -13,7 +13,7 @@
 
 | 規模 | 担当 | 例 |
 |---|---|---|
-| 1 ファイル以内の修正・バグ修正 | Claude が直接実装 | typo 修正、既存関数のロジック修正、テスト追加 |
+| 1 ファイル以内の修正・バグ修正（対応するテストファイルの変更は数えない） | Claude が直接実装 | typo 修正、既存関数のロジック修正＋回帰テスト、テスト追加 |
 | 複数ファイルにまたがる変更・新機能 | Claude が設計 → Codex が実装 | 新 cog 追加、DB スキーマ変更を伴う機能 |
 
 判断に迷ったらユーザーに確認する。
@@ -26,13 +26,15 @@
 | 設定（環境変数）・データモデル・DB スキーマ・Database API の契約 | `docs/data-contracts.md` |
 | Codex 向けの実装制約・cog 追加手順・検証コマンド | `AGENTS.md` |
 | 各機能の仕様 | `docs/features/*.md` |
-| bot 共通挙動（エラーハンドラ・監査ログ・状態通知）の仕様 | `docs/core.md` |
+| bot 共通挙動（エラーハンドラ・コマンド実行ログ・状態通知）の仕様 | `docs/core.md` |
+| GitHub CI の仕様 | `docs/ci.md` |
+| セットアップ・環境変数・Discord 設定 | `README.md` |
 
 設計・レビュー時は `docs/design.md` の基準に照らして判断する。
 
 ## 設計の出力フォーマット
 
-新機能の設計時は `/design-spec` スキルを使用する。
+新機能の設計・既存機能の仕様変更時は `/design-spec` スキルを使用する。
 
 ## リファクタリングの段階化
 
@@ -67,7 +69,7 @@ uv run python src/main.py
 
 - コード・変数名は英語。Discord に送信するユーザー向けメッセージは日本語
 - dataclass は `frozen=True, slots=True`
-- blocking I/O は `asyncio.to_thread` 経由
+- blocking I/O は `asyncio.to_thread` 経由（適用範囲は AGENTS.md アーキテクチャ制約 10 を正とする）
 
 ## 情報の書き分け原則（必須）
 

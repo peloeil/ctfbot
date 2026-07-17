@@ -6,8 +6,9 @@
 
 **プロンプトでの指示 > AGENTS.md > docs/**
 
-- `docs/` 以下は既存機能の仕様確認に使う参考資料であり、新規実装の制約ではない
-- 新機能追加時にドキュメントと矛盾する場合はプロンプトの指示を優先すること
+- プロンプトが実装対象として指定した仕様書（`docs/features/*.md` 等）はプロンプトの一部（規範）として扱う
+- それ以外の `docs/` は既存機能の仕様確認に使う参考資料であり、新規実装の制約ではない
+- 既存ドキュメントと矛盾する変更を指示された場合はプロンプトを優先すること
 
 ## 仕様リファレンス
 
@@ -22,7 +23,7 @@
 | AlpacaHack 連携の仕様 | `docs/features/alpacahack.md` |
 | times チャンネルの仕様 | `docs/features/times.md` |
 | ユーティリティコマンドの仕様 | `docs/features/utility.md` |
-| 監査ログ保存の仕様 | `docs/features/audit-log.md` |
+| Discord 監査ログ保存の仕様 | `docs/features/audit-log.md` |
 | 一時的な管理者昇格 (sudo) の仕様 | `docs/features/sudo.md` |
 | セットアップ・環境変数・Discord 設定 | `README.md` |
 
@@ -47,7 +48,7 @@
 - **Linter**: `ruff` — `line-length = 88`、ルール `E, F, I, W, N, UP, B, C4, SIM, RUF`
 - **Type checker**: `ty` — `python-version = "3.14"`、ルート `./src`
 - **dataclass**: `frozen=True, slots=True` を標準で付ける
-- **言語**: コード・変数名は英語。ユーザー向けメッセージ（Discord に送信するもの）は日本語
+- **言語**: コード・変数名は英語。ユーザー向けメッセージ（Discord に送信するもの）は日本語。例外は接続状態通知の英語定型文（`docs/core.md`）と、ユーザーに表示しない内部例外メッセージ（`docs/design.md` 例外階層）
 - **例外階層**: `BotError > ConfigurationError | RepositoryError (> ConflictError) | ServiceError (> ExternalAPIError)`
 
 ## 情報の書き分け原則（必須）
@@ -70,7 +71,7 @@
 5. ファイル末尾に `async def setup(bot: commands.Bot) -> None:` を必ず置く
 6. `cogs_loader.py` の `DEFAULT_EXTENSIONS` にモジュールパスを追加する
 7. `tests/test_architecture.py` の `feature_modules` に新 feature のモジュールパスを追加する
-8. DB テーブルが必要なら `db.py` の `_SCHEMA_DDL` に DDL を追加し、`CURRENT_SCHEMA_VERSION` をインクリメントし、`_MIGRATIONS` に旧 version からの移行 SQL を追加する
+8. DB テーブルが必要なら `db.py` の `_SCHEMA_DDL` に DDL を追加し、`CURRENT_SCHEMA_VERSION` をインクリメントし、`_MIGRATIONS` に旧 version からの移行 SQL を追加する。移行 SQL は再実行に耐える形（`IF NOT EXISTS`・冪等な UPDATE 等）で書き、`docs/data-contracts.md` を同時に更新する
 
 ```python
 # 最小の cog テンプレート
