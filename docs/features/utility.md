@@ -8,9 +8,9 @@
 
 ### `/help`
 
-`bot.tree.get_commands()` で全コマンド取得。Group コマンドは展開して `/group subcommand — description` 形式で、単発コマンドは `/command — description` 形式で列挙し、行の文字列を辞書順にソートして応答。
+`bot.tree.get_commands()` で全コマンド取得。Group コマンドは 1 段だけ展開して `/group subcommand — description` 形式で（ネストした subgroup の子は列挙しない）、単発コマンドは `/command — description` 形式で列挙し、行の文字列を辞書順にソートして応答。description は各コマンド定義の値をそのまま表示する。
 
-既知の制限: 応答の分割・切り詰めは行わないため、コマンド数の増加で Discord の 2000 文字上限に達すると送信に失敗する。
+応答の分割・切り詰めは行わない（非目標）。コマンド数 × 行長が Discord の 2000 文字上限に近づいた場合に分割送信を導入する。
 
 ### `/perms [channel]`
 
@@ -25,4 +25,4 @@ bot が持つ権限を `{✅|❌} {スコープ} {権限名}` の行区切りで
 | スコープ | 権限 |
 |---|---|
 | Guild | `view_audit_log`, `manage_roles` |
-| Channel | `view_channel`, `send_messages`, `send_messages_in_threads`, `read_message_history`, `add_reactions`, `manage_channels` |
+| Channel | `view_channel`, `send_messages`, `send_messages_in_threads`, `read_message_history`, `add_reactions`, `manage_channels`, `embed_links` |
