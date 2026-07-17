@@ -126,7 +126,6 @@ class Sudo(commands.Cog):
             self.bot,
             interaction,
             command_name="unsudo",
-            details=[f"管理者ロールID: {grant.role_id}"],
         )
 
     def _require_configuration(self) -> tuple[int, int]:

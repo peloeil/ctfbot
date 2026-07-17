@@ -50,7 +50,7 @@
 3. レコードに保存された `role_id` のロールを剥奪（`member.remove_roles`）。ロールが guild から削除済みの場合、および `remove_roles` が `discord.NotFound` の場合は剥奪成功として扱う
 4. 剥奪に失敗（`discord.Forbidden`・`discord.HTTPException`）したら「ロールを解除できません。bot のロール権限と順位を確認してください(/perms)。」で中断（レコードは残し、自動剥奪タスクのリトライに委ねる）
 5. grant レコードを削除
-6. 「⏬ 管理者ロールを解除しました。」で応答 + `log_audit(command_name="unsudo", details=["管理者ロールID: {grant.role_id}"])`
+6. 「⏬ 管理者ロールを解除しました。」で応答 + `log_audit(command_name="unsudo")`（details なし）
 
 処理順序の理由: ロール剥奪より先にレコードを消すと「レコードなし・ロールあり」の剥奪漏れが残る。剥奪成功までレコードを残すことでリトライ可能にする。
 
