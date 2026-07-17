@@ -103,30 +103,11 @@ value: 「他 {omitted} 人は省略しました。」「取得失敗: {name}, .
 
 ## データモデル
 
-```python
-@dataclass(frozen=True, slots=True)
-class SolveRecord:
-    challenge_name: str
-    challenge_url: str | None
-    solved_at: datetime.datetime
-
-@dataclass(frozen=True, slots=True)
-class WeeklySolveSummary:
-    week_start: datetime.date
-    week_end: datetime.date
-    total_users: int
-    weekly_solves: dict[str, list[SolveRecord]]  # username → records
-    failed_users: list[str]
-```
+`SolveRecord` / `WeeklySolveSummary` の定義は `alpacahack.py` を正とする。`weekly_solves` は username → 今週の solve list で、取得に失敗したユーザーは含まれず `failed_users` にのみ入る。
 
 ## DB スキーマ
 
-```sql
-CREATE TABLE IF NOT EXISTS alpacahack_user (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE
-);
-```
+テーブル `alpacahack_user` の DDL は `db.py` の `_SCHEMA_DDL` を正とする。設計上のポイント: `name` は UNIQUE（`/alpaca add` の重複判定）。
 
 ## 関連設定
 

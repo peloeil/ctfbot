@@ -74,44 +74,17 @@ bot 停止中に期限が切れた grant は、再起動後の初回実行で剥
 
 ## データモデル
 
-### SudoGrant
+`SudoGrant` の定義は `models.py` を正とする。
 
-```python
-@dataclass(frozen=True, slots=True)
-class SudoGrant:
-    guild_id: int
-    user_id: int
-    role_id: int
-    granted_at_unix: int
-    expires_at_unix: int
-```
-
-`role_id` は付与時点の `ADMIN_ROLE_ID` を保存し、grant が有効な間は設定変更を反映せず維持する。即座に反映すると、実際に付与したロールが追跡対象から外れて剥奪されないため。剥奪(`/unsudo`・自動剥奪)はこの ID を使い、新しい設定値は次回の新規付与から使われる。
+`role_id` は付与時点の `ADMIN_ROLE_ID` を保存し、grant が有効な間は設定変更を反映せず維持する。即座に反映すると、実際に付与したロールが追跡対象から外れて剥奪されないため。剥奪（`/unsudo`・自動剥奪）はこの ID を使い、新しい設定値は次回の新規付与から使われる。
 
 ## DB スキーマ
 
-```sql
-CREATE TABLE IF NOT EXISTS sudo_grant (
-    guild_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
-    role_id INTEGER NOT NULL,
-    granted_at_unix INTEGER NOT NULL,
-    expires_at_unix INTEGER NOT NULL,
-    PRIMARY KEY (guild_id, user_id)
-);
+テーブル `sudo_grant` の DDL と `Database` メソッドは `db.py` を正とする（`_MIGRATIONS[2]`、version 2 → 3 の移行にも登録）。設計上のポイント:
 
-CREATE INDEX IF NOT EXISTS idx_sudo_grant_expires
-    ON sudo_grant (expires_at_unix);
-```
-
-`_MIGRATIONS[2]`(version 2 → 3 の移行)に登録されている。upsert は `ON CONFLICT (guild_id, user_id) DO UPDATE` で `role_id` と `expires_at_unix` のみ更新する(`granted_at_unix` は維持)。
-
-Database メソッド:
-
-- `upsert_sudo_grant(guild_id, user_id, role_id, granted_at_unix, expires_at_unix) -> SudoGrant`
-- `get_sudo_grant(guild_id, user_id) -> SudoGrant | None`
-- `delete_sudo_grant(guild_id, user_id) -> None`
-- `list_expired_sudo_grants(now_unix) -> list[SudoGrant]`
+- PRIMARY KEY は `(guild_id, user_id)`（1 ユーザー同時 1 grant）
+- `expires_at_unix` に index（期限切れ一覧の取得用）
+- upsert は `ON CONFLICT (guild_id, user_id) DO UPDATE` で `role_id` と `expires_at_unix` のみ更新する（`granted_at_unix` は維持）
 
 ## メッセージ形式
 

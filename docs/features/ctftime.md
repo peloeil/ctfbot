@@ -59,14 +59,7 @@ JSON 配列の各要素から:
 
 ## データモデル
 
-```python
-@dataclass(frozen=True, slots=True)
-class CTFEvent:
-    title: str
-    start: datetime.datetime
-    finish: datetime.datetime
-    ctftime_url: str
-```
+`CTFEvent` の定義は `ctftime.py` を正とする。
 
 ## 関連設定
 
