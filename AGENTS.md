@@ -14,6 +14,7 @@
 | 調べたいこと | ファイル |
 |---|---|
 | 設計思想・分割方針・技術選定理由 | `docs/design.md` |
+| 設定（環境変数）・データモデル・DB スキーマ・Database API の契約 | `docs/data-contracts.md` |
 | GitHub CI の仕様 | `docs/ci.md` |
 | bot 共通の応答・通知挙動（エラーハンドラ・監査ログ・状態通知） | `docs/core.md` |
 | CTF 募集管理の仕様 | `docs/features/ctf-team.md` |

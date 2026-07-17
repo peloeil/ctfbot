@@ -23,6 +23,7 @@
 | 調べたいこと | ファイル |
 |---|---|
 | 分割方針・命名契約・型パターン・validation 境界などの設計判断基準 | `docs/design.md` |
+| 設定（環境変数）・データモデル・DB スキーマ・Database API の契約 | `docs/data-contracts.md` |
 | Codex 向けの実装制約・cog 追加手順・検証コマンド | `AGENTS.md` |
 | 各機能の仕様 | `docs/features/*.md` |
 | bot 共通挙動（エラーハンドラ・監査ログ・状態通知）の仕様 | `docs/core.md` |
