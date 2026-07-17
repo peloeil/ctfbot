@@ -135,6 +135,10 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(settings.sudoer_role_id, 20)
         self.assertEqual(settings.sudo_duration_minutes, 45)
 
+    def test_sudo_role_ids_must_be_different(self) -> None:
+        with self.assertRaises(ConfigurationError):
+            load_settings(environ=self.env(ADMIN_ROLE_ID="10", SUDOER_ROLE_ID="10"))
+
     def test_integer_settings_reject_negative_and_non_integer(self) -> None:
         with self.assertRaises(ConfigurationError):
             load_settings(environ=self.env(BOT_CHANNEL_ID="-1"))

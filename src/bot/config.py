@@ -108,6 +108,10 @@ def load_settings(
         raise ConfigurationError(
             "ADMIN_ROLE_ID and SUDOER_ROLE_ID must both be set or both be unset."
         )
+    if admin_role_id is not None and admin_role_id == sudoer_role_id:
+        raise ConfigurationError(
+            "ADMIN_ROLE_ID and SUDOER_ROLE_ID must be different roles."
+        )
 
     return Settings(
         discord_token=discord_token,
