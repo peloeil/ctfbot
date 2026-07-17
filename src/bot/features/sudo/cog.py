@@ -46,9 +46,6 @@ class Sudo(commands.Cog):
             guild = require_guild(interaction)
             admin_role_id, sudoer_role_id = self._require_configuration()
             member = self._require_sudoer(interaction, sudoer_role_id)
-            configured_role = guild.get_role(admin_role_id)
-            if configured_role is None:
-                raise ServiceError("付与対象のロールが見つかりません。")
 
             lock = self._grant_locks[guild.id, member.id]
             async with lock:
@@ -56,7 +53,7 @@ class Sudo(commands.Cog):
                     self.db.get_sudo_grant, guild.id, member.id
                 )
                 role, grant = await self._resolve_sudo_role(
-                    guild, member, configured_role, grant
+                    guild, member, admin_role_id, grant
                 )
                 is_renewal = grant is not None
                 now_unix = int(time.time())
@@ -165,21 +162,21 @@ class Sudo(commands.Cog):
         self,
         guild: discord.Guild,
         member: discord.Member,
-        configured_role: discord.Role,
+        admin_role_id: int,
         grant: SudoGrant | None,
     ) -> tuple[discord.Role, SudoGrant | None]:
-        if grant is None:
-            if self._has_role(member, configured_role.id):
-                raise ServiceError("既に管理者ロールを保持しています。")
-            return configured_role, None
+        if grant is not None:
+            granted_role = guild.get_role(grant.role_id)
+            if granted_role is not None:
+                return granted_role, grant
+            await asyncio.to_thread(
+                self.db.delete_sudo_grant, grant.guild_id, grant.user_id
+            )
+            grant = None
 
-        granted_role = guild.get_role(grant.role_id)
-        if granted_role is not None:
-            return granted_role, grant
-
-        await asyncio.to_thread(
-            self.db.delete_sudo_grant, grant.guild_id, grant.user_id
-        )
+        configured_role = guild.get_role(admin_role_id)
+        if configured_role is None:
+            raise ServiceError("付与対象のロールが見つかりません。")
         if self._has_role(member, configured_role.id):
             raise ServiceError("既に管理者ロールを保持しています。")
         return configured_role, None

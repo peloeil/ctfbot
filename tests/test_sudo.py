@@ -157,6 +157,50 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
             interaction, "⏫ 有効期限を <t:1900:R> に延長しました。"
         )
 
+    async def test_sudo_renewal_uses_saved_role_when_configured_role_is_missing(
+        self,
+    ) -> None:
+        granted_role = mock.Mock(spec=discord.Role, id=9)
+        sudoer_role = mock.Mock(spec=discord.Role, id=20)
+        interaction, guild, member, _ = self.make_interaction(
+            member_roles=[sudoer_role, granted_role]
+        )
+        guild.get_role.side_effect = {9: granted_role, 10: None}.get
+        self.db.get_sudo_grant.return_value = SudoGrant(1, 2, 9, 50, 200)
+
+        with (
+            mock.patch("bot.features.sudo.cog.time.time", return_value=100),
+            mock.patch(
+                "bot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
+            ) as send_interaction,
+            mock.patch("bot.features.sudo.cog.log_audit", new_callable=mock.AsyncMock),
+        ):
+            callback = cast(Any, self.cog.sudo.callback)
+            await callback(self.cog, interaction)
+
+        self.db.upsert_sudo_grant.assert_called_once_with(1, 2, 9, 100, 1900)
+        member.add_roles.assert_not_awaited()
+        self.assertEqual(guild.get_role.call_args_list, [mock.call(9)])
+        send_interaction.assert_awaited_once_with(
+            interaction, "⏫ 有効期限を <t:1900:R> に延長しました。"
+        )
+
+    async def test_sudo_without_grant_rejects_missing_configured_role(self) -> None:
+        interaction, guild, _, _ = self.make_interaction()
+        guild.get_role.return_value = None
+        self.db.get_sudo_grant.return_value = None
+
+        with mock.patch(
+            "bot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
+        ) as send_interaction:
+            callback = cast(Any, self.cog.sudo.callback)
+            await callback(self.cog, interaction)
+
+        send_interaction.assert_awaited_once_with(
+            interaction, "付与対象のロールが見つかりません。"
+        )
+        self.db.upsert_sudo_grant.assert_not_called()
+
     async def test_sudo_failed_renewal_restores_previous_grant(self) -> None:
         interaction, _, member, _ = self.make_interaction()
         previous = SudoGrant(1, 2, 10, 50, 200)
