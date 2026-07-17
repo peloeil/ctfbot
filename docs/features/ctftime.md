@@ -26,14 +26,15 @@ Headers: User-Agent={ctftime_user_agent}
 ```
 
 - `start` = 現在時刻、`finish` = 現在 + `CTFTIME_WINDOW_DAYS` 日
-- リトライ: 最大 `max_retries`（デフォルト 3）回。間隔 = `retry_backoff * attempt` 秒。対象は `requests.RequestException`・`ValueError`（JSON パース失敗）・`ExternalAPIError`（不正レスポンス）
+- タイムアウト: `request_timeout`（デフォルト 10 秒）
+- リトライ: 最大 `max_retries`（デフォルト 3）回。間隔 = `retry_backoff`（デフォルト 1.5）`* attempt` 秒。対象は `requests.RequestException`・`ValueError`（JSON パース失敗）・`ExternalAPIError`（不正レスポンス）
 - 全失敗 → `ExternalAPIError`
 
 ### レスポンスパース
 
 JSON 配列の各要素から:
 - `title`: str（なければ `"Untitled"`）
-- `start` / `finish`: ISO 8601 文字列 → `datetime.fromisoformat` → タイムゾーン変換
+- `start` / `finish`: ISO 8601 文字列 → `datetime.fromisoformat` → `settings.tzinfo` へ変換
 - `ctftime_url`: str（なければ `url` フィールド。両方なければ `""`）
 
 "Z" 付き・オフセット付き両方の ISO datetime をサポート。tzinfo なしは UTC とみなす。
