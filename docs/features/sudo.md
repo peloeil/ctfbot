@@ -39,7 +39,7 @@
 9. 付与に失敗（`discord.Forbidden`・`discord.HTTPException`）した場合、新規 grant ならレコードを削除し、更新 grant なら更新前のレコードに戻す。その後「ロールを付与できません。bot のロール権限と順位を確認してください(/perms)。」で中断。レコードの削除・復元自体が失敗した場合は exception ログのみ残す（応答は同じ。残った新期限のレコードは自動剥奪タスクが期限到達時に回収する）
 10. 「⏫ 管理者ロールを付与しました。<t:{expires_at_unix}:R> に自動解除されます。」（延長時は「⏫ 有効期限を <t:{expires_at_unix}:R> に延長しました。」）で応答 + `log_audit(command_name="sudo", details=["管理者ロール期限: <t:{expires_at_unix}:f>"])`
 
-既に昇格中の場合も同じ流れで、有効期限が `now + SUDO_DURATION_MINUTES * 60` に更新される（Unix sudo のタイムスタンプ更新と同じ挙動）。`granted_at_unix` は初回付与時の値を維持する。
+既に昇格中の場合も同じ流れで、有効期限が `now + SUDO_DURATION_MINUTES * 60` に更新される。`granted_at_unix` は初回付与時の値を維持する。
 
 処理順序の理由: ロール付与より先に DB へ記録する。逆順だと「付与成功 → DB 書き込み失敗」で剥奪されない永続昇格が残る。DB 記録後に新規付与が失敗した場合はレコード削除を試み、削除に失敗しても自動剥奪タスクが回収する。
 
@@ -82,23 +82,13 @@ bot 停止中に期限が切れた grant は、再起動後の初回実行で剥
 
 ## DB スキーマ
 
-テーブル `sudo_grant` の DDL と `Database` メソッドの契約は `docs/data-contracts.md` を正本とする（version 2 → 3 の移行にも登録）。設計上のポイント:
-
-- PRIMARY KEY は `(guild_id, user_id)`（1 ユーザー同時 1 grant）
-- `expires_at_unix` に index（期限切れ一覧の取得用）
-- upsert は `ON CONFLICT (guild_id, user_id) DO UPDATE` で `role_id` と `expires_at_unix` のみ更新する（`granted_at_unix` は維持）
+テーブル `sudo_grant` の DDL と `Database` メソッドの契約は `docs/data-contracts.md` を正本とする。
 
 ## 関連設定
 
-| 環境変数 | 必須 | デフォルト | 説明 |
-|---|---|---|---|
-| `ADMIN_ROLE_ID` | いいえ | なし | `/sudo` で付与するロール ID。既存の管理者ロールを指定する（専用ロールの新設は不要） |
-| `SUDOER_ROLE_ID` | いいえ | なし | `/sudo` を実行できるメンバーのロール ID |
-| `SUDO_DURATION_MINUTES` | いいえ | 30 | 昇格の有効時間（分）。正の整数 |
+環境変数の定義は `docs/data-contracts.md`「設定契約」を正本とする。
 
-`ADMIN_ROLE_ID` と `SUDOER_ROLE_ID` は両方設定するか両方未設定にする。片方だけの設定は `load_settings` で `ConfigurationError` として fail-fast する（sudoer チェック抜けの昇格を構成ミスで許さないため）。両方未設定なら機能無効。`0` は未設定として扱い（`or None` で正規化）、負値は `ConfigurationError`。両方に同一のロールを設定することも `ConfigurationError` で拒否する（同値では sudoer が常に恒常保持者となり手順 6 で拒否され、`/sudo` が成立しないため）。
-
-`Settings` は `admin_role_id: int | None`、`sudoer_role_id: int | None`、`sudo_duration_minutes: int` を持つ。
+片方だけのロール ID 設定を拒否するのは、構成ミスによる sudoer チェック抜けを防ぐためである。同一のロール ID を拒否するのは、sudoer が恒常的に管理者ロールを保持することになり、手順 6 で `/sudo` が常に拒否されるためである。
 
 ## Discord 側の前提
 
