@@ -3,6 +3,7 @@ import sqlite3
 import tempfile
 import unittest
 from contextlib import suppress
+from typing import cast
 from unittest import mock
 
 from bot.db import CURRENT_SCHEMA_VERSION, Database
@@ -186,6 +187,20 @@ class DatabaseTest(unittest.TestCase):
                 "changes_json, extra_text, created_at_unix FROM audit_log_entry"
             ).fetchone()
         self.assertEqual(row, tuple(values.values()))
+
+    def test_insert_audit_log_entry_raises_for_non_entry_id_constraint(self) -> None:
+        with self.assertRaises(RepositoryError):
+            self.db.insert_audit_log_entry(
+                entry_id=10,
+                guild_id=20,
+                action=cast(str, None),
+                user_id=30,
+                target_id=40,
+                reason=None,
+                changes_json='{"before": {}, "after": {}}',
+                extra_text=None,
+                created_at_unix=50,
+            )
 
     def test_sudo_grant_upsert_preserves_initial_granted_time(self) -> None:
         initial = self.db.upsert_sudo_grant(1, 2, 3, 100, 200)

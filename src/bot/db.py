@@ -290,10 +290,11 @@ class Database:
     ) -> bool:
         with self._connection() as conn:
             cur = conn.execute(
-                "INSERT OR IGNORE INTO audit_log_entry ("
+                "INSERT INTO audit_log_entry ("
                 "entry_id, guild_id, action, user_id, target_id, reason, "
                 "changes_json, extra_text, created_at_unix"
-                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT (entry_id) DO NOTHING",
                 (
                     entry_id,
                     guild_id,
