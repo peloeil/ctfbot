@@ -135,9 +135,11 @@ async def resolve_messageable(
         try:
             channel = await bot.fetch_channel(channel_id)
         except discord.NotFound, discord.Forbidden, discord.HTTPException:
+            logger.warning("Failed to resolve channel %s", channel_id)
             return None
     if isinstance(channel, discord.abc.Messageable):
         return channel
+    logger.warning("Channel %s is not messageable", channel_id)
     return None
 
 
