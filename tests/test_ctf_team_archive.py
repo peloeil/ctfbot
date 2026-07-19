@@ -91,6 +91,23 @@ class ArchiveCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIsNone(archived)
 
+    async def test_role_delete_not_found_is_treated_as_success(self) -> None:
+        guild, _, _, role = self.make_guild()
+        role.delete.side_effect = discord.NotFound(
+            mock.Mock(status=404, reason="Not Found"), "missing role"
+        )
+        delete_voice = mock.AsyncMock(return_value=True)
+
+        with mock.patch.object(discord_ops, "delete_voice_channel", new=delete_voice):
+            result = await self.cog._archive_campaign_resources(guild, self.item)
+
+        self.assertTrue(result)
+        archived = self.db.find_closed_campaign_by_name(
+            ctf_name="Example",
+            archived=True,
+        )
+        self.assertIsNotNone(archived)
+
     async def test_failed_archive_claim_does_not_send_notification(self) -> None:
         guild, _, discussion, _ = self.make_guild()
         self.db.mark_archived(self.item.id, 301)

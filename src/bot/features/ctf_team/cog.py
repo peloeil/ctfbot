@@ -577,6 +577,8 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         if role is not None:
             try:
                 await role.delete()
+            except discord.NotFound:
+                pass
             except discord.Forbidden, discord.HTTPException:
                 logger.warning("Failed to delete role %s", item.role_id)
                 ok = False
