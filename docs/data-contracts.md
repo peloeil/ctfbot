@@ -90,7 +90,6 @@ class CampaignStatus(Enum):
 @dataclass(frozen=True, slots=True)
 class ActiveCampaign:
     id: int
-    guild_id: int
     channel_id: int
     message_id: int
     role_id: int
@@ -108,7 +107,6 @@ class ActiveCampaign:
 @dataclass(frozen=True, slots=True)
 class ClosedCampaign:
     id: int
-    guild_id: int
     channel_id: int
     message_id: int
     role_id: int
@@ -148,7 +146,6 @@ invariant（DB decoder が実行時に検証し、違反行は `RepositoryError`
 ```python
 @dataclass(frozen=True, slots=True)
 class SudoGrant:
-    guild_id: int
     user_id: int
     role_id: int
     granted_at_unix: int
@@ -197,7 +194,7 @@ dataclass は定義しない（書き込み専用で読み取りパスを持た�
 
 ## DB スキーマ
 
-`CURRENT_SCHEMA_VERSION = 3`。
+`CURRENT_SCHEMA_VERSION = 4`。
 
 ### DDL（`_SCHEMA_DDL`）
 
@@ -209,7 +206,6 @@ CREATE TABLE IF NOT EXISTS alpacahack_user (
 
 CREATE TABLE IF NOT EXISTS ctf_team_campaign (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id INTEGER NOT NULL,
     channel_id INTEGER NOT NULL,
     message_id INTEGER NOT NULL,
     role_id INTEGER NOT NULL,
@@ -225,17 +221,15 @@ CREATE TABLE IF NOT EXISTS ctf_team_campaign (
     archived_at_unix INTEGER,
     start_notified_at_unix INTEGER,
     voice_channel_id INTEGER,
-    UNIQUE (guild_id, message_id)
+    UNIQUE (message_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_campaign_guild_message
-    ON ctf_team_campaign (guild_id, channel_id, message_id, status);
 CREATE INDEX IF NOT EXISTS idx_campaign_status_end
     ON ctf_team_campaign (status, end_at_unix);
-CREATE INDEX IF NOT EXISTS idx_campaign_guild_status
-    ON ctf_team_campaign (guild_id, status, created_at_unix);
+CREATE INDEX IF NOT EXISTS idx_campaign_status_created
+    ON ctf_team_campaign (status, created_at_unix);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_campaign_active_name_unique
-    ON ctf_team_campaign (guild_id, ctf_name)
+    ON ctf_team_campaign (ctf_name)
     WHERE status = 'active';
 
 CREATE TABLE IF NOT EXISTS audit_log_entry (
@@ -255,12 +249,11 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_guild_created
     ON audit_log_entry (guild_id, created_at_unix);
 
 CREATE TABLE IF NOT EXISTS sudo_grant (
-    guild_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
     role_id INTEGER NOT NULL,
     granted_at_unix INTEGER NOT NULL,
     expires_at_unix INTEGER NOT NULL,
-    PRIMARY KEY (guild_id, user_id)
+    PRIMARY KEY (user_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_sudo_grant_expires
@@ -279,11 +272,69 @@ CREATE TABLE IF NOT EXISTS audit_log_entry ( ...上記 DDL と同一... );
 CREATE INDEX IF NOT EXISTS idx_audit_log_guild_created
     ON audit_log_entry (guild_id, created_at_unix);
 
--- 2 → 3
-CREATE TABLE IF NOT EXISTS sudo_grant ( ...上記 DDL と同一... );
+-- 2 → 3（v3 当時の形。guild_id 列と複合 PK は 3 → 4 の再構築で削除される）
+CREATE TABLE IF NOT EXISTS sudo_grant (
+    guild_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    role_id INTEGER NOT NULL,
+    granted_at_unix INTEGER NOT NULL,
+    expires_at_unix INTEGER NOT NULL,
+    PRIMARY KEY (guild_id, user_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_sudo_grant_expires
     ON sudo_grant (expires_at_unix);
+
+-- 3 → 4
+BEGIN;
+CREATE TABLE ctf_team_campaign_v4 (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel_id INTEGER NOT NULL,
+    message_id INTEGER NOT NULL,
+    role_id INTEGER NOT NULL,
+    ctf_name TEXT NOT NULL COLLATE NOCASE,
+    start_at_unix INTEGER NOT NULL,
+    end_at_unix INTEGER,
+    status TEXT NOT NULL CHECK (status IN ('active', 'closed')),
+    created_by INTEGER NOT NULL,
+    created_at_unix INTEGER NOT NULL,
+    closed_at_unix INTEGER,
+    discussion_channel_id INTEGER,
+    archive_at_unix INTEGER,
+    archived_at_unix INTEGER,
+    start_notified_at_unix INTEGER,
+    voice_channel_id INTEGER,
+    UNIQUE (message_id)
+);
+INSERT INTO ctf_team_campaign_v4 (
+    id, channel_id, message_id, role_id, ctf_name, start_at_unix, end_at_unix,
+    status, created_by, created_at_unix, closed_at_unix, discussion_channel_id,
+    archive_at_unix, archived_at_unix, start_notified_at_unix, voice_channel_id
+)
+SELECT
+    id, channel_id, message_id, role_id, ctf_name, start_at_unix, end_at_unix,
+    status, created_by, created_at_unix, closed_at_unix, discussion_channel_id,
+    archive_at_unix, archived_at_unix, start_notified_at_unix, voice_channel_id
+FROM ctf_team_campaign;
+DROP TABLE ctf_team_campaign;
+ALTER TABLE ctf_team_campaign_v4 RENAME TO ctf_team_campaign;
+CREATE TABLE sudo_grant_v4 (
+    user_id INTEGER NOT NULL,
+    role_id INTEGER NOT NULL,
+    granted_at_unix INTEGER NOT NULL,
+    expires_at_unix INTEGER NOT NULL,
+    PRIMARY KEY (user_id)
+);
+INSERT INTO sudo_grant_v4 (user_id, role_id, granted_at_unix, expires_at_unix)
+SELECT user_id, role_id, granted_at_unix, expires_at_unix FROM sudo_grant;
+DROP TABLE sudo_grant;
+ALTER TABLE sudo_grant_v4 RENAME TO sudo_grant;
+COMMIT;
 ```
+
+テーブル再構築（列削除・PK 変更）を伴う移行は、`BEGIN`〜`COMMIT` で原子化した「新テーブル作成 → 残存列の射影コピー → DROP → RENAME」で書く。射影コピーは適用済み DB への再実行でもそのまま成立するため no-op になり、再実行耐性を満たす。新 index は手続き最後の `_SCHEMA_DDL` 冪等適用が作成する。
+
+3 → 4 の移行では、複数 guild の行が混在して `UNIQUE (message_id)`・active CTF 名の unique index・`PRIMARY KEY (user_id)` に違反する場合、移行に失敗して bot は起動しない。これは単一 guild 運用の前提違反を fail-fast で拒否するためである。campaign の `id` を明示コピーするため、AUTOINCREMENT の続番は維持される。
 
 ### 起動時のスキーマ検証・移行手続き
 
@@ -328,9 +379,9 @@ CREATE INDEX IF NOT EXISTS idx_sudo_grant_expires
 
 | メソッド | 契約 |
 |---|---|
-| `upsert_sudo_grant(guild_id, user_id, role_id, granted_at_unix, expires_at_unix) -> SudoGrant` | `ON CONFLICT (guild_id, user_id) DO UPDATE` で **`role_id`・`expires_at_unix` のみ更新**（`granted_at_unix` は初回値を維持）。更新後の行を返す |
-| `get_sudo_grant(guild_id, user_id) -> SudoGrant \| None` | 主キー一致の 1 件 |
-| `delete_sudo_grant(guild_id, user_id) -> None` | 不在でも成功（冪等） |
+| `upsert_sudo_grant(user_id, role_id, granted_at_unix, expires_at_unix) -> SudoGrant` | `ON CONFLICT (user_id) DO UPDATE` で **`role_id`・`expires_at_unix` のみ更新**（`granted_at_unix` は初回値を維持）。更新後の行を返す |
+| `get_sudo_grant(user_id) -> SudoGrant \| None` | 主キー一致の 1 件 |
+| `delete_sudo_grant(user_id) -> None` | 不在でも成功（冪等） |
 | `list_expired_sudo_grants(now_unix) -> list[SudoGrant]` | `expires_at_unix <= now` を `expires_at_unix` 昇順で全件 |
 
 ### ctf_team_campaign
@@ -345,19 +396,19 @@ CREATE INDEX IF NOT EXISTS idx_sudo_grant_expires
 
 | メソッド | 契約 |
 |---|---|
-| `count_active_campaigns_by_creator(guild_id, created_by) -> int` | active の件数 |
-| `has_active_campaign_with_name(guild_id, ctf_name) -> bool` | 同名 active の存在（`COLLATE NOCASE` 比較） |
-| `create_campaign(*, guild_id, channel_id, message_id, role_id, discussion_channel_id, voice_channel_id, ctf_name, start_at_unix, end_at_unix, created_by, created_at_unix, max_active_per_creator) -> ActiveCampaign` | `BEGIN IMMEDIATE` で作成者の active 件数を再カウントし、`>= max_active_per_creator` なら `ConflictError("Active campaign limit reached.")`。同名 active の unique index 違反（`sqlite3.IntegrityError`）は `ConflictError("Active campaign already exists.")`。成功時は挿入行を返す |
-| `find_active_campaign_by_message(*, guild_id, channel_id, message_id) -> ActiveCampaign \| None` | リアクションからの逆引き |
-| `find_active_campaign_by_name(*, guild_id, ctf_name) -> ActiveCampaign \| None` | 同名 active（`created_at_unix` 降順の最新 1 件） |
-| `find_closed_campaign_by_name(*, guild_id, ctf_name, archived: bool \| None = None) -> ClosedCampaign \| None` | `archived=True` は archived のみ、`False` は未 archive の closed のみ、`None` は両方。`created_at_unix` 降順の最新 1 件 |
+| `count_active_campaigns_by_creator(created_by) -> int` | active の件数 |
+| `has_active_campaign_with_name(ctf_name) -> bool` | 同名 active の存在（`COLLATE NOCASE` 比較） |
+| `create_campaign(*, channel_id, message_id, role_id, discussion_channel_id, voice_channel_id, ctf_name, start_at_unix, end_at_unix, created_by, created_at_unix, max_active_per_creator) -> ActiveCampaign` | `BEGIN IMMEDIATE` で作成者の active 件数を再カウントし、`>= max_active_per_creator` なら `ConflictError("Active campaign limit reached.")`。同名 active の unique index 違反（`sqlite3.IntegrityError`）は `ConflictError("Active campaign already exists.")`。成功時は挿入行を返す |
+| `find_active_campaign_by_message(*, channel_id, message_id) -> ActiveCampaign \| None` | リアクションからの逆引き |
+| `find_active_campaign_by_name(*, ctf_name) -> ActiveCampaign \| None` | 同名 active（`created_at_unix` 降順の最新 1 件） |
+| `find_closed_campaign_by_name(*, ctf_name, archived: bool \| None = None) -> ClosedCampaign \| None` | `archived=True` は archived のみ、`False` は未 archive の closed のみ、`None` は両方。`created_at_unix` 降順の最新 1 件 |
 | `list_due_campaigns(now_unix, limit=20) -> list[ActiveCampaign]` | 自動 close 対象: `status='active' AND end_at_unix IS NOT NULL AND end_at_unix <= now`。`end_at_unix` 昇順（期日の古い順に処理し飢餓を防ぐ） |
 | `list_due_starts(now_unix, limit=20) -> list[ActiveCampaign]` | 開始通知対象: `status='active' AND start_notified_at_unix IS NULL AND start_at_unix <= now`。**active 限定**（close 済みには通知しない）。`start_at_unix` 昇順 |
 | `mark_started(campaign_id, started_at_unix) -> bool` | `WHERE start_notified_at_unix IS NULL` 条件付き UPDATE による atomic claim。`True`=claim 成功 |
 | `close_campaign(campaign_id, closed_at_unix, archive_at_unix) -> bool` | `WHERE status='active'` 条件付き UPDATE による atomic claim（active → closed 遷移）。`True`=実際に遷移した |
 | `list_due_archives(now_unix, limit=20) -> list[ClosedCampaign]` | 自動 archive 対象: `status='closed' AND archive_at_unix <= now AND archived_at_unix IS NULL`。`archive_at_unix` 昇順 |
 | `mark_archived(campaign_id, archived_at_unix) -> bool` | `WHERE archived_at_unix IS NULL` 条件付き UPDATE による atomic claim。`True`=claim 成功 |
-| `list_campaigns(guild_id, status: CampaignStatus \| None, limit=20) -> list[Campaign]` | `status=None` は全件。`created_at_unix` 降順。`CLOSED` 指定は archived を含む（上記述語表を参照） |
+| `list_campaigns(status: CampaignStatus \| None, limit=20) -> list[Campaign]` | `status=None` は全件。`created_at_unix` 降順。`CLOSED` 指定は archived を含む（上記述語表を参照） |
 
 ### decoder 契約
 
