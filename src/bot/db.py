@@ -240,13 +240,20 @@ class Database:
 
     @staticmethod
     def _to_campaign(row: _CampaignRow) -> Campaign:
-        status = CampaignStatus(row[7])
+        try:
+            status = CampaignStatus(row[7])
+        except ValueError as exc:
+            raise RepositoryError(
+                f"Campaign {row[0]} has invalid status: {row[7]!r}."
+            ) from exc
         if status == CampaignStatus.ACTIVE:
             return Database._to_active_campaign(row)
         return Database._to_closed_campaign(row)
 
     @staticmethod
     def _to_active_campaign(row: _CampaignRow) -> ActiveCampaign:
+        if row[7] != CampaignStatus.ACTIVE.value:
+            raise RepositoryError(f"Campaign {row[0]} is not active: {row[7]!r}.")
         if row[11] is not None or row[12] is not None or row[13] is not None:
             raise RepositoryError(
                 f"Active campaign {row[0]} has closed/archive fields set."
@@ -269,6 +276,8 @@ class Database:
 
     @staticmethod
     def _to_closed_campaign(row: _CampaignRow) -> ClosedCampaign:
+        if row[7] != CampaignStatus.CLOSED.value:
+            raise RepositoryError(f"Campaign {row[0]} is not closed: {row[7]!r}.")
         if row[11] is None or row[12] is None:
             raise RepositoryError(
                 f"Closed campaign {row[0]} is missing closed_at or archive_at."

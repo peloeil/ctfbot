@@ -450,6 +450,39 @@ PRAGMA user_version = 3;
             )
         )
 
+    @staticmethod
+    def make_row(status: str, *, closed_at=None, archive_at=None):
+        return (
+            1,
+            2,
+            3,
+            4,
+            "Example",
+            100,
+            200,
+            status,
+            7,
+            90,
+            None,
+            closed_at,
+            archive_at,
+            None,
+            5,
+            6,
+        )
+
+    def test_decoder_rejects_unknown_status(self) -> None:
+        with self.assertRaises(RepositoryError):
+            Database._to_campaign(self.make_row("broken"))
+
+    def test_decoder_rejects_status_mismatch(self) -> None:
+        with self.assertRaises(RepositoryError):
+            Database._to_active_campaign(
+                self.make_row("closed", closed_at=201, archive_at=300)
+            )
+        with self.assertRaises(RepositoryError):
+            Database._to_closed_campaign(self.make_row("active"))
+
     def test_decoder_normalizes_zero_optional_channel_ids(self) -> None:
         c = self.create_campaign()
         with sqlite3.connect(self.path) as conn:
