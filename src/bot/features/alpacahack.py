@@ -171,7 +171,10 @@ def _parse_solved_at(value: str, timezone: datetime.tzinfo) -> datetime.datetime
     date_str = match.group(1).replace("/", "-")
     raw = f"{date_str} {match.group(2)}"
     fmt = "%Y-%m-%d %H:%M:%S" if raw.count(":") == 2 else "%Y-%m-%d %H:%M"
-    parsed = datetime.datetime.strptime(raw, fmt).replace(tzinfo=datetime.UTC)
+    try:
+        parsed = datetime.datetime.strptime(raw, fmt).replace(tzinfo=datetime.UTC)
+    except ValueError:
+        return None
     return parsed.astimezone(timezone)
 
 

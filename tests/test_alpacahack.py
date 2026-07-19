@@ -85,6 +85,35 @@ class AlpacaHackTest(unittest.TestCase):
         self.assertEqual(records[0].solved_at.hour, 21)
 
     @patch("bot.features.alpacahack.requests.get")
+    def test_fetch_solve_records_skips_rows_with_invalid_datetime(
+        self, get: Mock
+    ) -> None:
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.text = """
+        <table>
+          <tr>
+            <td><a href="/challenges/bad">Bad</a></td>
+            <td>1 solves</td>
+            <td><span aria-label="2026-99-99 12:00 GMT+0">
+              2026/99/99 12:00
+            </span></td>
+          </tr>
+          <tr>
+            <td><a href="/challenges/good">Good</a></td>
+            <td>1 solves</td>
+            <td><span aria-label="2026-06-15 12:00 GMT+0">
+              2026/06/15 12:00
+            </span></td>
+          </tr>
+        </table>
+        """
+        get.return_value = response
+        client = AlpacaHackClient(timezone=self.tz)
+        records = client.fetch_solve_records("alice", page_interval=0)
+        self.assertEqual([record.challenge_name for record in records], ["Good"])
+
+    @patch("bot.features.alpacahack.requests.get")
     def test_fetch_solve_records_paginates(self, get: Mock) -> None:
         def make_page(names: list[str]) -> Mock:
             rows = "\n".join(
