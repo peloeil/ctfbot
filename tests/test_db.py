@@ -286,12 +286,26 @@ PRAGMA user_version = 3;
         self.assertEqual(second_sudo, first_sudo)
 
     def test_alpacahack_users(self) -> None:
-        self.assertTrue(self.db.add_alpacahack_user(" zeta "))
-        self.assertFalse(self.db.add_alpacahack_user("zeta"))
-        self.assertTrue(self.db.add_alpacahack_user("alpha"))
+        self.assertTrue(self.db.add_alpacahack_user(" zeta ", max_users=2))
+        self.assertFalse(self.db.add_alpacahack_user("zeta", max_users=2))
+        self.assertTrue(self.db.add_alpacahack_user("alpha", max_users=2))
         self.assertEqual(self.db.list_alpacahack_users(), ["alpha", "zeta"])
         self.assertTrue(self.db.delete_alpacahack_user("alpha"))
         self.assertFalse(self.db.delete_alpacahack_user("missing"))
+
+    def test_alpacahack_user_limit_rejects_new_user(self) -> None:
+        self.assertTrue(self.db.add_alpacahack_user("alice", max_users=2))
+        self.assertTrue(self.db.add_alpacahack_user("bob", max_users=2))
+
+        with self.assertRaisesRegex(
+            ConflictError, "^AlpacaHack user limit reached\\.$"
+        ):
+            self.db.add_alpacahack_user("charlie", max_users=2)
+
+    def test_alpacahack_user_limit_allows_existing_user_result(self) -> None:
+        self.assertTrue(self.db.add_alpacahack_user("alice", max_users=1))
+
+        self.assertFalse(self.db.add_alpacahack_user("alice", max_users=1))
 
     def test_insert_audit_log_entry_is_idempotent(self) -> None:
         values = {

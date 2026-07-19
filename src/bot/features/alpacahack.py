@@ -13,7 +13,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from bot.db import Database
-from bot.errors import ExternalAPIError
+from bot.errors import ConflictError, ExternalAPIError
 from bot.helpers import (
     is_markdown_link_safe,
     log_audit,
@@ -328,14 +328,13 @@ class Alpacahack(commands.GroupCog, group_name="alpaca"):
                 "ユーザー名は 32 文字以内の英数字と `-` `_` で入力してください。",
             )
             return
-        users = await asyncio.to_thread(self.db.list_alpacahack_users)
-        if name in users:
-            await send_interaction(interaction, f"`{name}` は既に登録されています。")
-            return
-        if len(users) >= _MAX_USERS:
+        try:
+            created = await asyncio.to_thread(
+                self.db.add_alpacahack_user, name, max_users=_MAX_USERS
+            )
+        except ConflictError:
             await send_interaction(interaction, "登録数が上限(50人)に達しています。")
             return
-        created = await asyncio.to_thread(self.db.add_alpacahack_user, name)
         if created:
             await send_interaction(interaction, f"`{name}` を登録しました。")
             await log_audit(

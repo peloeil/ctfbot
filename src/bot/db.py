@@ -300,16 +300,23 @@ class Database:
             voice_channel_id=row[15] or None,
         )
 
-    def add_alpacahack_user(self, name: str) -> bool:
+    def add_alpacahack_user(self, name: str, *, max_users: int) -> bool:
         clean = name.strip()
         if not clean:
             raise RepositoryError("AlpacaHack username must not be empty.")
         with self._connection() as conn:
-            cur = conn.execute(
-                "INSERT OR IGNORE INTO alpacahack_user (name) VALUES (?)", (clean,)
-            )
+            conn.execute("BEGIN IMMEDIATE")
+            exists = conn.execute(
+                "SELECT 1 FROM alpacahack_user WHERE name = ?", (clean,)
+            ).fetchone()
+            if exists is not None:
+                return False
+            count = conn.execute("SELECT COUNT(*) FROM alpacahack_user").fetchone()[0]
+            if count >= max_users:
+                raise ConflictError("AlpacaHack user limit reached.")
+            conn.execute("INSERT INTO alpacahack_user (name) VALUES (?)", (clean,))
             conn.commit()
-            return cur.rowcount > 0
+            return True
 
     def delete_alpacahack_user(self, name: str) -> bool:
         with self._connection() as conn:

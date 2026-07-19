@@ -365,7 +365,7 @@ COMMIT;
 
 | メソッド | 契約 |
 |---|---|
-| `add_alpacahack_user(name) -> bool` | `name.strip()` して挿入。strip 後空は `RepositoryError`。`True`=挿入、`False`=同名（UNIQUE）既存 |
+| `add_alpacahack_user(name, *, max_users) -> bool` | `name.strip()` して挿入。strip 後空は `RepositoryError`。`BEGIN IMMEDIATE` で同名存在 → `False`、`COUNT(*) >= max_users`（新規名）→ `ConflictError("AlpacaHack user limit reached.")`、それ以外は挿入して `True` |
 | `delete_alpacahack_user(name) -> bool` | `name.strip()` で削除。`True`=削除、`False`=不在 |
 | `list_alpacahack_users() -> list[str]` | `name` 昇順の全件 |
 

@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 import discord
 
 from bot.db import Database
-from bot.errors import ExternalAPIError
+from bot.errors import ConflictError, ExternalAPIError
 from bot.features.alpacahack import (
     Alpacahack,
     AlpacaHackClient,
@@ -142,8 +142,8 @@ class AlpacaHackTest(unittest.TestCase):
         os.unlink(path)
         try:
             db = Database(path)
-            db.add_alpacahack_user("alice")
-            db.add_alpacahack_user("bob")
+            db.add_alpacahack_user("alice", max_users=50)
+            db.add_alpacahack_user("bob", max_users=50)
             client = Mock()
             client.fetch_solve_records.side_effect = [
                 [
@@ -267,13 +267,12 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
                         "`-` `_` で入力してください。",
                     )
                     send_interaction.reset_mock()
-        self.cog.db.list_alpacahack_users.assert_not_called()
+        self.cog.db.add_alpacahack_user.assert_not_called()
 
     async def test_add_accepts_32_character_username_with_dash_and_underscore(
         self,
     ) -> None:
         name = "a" * 29 + "-_x"
-        self.cog.db.list_alpacahack_users.return_value = []
         self.cog.db.add_alpacahack_user.return_value = True
         with (
             patch(
@@ -287,7 +286,7 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
         ):
             await self.invoke_add(name)
 
-        self.cog.db.add_alpacahack_user.assert_called_once_with(name)
+        self.cog.db.add_alpacahack_user.assert_called_once_with(name, max_users=50)
         send_interaction.assert_awaited_once_with(
             self.interaction, f"`{name}` を登録しました。"
         )
@@ -295,35 +294,50 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
     async def test_add_rejects_new_user_when_registration_limit_is_reached(
         self,
     ) -> None:
-        self.cog.db.list_alpacahack_users.return_value = [
-            f"user{i:02d}" for i in range(50)
-        ]
-        with patch(
-            "bot.features.alpacahack.send_interaction",
-            new_callable=mock.AsyncMock,
-        ) as send_interaction:
+        self.cog.db.add_alpacahack_user.side_effect = ConflictError(
+            "AlpacaHack user limit reached."
+        )
+        with (
+            patch(
+                "bot.features.alpacahack.send_interaction",
+                new_callable=mock.AsyncMock,
+            ) as send_interaction,
+            patch(
+                "bot.features.alpacahack.log_audit",
+                new_callable=mock.AsyncMock,
+            ) as log_audit,
+        ):
             await self.invoke_add("new_user")
 
         send_interaction.assert_awaited_once_with(
             self.interaction, "登録数が上限(50人)に達しています。"
         )
-        self.cog.db.add_alpacahack_user.assert_not_called()
+        self.cog.db.add_alpacahack_user.assert_called_once_with(
+            "new_user", max_users=50
+        )
+        log_audit.assert_not_awaited()
 
     async def test_add_reports_existing_user_when_registration_limit_is_reached(
         self,
     ) -> None:
-        users = [f"user{i:02d}" for i in range(49)] + ["alice"]
-        self.cog.db.list_alpacahack_users.return_value = users
-        with patch(
-            "bot.features.alpacahack.send_interaction",
-            new_callable=mock.AsyncMock,
-        ) as send_interaction:
+        self.cog.db.add_alpacahack_user.return_value = False
+        with (
+            patch(
+                "bot.features.alpacahack.send_interaction",
+                new_callable=mock.AsyncMock,
+            ) as send_interaction,
+            patch(
+                "bot.features.alpacahack.log_audit",
+                new_callable=mock.AsyncMock,
+            ) as log_audit,
+        ):
             await self.invoke_add("alice")
 
         send_interaction.assert_awaited_once_with(
             self.interaction, "`alice` は既に登録されています。"
         )
-        self.cog.db.add_alpacahack_user.assert_not_called()
+        self.cog.db.add_alpacahack_user.assert_called_once_with("alice", max_users=50)
+        log_audit.assert_not_awaited()
 
 
 if __name__ == "__main__":
