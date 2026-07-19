@@ -645,9 +645,11 @@ def _build_campaigns_embed(
             f"[メッセージへ移動](https://discord.com/channels/{guild_id}/"
             f"{item.channel_id}/{item.message_id})",
             f"議論: <#{item.discussion_channel_id}>"
-            if item.discussion_channel_id
+            if item.discussion_channel_id is not None
             else "議論: -",
-            f"VC: <#{item.voice_channel_id}>" if item.voice_channel_id else "VC: -",
+            f"VC: <#{item.voice_channel_id}>"
+            if item.voice_channel_id is not None
+            else "VC: -",
             f"ロール: <@&{item.role_id}>",
             f"作成者: <@{item.created_by}>",
         ]
