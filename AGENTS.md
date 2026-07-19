@@ -48,7 +48,7 @@
 - **Linter**: `ruff` — `line-length = 88`、ルール `E, F, I, W, N, UP, B, C4, SIM, RUF`
 - **Type checker**: `ty` — `python-version = "3.14"`、ルート `./src`
 - **dataclass**: `frozen=True, slots=True` を標準で付ける
-- **言語**: コード・変数名は英語。ユーザー向けメッセージ（Discord に送信するもの）は日本語。例外は接続状態通知の英語定型文（`docs/core.md`）と、ユーザーに表示しない内部例外メッセージ（`docs/design.md` 例外階層）
+- **言語**: コード・変数名は英語。ユーザー向けメッセージ（Discord に送信するもの）は日本語。例外はユーザーに表示しない内部例外メッセージ（`docs/design.md` 例外階層）
 - **例外階層**: `BotError > ConfigurationError | RepositoryError (> ConflictError) | ServiceError (> ExternalAPIError)`
 
 ## 情報の書き分け原則（必須）

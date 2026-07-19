@@ -42,7 +42,7 @@ class CTFBot(commands.Bot):
         if not self._has_announced_ready:
             now = datetime.datetime.now(self.runtime.settings.tzinfo)
             await self._send_status(
-                f"🟢 ctfbot connected at {now:%Y-%m-%d %H:%M:%S %Z}"
+                f"🟢 ctfbot が接続しました ({now:%Y-%m-%d %H:%M:%S %Z})"
             )
             self._has_announced_ready = True
 
@@ -50,7 +50,7 @@ class CTFBot(commands.Bot):
         if self._shutdown_requested_by_sigint and not self.is_closed():
             now = datetime.datetime.now(self.runtime.settings.tzinfo)
             await self._send_status(
-                f"🔴 ctfbot disconnecting at {now:%Y-%m-%d %H:%M:%S %Z}"
+                f"🔴 ctfbot が停止します ({now:%Y-%m-%d %H:%M:%S %Z})"
             )
         await super().close()
 

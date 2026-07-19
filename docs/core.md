@@ -56,10 +56,9 @@ cog が処理しなかったコマンドの例外は `app.py` の `bot.tree.erro
 
 `BOT_STATUS_CHANNEL_ID` のチャンネルへ送信する（未設定なら何もしない）:
 
-- 初回の ready 時のみ: `🟢 ctfbot connected at {YYYY-MM-DD HH:MM:SS TZ}`（再接続では送らない）
-- SIGINT による終了時のみ: `🔴 ctfbot disconnecting at {同書式}`
+- 初回の ready 時のみ: `🟢 ctfbot が接続しました ({YYYY-MM-DD HH:MM:SS TZ})`（再接続では送らない）
+- SIGINT による終了時のみ: `🔴 ctfbot が停止します ({同書式})`
 - SIGTERM 等それ以外の終了経路では切断通知を送らない（非目標）
-- 通知は英語の定型文であり、「ユーザー向けメッセージは日本語」規約の例外（AGENTS.md）
 
 ## 関連設定
 
