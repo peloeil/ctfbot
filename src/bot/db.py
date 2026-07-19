@@ -568,7 +568,7 @@ class Database:
     def mark_started(self, campaign_id: int, started_at_unix: int) -> bool:
         return self._update(
             "UPDATE ctf_team_campaign SET start_notified_at_unix=? "
-            "WHERE id=? AND start_notified_at_unix IS NULL",
+            "WHERE id=? AND start_notified_at_unix IS NULL AND status='active'",
             (started_at_unix, campaign_id),
         )
 

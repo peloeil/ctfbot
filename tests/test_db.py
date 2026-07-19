@@ -450,6 +450,11 @@ PRAGMA user_version = 3;
             )
         )
 
+    def test_mark_started_does_not_claim_closed_campaign(self) -> None:
+        c = self.create_campaign(start_at_unix=10, end_at_unix=20)
+        self.assertTrue(self.db.close_campaign(c.id, 21, 30))
+        self.assertFalse(self.db.mark_started(c.id, 22))
+
     @staticmethod
     def make_row(status: str, *, closed_at=None, archive_at=None):
         return (

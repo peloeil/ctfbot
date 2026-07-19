@@ -404,7 +404,7 @@ COMMIT;
 | `find_closed_campaign_by_name(*, ctf_name, archived: bool \| None = None) -> ClosedCampaign \| None` | `archived=True` は archived のみ、`False` は未 archive の closed のみ、`None` は両方。`created_at_unix` 降順の最新 1 件 |
 | `list_due_campaigns(now_unix, limit=20) -> list[ActiveCampaign]` | 自動 close 対象: `status='active' AND end_at_unix IS NOT NULL AND end_at_unix <= now`。`end_at_unix` 昇順（期日の古い順に処理し飢餓を防ぐ） |
 | `list_due_starts(now_unix, limit=20) -> list[ActiveCampaign]` | 開始通知対象: `status='active' AND start_notified_at_unix IS NULL AND start_at_unix <= now`。**active 限定**（close 済みには通知しない）。`start_at_unix` 昇順 |
-| `mark_started(campaign_id, started_at_unix) -> bool` | `WHERE start_notified_at_unix IS NULL` 条件付き UPDATE による atomic claim。`True`=claim 成功 |
+| `mark_started(campaign_id, started_at_unix) -> bool` | `WHERE start_notified_at_unix IS NULL AND status='active'` 条件付き UPDATE による atomic claim（active 限定。close と競合しても closed 行を claim しない）。`True`=claim 成功 |
 | `close_campaign(campaign_id, closed_at_unix, archive_at_unix) -> bool` | `WHERE status='active'` 条件付き UPDATE による atomic claim（active → closed 遷移）。`True`=実際に遷移した |
 | `list_due_archives(now_unix, limit=20) -> list[ClosedCampaign]` | 自動 archive 対象: `status='closed' AND archive_at_unix <= now AND archived_at_unix IS NULL`。`archive_at_unix` 昇順 |
 | `mark_archived(campaign_id, archived_at_unix) -> bool` | `WHERE archived_at_unix IS NULL` 条件付き UPDATE による atomic claim。`True`=claim 成功 |
