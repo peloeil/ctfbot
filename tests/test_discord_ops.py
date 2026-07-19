@@ -32,21 +32,28 @@ class RequireCategoryTest(unittest.TestCase):
 
 class RequireRoleChannelTest(unittest.TestCase):
     def test_returns_role_channel(self) -> None:
-        category = mock.Mock(spec=discord.CategoryChannel)
+        guild = mock.Mock(spec=discord.Guild)
         role_channel = mock.Mock(spec=discord.TextChannel)
-        role_channel.name = discord_ops.ROLE_ANNOUNCE_CHANNEL_NAME
-        category.text_channels = [role_channel]
+        guild.get_channel.return_value = role_channel
 
-        result = discord_ops.require_role_channel(category)
+        result = discord_ops.require_role_channel(guild, 456)
 
         self.assertIs(result, role_channel)
+        guild.get_channel.assert_called_once_with(456)
 
     def test_raises_when_not_found(self) -> None:
-        category = mock.Mock(spec=discord.CategoryChannel)
-        category.text_channels = []
+        guild = mock.Mock(spec=discord.Guild)
+        guild.get_channel.return_value = None
 
-        with self.assertRaises(ServiceError):
-            discord_ops.require_role_channel(category)
+        with self.assertRaisesRegex(ServiceError, "募集チャンネルが見つかりません。"):
+            discord_ops.require_role_channel(guild, 456)
+
+    def test_raises_when_channel_is_not_text_channel(self) -> None:
+        guild = mock.Mock(spec=discord.Guild)
+        guild.get_channel.return_value = mock.Mock(spec=discord.CategoryChannel)
+
+        with self.assertRaisesRegex(ServiceError, "募集チャンネルが見つかりません。"):
+            discord_ops.require_role_channel(guild, 456)
 
 
 class DiscordOpsTest(unittest.TestCase):

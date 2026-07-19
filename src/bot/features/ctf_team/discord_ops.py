@@ -11,7 +11,6 @@ from bot.log import logger
 MAX_CHANNEL_NAME_LENGTH = 100
 CLOSED_HEADER = "🔒 **この募集は終了しました。**"
 MENTION_CHUNK_SIZE = 1700  # Margin under Discord's 2000-char message limit
-ROLE_ANNOUNCE_CHANNEL_NAME = "role"
 type OverwriteMap = dict[
     discord.Role | discord.Member | discord.Object, discord.PermissionOverwrite
 ]
@@ -24,12 +23,10 @@ def require_category(guild: discord.Guild, category_id: int) -> discord.Category
     return channel
 
 
-def require_role_channel(
-    category: discord.CategoryChannel,
-) -> discord.TextChannel:
-    channel = discord.utils.get(category.text_channels, name=ROLE_ANNOUNCE_CHANNEL_NAME)
-    if channel is None:
-        raise ServiceError("#role チャンネルが見つかりません。")
+def require_role_channel(guild: discord.Guild, channel_id: int) -> discord.TextChannel:
+    channel = guild.get_channel(channel_id)
+    if not isinstance(channel, discord.TextChannel):
+        raise ServiceError("募集チャンネルが見つかりません。")
     return channel
 
 

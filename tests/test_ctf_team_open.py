@@ -25,6 +25,7 @@ class OpenCampaignTest(unittest.IsolatedAsyncioTestCase):
         self.cog.settings = SimpleNamespace(
             tzinfo=datetime.UTC,
             ctf_team_category_id=8,
+            ctf_team_role_channel_id=9,
         )
         self.cog.db = self.db
 

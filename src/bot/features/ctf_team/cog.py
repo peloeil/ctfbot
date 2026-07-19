@@ -153,7 +153,9 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
             category = discord_ops.require_category(
                 guild, self.settings.ctf_team_category_id
             )
-            role_channel = discord_ops.require_role_channel(category)
+            role_channel = discord_ops.require_role_channel(
+                guild, self.settings.ctf_team_role_channel_id
+            )
 
             role = await guild.create_role(
                 name=draft.ctf_name, colour=role_color, mentionable=True
