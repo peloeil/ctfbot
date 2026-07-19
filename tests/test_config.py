@@ -12,6 +12,7 @@ class ConfigTest(unittest.TestCase):
     def env(self, **overrides: str) -> dict[str, str]:
         base = {
             "DISCORD_TOKEN": "token",
+            "GUILD_ID": "999",
             "CTF_TEAM_CATEGORY_ID": "123",
             "CTF_TEAM_ARCHIVE_CATEGORY_ID": "456",
         }
@@ -21,6 +22,7 @@ class ConfigTest(unittest.TestCase):
     def test_load_settings_with_required_values(self) -> None:
         settings = load_settings(environ=self.env())
         self.assertEqual(settings.discord_token, "token")
+        self.assertEqual(settings.guild_id, 999)
         self.assertEqual(settings.ctf_team_category_id, 123)
         self.assertEqual(settings.ctf_team_archive_category_id, 456)
         self.assertEqual(settings.timezone, "Asia/Tokyo")
@@ -76,6 +78,17 @@ class ConfigTest(unittest.TestCase):
         del env["DISCORD_TOKEN"]
         with self.assertRaises(ConfigurationError):
             load_settings(environ=env)
+
+    def test_guild_id_is_required(self) -> None:
+        env = self.env()
+        del env["GUILD_ID"]
+        with self.assertRaises(ConfigurationError):
+            load_settings(environ=env)
+
+    def test_guild_id_must_be_positive_integer(self) -> None:
+        for value in ("", "0", "-1", "not-an-int"):
+            with self.subTest(value=value), self.assertRaises(ConfigurationError):
+                load_settings(environ=self.env(GUILD_ID=value))
 
     def test_category_must_be_positive(self) -> None:
         with self.assertRaises(ConfigurationError):

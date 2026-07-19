@@ -13,6 +13,7 @@ from bot.errors import ConfigurationError
 @dataclass(frozen=True, slots=True)
 class Settings:
     discord_token: str
+    guild_id: int
     bot_channel_id: int | None
     bot_status_channel_id: int | None
     ctf_team_category_id: int
@@ -84,6 +85,10 @@ def load_settings(
     if not discord_token:
         raise ConfigurationError("DISCORD_TOKEN is required.")
 
+    guild_id = _read_int(env, "GUILD_ID")
+    if guild_id <= 0:
+        raise ConfigurationError("GUILD_ID must be greater than 0.")
+
     timezone = env.get("TIMEZONE", "Asia/Tokyo").strip() or "Asia/Tokyo"
     try:
         tzinfo = ZoneInfo(timezone)
@@ -115,6 +120,7 @@ def load_settings(
 
     return Settings(
         discord_token=discord_token,
+        guild_id=guild_id,
         bot_channel_id=_read_int(env, "BOT_CHANNEL_ID", 0) or None,
         bot_status_channel_id=_read_int(env, "BOT_STATUS_CHANNEL_ID", 0) or None,
         ctf_team_category_id=ctf_team_category_id,
