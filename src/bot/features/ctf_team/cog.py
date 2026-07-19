@@ -1,4 +1,5 @@
 import asyncio
+import re
 
 import discord
 from discord import app_commands
@@ -104,13 +105,12 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         ctf_name: str,
         role_color: str = "#3b82f6",
     ) -> None:
-        try:
-            colour = discord.Colour(int(role_color.removeprefix("#"), 16))
-        except ValueError:
+        if re.fullmatch(r"#?[0-9A-Fa-f]{6}", role_color) is None:
             await send_interaction(
                 interaction, "ロール色は #RRGGBB 形式で指定してください。"
             )
             return
+        colour = discord.Colour(int(role_color.removeprefix("#"), 16))
         await interaction.response.send_modal(
             CTFTeamCreateModal(self, ctf_name, colour)
         )

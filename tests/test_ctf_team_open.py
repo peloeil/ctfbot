@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from contextlib import suppress
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest import mock
 
 import discord
@@ -70,6 +71,33 @@ class OpenCampaignTest(unittest.IsolatedAsyncioTestCase):
             "2099-01-01 00:00",
             "",
         )
+
+    async def test_open_rejects_role_color_that_is_not_six_hex_digits(self) -> None:
+        self.interaction.response.send_modal = mock.AsyncMock()
+        send = mock.AsyncMock()
+        invalid_values = ["#fff", "fff", "#1000000", "#-1", " #3b82f6", "#3b82g6"]
+
+        with mock.patch("bot.features.ctf_team.cog.send_interaction", new=send):
+            callback = cast(Any, self.cog.open_campaign.callback)
+            for value in invalid_values:
+                await callback(self.cog, self.interaction, "Example", value)
+
+        self.assertEqual(send.await_count, len(invalid_values))
+        send.assert_awaited_with(
+            self.interaction, "ロール色は #RRGGBB 形式で指定してください。"
+        )
+        self.interaction.response.send_modal.assert_not_awaited()
+
+    async def test_open_accepts_six_hex_digit_color_without_prefix(self) -> None:
+        self.interaction.response.send_modal = mock.AsyncMock()
+        send = mock.AsyncMock()
+
+        with mock.patch("bot.features.ctf_team.cog.send_interaction", new=send):
+            callback = cast(Any, self.cog.open_campaign.callback)
+            await callback(self.cog, self.interaction, "Example", "3b82f6")
+
+        send.assert_not_awaited()
+        self.interaction.response.send_modal.assert_awaited_once()
 
     async def test_creator_role_forbidden_returns_warning_without_cleanup(
         self,

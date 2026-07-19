@@ -66,7 +66,7 @@ close と同じく「Discord リソース → DB → 通知」の順で行う。
 
 ### `/ctfteam open ctf_name [role_color]`
 
-`role_color` はプリセット 9 色の Choice（省略時 `#3b82f6`）: 🟥 Red `#ef4444`・🟧 Orange `#f97316`・🟨 Yellow `#eab308`・🟩 Green `#22c55e`・🟦 Blue `#3b82f6`・🟪 Purple `#a855f7`・🟫 Brown `#92400e`・⬜ White `#f3f4f6`・⬛ Gray `#6b7280`（Choice 名は絵文字付き色名、value が hex 文字列）。値が `#RRGGBB` としてパースできない場合は「ロール色は #RRGGBB 形式で指定してください。」と応答し Modal を開かない（Choice 定義により通常は到達しない防御的分岐）。
+`role_color` はプリセット 9 色の Choice（省略時 `#3b82f6`）: 🟥 Red `#ef4444`・🟧 Orange `#f97316`・🟨 Yellow `#eab308`・🟩 Green `#22c55e`・🟦 Blue `#3b82f6`・🟪 Purple `#a855f7`・🟫 Brown `#92400e`・⬜ White `#f3f4f6`・⬛ Gray `#6b7280`（Choice 名は絵文字付き色名、value が hex 文字列）。値が `#RRGGBB` 形式（16 進 6 桁。先頭 `#` は省略可）でない場合は「ロール色は #RRGGBB 形式で指定してください。」と応答し Modal を開かない（Choice 定義により通常は到達しない防御的分岐）。
 
 1. Modal（title「CTF募集作成」）が開く。TextInput は 2 つ（いずれも `max_length=16`）: 開始日時（label「開始日時 (YYYY-MM-DD HH:MM)」・placeholder「2026-01-15 21:00」・必須）、終了日時（label「終了日時 (空欄で常設)」・placeholder「2026-01-17 21:00」・任意）
 2. 入力パース（`campaign.parse_campaign_draft`。日時は `settings.tzinfo` の naive 時刻として解釈する。DST を持つタイムゾーンで存在しない・二重に存在する時刻は ZoneInfo の既定（fold=0）で解決し、拒否しない）→ 作成可否確認（`campaign.ensure_campaign_can_be_created`）
