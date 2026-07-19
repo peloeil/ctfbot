@@ -1,6 +1,34 @@
+import logging
+
 import discord
 from discord import app_commands
 from discord.ext import commands
+
+logger = logging.getLogger(__name__)
+
+
+async def _respond_ephemeral(interaction: discord.Interaction, content: str) -> None:
+    # bot 内部依存を持たない cog のため helpers.send_interaction を使わず、
+    # 同じ応答契約 (docs/core.md) をここで満たす
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(
+                content,
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        else:
+            await interaction.response.send_message(
+                content,
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+    except (
+        discord.InteractionResponded,
+        discord.NotFound,
+        discord.HTTPException,
+    ):
+        logger.exception("Failed to send interaction response")
 
 
 class UtilityCommands(commands.Cog):
@@ -12,9 +40,7 @@ class UtilityCommands(commands.Cog):
     )
     async def help_command(self, interaction: discord.Interaction) -> None:
         if interaction.guild is None:
-            await interaction.response.send_message(
-                "サーバー内で実行してください。", ephemeral=True
-            )
+            await _respond_ephemeral(interaction, "サーバー内で実行してください。")
             return
         lines: list[str] = []
         for command in self.bot.tree.get_commands():
@@ -23,9 +49,7 @@ class UtilityCommands(commands.Cog):
                     lines.append(f"/{command.name} {child.name} — {child.description}")
             elif isinstance(command, app_commands.Command):
                 lines.append(f"/{command.name} — {command.description}")
-        await interaction.response.send_message(
-            "\n".join(sorted(lines)), ephemeral=True
-        )
+        await _respond_ephemeral(interaction, "\n".join(sorted(lines)))
 
     @app_commands.command(
         name="perms", description="このサーバー/チャンネルでのbot権限を表示します。"
@@ -38,15 +62,11 @@ class UtilityCommands(commands.Cog):
     ) -> None:
         guild = interaction.guild
         if guild is None or guild.me is None:
-            await interaction.response.send_message(
-                "サーバー内で実行してください。", ephemeral=True
-            )
+            await _respond_ephemeral(interaction, "サーバー内で実行してください。")
             return
         target = channel or interaction.channel
         if not isinstance(target, discord.abc.GuildChannel):
-            await interaction.response.send_message(
-                "チャンネル権限を確認できません。", ephemeral=True
-            )
+            await _respond_ephemeral(interaction, "チャンネル権限を確認できません。")
             return
 
         guild_permissions = guild.me.guild_permissions
@@ -66,7 +86,7 @@ class UtilityCommands(commands.Cog):
             ("Channel embed_links", channel_permissions.embed_links),
         ]
         content = "\n".join(f"{'✅' if ok else '❌'} {name}" for name, ok in checks)
-        await interaction.response.send_message(content, ephemeral=True)
+        await _respond_ephemeral(interaction, content)
 
 
 async def setup(bot: commands.Bot) -> None:
