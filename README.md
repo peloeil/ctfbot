@@ -24,7 +24,7 @@ uv run python src/main.py
 
 ## 環境変数
 
-必須は `DISCORD_TOKEN`・`CTF_TEAM_CATEGORY_ID`・`CTF_TEAM_ARCHIVE_CATEGORY_ID` の 3 つです。全項目の用途・型・必須性・デフォルト・検証規則は `docs/data-contracts.md`「設定契約」を参照してください（`.env.example` は同表と同期しています）。
+必須は `DISCORD_TOKEN`・`GUILD_ID`・`CTF_TEAM_CATEGORY_ID`・`CTF_TEAM_ARCHIVE_CATEGORY_ID` の 4 つです。全項目の用途・型・必須性・デフォルト・検証規則は `docs/data-contracts.md`「設定契約」を参照してください（`.env.example` は同表と同期しています）。
 
 ## Discord の設定
 
@@ -55,6 +55,7 @@ uv run python src/main.py
 
 ## 運用メモ
 
+- スラッシュコマンドは `GUILD_ID` の guild にのみ登録されます（グローバル登録なし）。起動時に同期され、即時反映されます
 - `/ctfteam open` で作成される discussion / voice チャンネルは `CTF_TEAM_CATEGORY_ID` のカテゴリ配下に作成されます
 - `/ctfteam archive` は discussion チャンネルを `CTF_TEAM_ARCHIVE_CATEGORY_ID` のカテゴリに移動します
 - DB スキーマはバージョン管理されており、旧バージョンの DB は起動時に自動 migration されます。起動を拒否するのは、バージョン管理外の DB（バージョン 0 でテーブルあり）・bot より新しいバージョンの DB・migration path の無いバージョンの DB です（契約の正本は `docs/data-contracts.md`）

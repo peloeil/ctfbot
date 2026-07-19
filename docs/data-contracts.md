@@ -25,6 +25,7 @@
 | 変数 | 用途 | 型（Settings） | 必須 | デフォルト | 検証・正規化 |
 |---|---|---|---|---|---|
 | `DISCORD_TOKEN` | Bot トークン | `str` | Yes | なし | 必須文字列 |
+| `GUILD_ID` | bot を運用する唯一の guild（コマンド登録先） | `int` | Yes | なし | 必須 ID（`> 0`） |
 | `CTF_TEAM_CATEGORY_ID` | `#role`（募集メッセージ投稿先）・discussion・voice を配置するカテゴリ | `int` | Yes | なし | 必須 ID（`> 0`） |
 | `CTF_TEAM_ARCHIVE_CATEGORY_ID` | archive 時の discussion 移動先カテゴリ | `int` | Yes | なし | 必須 ID（`> 0`） |
 | `BOT_CHANNEL_ID` | コマンド実行ログ・sudo 自動剥奪通知の送信先（`None` で無効） | `int \| None` | — | `0` | optional ID |
@@ -49,6 +50,7 @@
 @dataclass(frozen=True, slots=True)
 class Settings:
     discord_token: str
+    guild_id: int
     bot_channel_id: int | None
     bot_status_channel_id: int | None
     ctf_team_category_id: int
