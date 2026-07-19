@@ -415,17 +415,27 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
             now = campaign.now_unix(self.settings.tzinfo)
             due = await asyncio.to_thread(self.db.list_due_starts, now)
             guild = self.bot.get_guild(self.settings.guild_id)
+            if guild is None:
+                if due:
+                    logger.warning(
+                        "Guild %s not found; start notifications pending",
+                        self.settings.guild_id,
+                    )
+                return
             for item in due:
-                if guild is None:
-                    continue
                 disc_ch = (
                     guild.get_channel(item.discussion_channel_id)
                     if item.discussion_channel_id is not None
                     else None
                 )
                 role = guild.get_role(item.role_id)
-                if isinstance(disc_ch, discord.TextChannel) and role is not None:
-                    await self._send_start_if_claimed(disc_ch, role, item)
+                if not isinstance(disc_ch, discord.TextChannel) or role is None:
+                    logger.warning(
+                        "Failed to resolve discussion channel or role for campaign %s",
+                        item.id,
+                    )
+                    continue
+                await self._send_start_if_claimed(disc_ch, role, item)
         except Exception:
             logger.exception("Error in start_due_campaigns")
 

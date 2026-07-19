@@ -182,3 +182,58 @@ class OpenCampaignTest(unittest.IsolatedAsyncioTestCase):
             self.interaction,
             "チャンネル作成に失敗しました。",
         )
+
+
+class StartDueCampaignsTest(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        fd, self.path = tempfile.mkstemp()
+        os.close(fd)
+        os.unlink(self.path)
+        self.db = Database(self.path)
+        self.item = self.db.create_campaign(
+            channel_id=2,
+            message_id=3,
+            role_id=4,
+            discussion_channel_id=5,
+            voice_channel_id=6,
+            ctf_name="Example",
+            start_at_unix=0,
+            end_at_unix=None,
+            created_by=7,
+            created_at_unix=0,
+            max_active_per_creator=5,
+        )
+        self.cog = CTFTeamCampaigns.__new__(CTFTeamCampaigns)
+        self.cog.bot = mock.Mock()
+        self.cog.settings = SimpleNamespace(tzinfo=datetime.UTC, guild_id=1)
+        self.cog.db = self.db
+
+    def tearDown(self) -> None:
+        for suffix in ("", "-wal", "-shm"):
+            with suppress(FileNotFoundError):
+                os.unlink(self.path + suffix)
+
+    async def run_task(self) -> None:
+        coro = cast(Any, self.cog.start_due_campaigns.coro)
+        await coro(self.cog)
+
+    async def test_unresolved_resources_log_warning_and_keep_claim(self) -> None:
+        guild = mock.Mock(spec=discord.Guild)
+        guild.get_channel.return_value = None
+        guild.get_role.return_value = None
+        self.cog.bot.get_guild.return_value = guild
+
+        with self.assertLogs("ctfbot", level="WARNING"):
+            await self.run_task()
+
+        due = self.db.list_due_starts(10**10)
+        self.assertEqual([item.id for item in due], [self.item.id])
+
+    async def test_missing_guild_logs_warning_without_claiming(self) -> None:
+        self.cog.bot.get_guild.return_value = None
+
+        with self.assertLogs("ctfbot", level="WARNING"):
+            await self.run_task()
+
+        due = self.db.list_due_starts(10**10)
+        self.assertEqual([item.id for item in due], [self.item.id])
