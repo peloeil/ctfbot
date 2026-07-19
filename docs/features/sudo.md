@@ -68,7 +68,7 @@
 2. メンバーを解決する。キャッシュになければ `guild.fetch_member` で照会し、`discord.NotFound`（退出済み）の場合のみレコードを削除する。照会自体の失敗（`discord.Forbidden`・`discord.HTTPException`）は退出と区別し、レコードを残して次回リトライ
 3. レコードの `role_id` が guild に存在しなければ剥奪成功として扱う
 4. ロールを剥奪（`discord.NotFound` は剥奪成功扱い） → レコード削除。剥奪失敗（`discord.Forbidden`・`discord.HTTPException`）ならレコードを残して次回リトライ
-5. 剥奪した場合、およびロール不在で剥奪成功扱いにした場合は、BOT_CHANNEL に「⏬ {display_name} (id={user_id}) の管理者ロールを自動解除しました。」を送る（`AllowedMentions.none()` 付き、ロックの外で送信。送信失敗は剥奪を巻き戻さない）。メンバー退出でレコードを削除した場合は送らない
+5. 剥奪した場合、およびロール不在で剥奪成功扱いにした場合は、BOT_CHANNEL に「⏬ <@{user_id}> の管理者ロールを自動解除しました。」を送る（`AllowedMentions.none()` 付きでメンションは表示のみ・通知は飛ばない。ロックの外で送信し、送信失敗は剥奪を巻き戻さない）。メンバー退出でレコードを削除した場合は送らない
 
 bot 停止中に期限が切れた grant は、再起動後の初回実行で剥奪される。
 

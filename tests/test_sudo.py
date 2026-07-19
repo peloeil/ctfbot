@@ -282,6 +282,10 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
         member.remove_roles.assert_awaited_once_with(role)
         self.db.delete_sudo_grant.assert_called_once_with(2)
         send_safely.assert_awaited_once()
+        self.assertEqual(
+            send_safely.await_args_list[0].args[1],
+            "⏬ <@2> の管理者ロールを自動解除しました。",
+        )
 
     async def test_expired_grant_for_departed_member_deletes_only_record(self) -> None:
         grant = SudoGrant(2, 10, 100, 200)

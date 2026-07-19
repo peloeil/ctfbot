@@ -253,8 +253,7 @@ class Sudo(commands.Cog):
         if channel is not None:
             await send_safely(
                 channel,
-                f"⏬ {member.display_name} (id={member.id}) "
-                "の管理者ロールを自動解除しました。",
+                f"⏬ <@{member.id}> の管理者ロールを自動解除しました。",
                 allowed_mentions=discord.AllowedMentions.none(),
             )
 
