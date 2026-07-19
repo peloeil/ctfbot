@@ -24,7 +24,7 @@ uv run python src/main.py
 
 ## 環境変数
 
-必須は `DISCORD_TOKEN`・`GUILD_ID`・`CTF_TEAM_CATEGORY_ID`・`CTF_TEAM_ARCHIVE_CATEGORY_ID`・`CTF_TEAM_ROLE_CHANNEL_ID` の 5 つです。全項目の用途・型・必須性・デフォルト・検証規則は `docs/data-contracts.md`「設定契約」を参照してください（`.env.example` は同表と同期しています）。
+必須項目を含む全項目の用途・型・必須性・デフォルト・検証規則は `docs/data-contracts.md`「設定契約」を参照してください（`.env.example` は同表と同期しています）。
 
 ## Discord の設定
 
@@ -36,15 +36,7 @@ uv run python src/main.py
 
 ### Bot に必要な権限
 
-- `View Channel`
-- `Send Messages`
-- `Send Messages in Threads`
-- `Embed Links`
-- `Read Message History`
-- `Add Reactions`
-- `Manage Channels`
-- `Manage Roles`
-- `View Audit Log`
+必要な権限の一覧は `docs/features/utility.md` の `/perms` チェック項目表を参照してください。付与状態は招待後に `/perms` で確認できます。
 
 `Manage Roles` を使うため、Bot のロールは操作対象のロールより上位に配置してください。
 
@@ -52,10 +44,3 @@ uv run python src/main.py
 
 - 募集メッセージの投稿先テキストチャンネルを作成し、その ID を `CTF_TEAM_ROLE_CHANNEL_ID` に設定してください（無いと `/ctfteam open` が失敗します）
 - `/times create` を使う場合は、作成先カテゴリを作成し、その ID を `TIMES_CATEGORY_ID` に設定してください
-
-## 運用メモ
-
-- スラッシュコマンドは `GUILD_ID` の guild にのみ登録されます（グローバル登録なし）。起動時に同期され、即時反映されます
-- `/ctfteam open` で作成される discussion / voice チャンネルは `CTF_TEAM_CATEGORY_ID` のカテゴリ配下に作成されます
-- `/ctfteam archive` は discussion チャンネルを `CTF_TEAM_ARCHIVE_CATEGORY_ID` のカテゴリに移動します
-- DB スキーマはバージョン管理されており、旧バージョンの DB は起動時に自動 migration されます。起動を拒否するのは、バージョン管理外の DB（バージョン 0 でテーブルあり）・bot より新しいバージョンの DB・migration path の無いバージョンの DB です（契約の正本は `docs/data-contracts.md`）

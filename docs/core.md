@@ -20,7 +20,7 @@
 - `resolve_messageable(bot, channel_id) -> Messageable | None`: 設定されたチャンネル ID を cache → fetch の順で解決する。ID が未設定（None）・解決失敗（`NotFound`・`Forbidden`・`HTTPException`）・送信可能でない場合は None を返し、呼び出し側は通知をスキップする。解決失敗（未設定を除く）は warning ログを 1 行残す（設定不良の検知手段）
 - `send_safely(channel, content=None, embed=None, allowed_mentions=None) -> Message | None`: チャンネルへ送信し、失敗（`HTTPException`）時は例外ログを残して None を返す（raise しない）。通知の失敗で主処理を壊さないための境界。`allowed_mentions` は呼び出し側が明示する（省略時はライブラリ既定）
 
-メンション方針: 実際に ping してよいのはメンバーメンションのみ。ユーザー入力（CTF 名等）を含む文面は `AllowedMentions.none()` で、メンバー列挙チャンク（開始通知・スナップショット・参加通知）は users のみ許可（everyone・roles 拒否）で送る。
+メンション方針: 実際に ping してよいのはメンバーメンションのみ。ユーザー入力（CTF 名等）を含む文面は `AllowedMentions.none()` で、メンバー列挙チャンクは users のみ許可（everyone・roles 拒否）で送る。
 
 ## 共通エラーハンドラ
 

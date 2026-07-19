@@ -105,7 +105,7 @@ value: 「他 {omitted} 人は省略しました。」「取得失敗: {name}, .
 （value は 1024 文字で切り詰め）
 ```
 
-Embed 全体の合計は 6000 文字以内に収める: field 追加で超過する場合はそこで打ち切り、以降のユーザーは省略人数として最終 field に合算する。field name（`{username} ({n} solves)`）は username の 32 文字制限により 256 文字上限に収まる。challenge 名または URL がリンク構文を壊す文字（`]`・`(`・`)`）を含む場合はリンク化せず名前のみ表示する（`docs/core.md` の escape 方針）。
+Embed 全体の合計は 6000 文字以内に収める: field 追加で超過する場合はそこで打ち切り、以降のユーザーは省略人数として最終 field に合算する。field name（`{username} ({n} solves)`）は username の 32 文字制限により 256 文字上限に収まる。challenge 名または URL がリンク構文を壊す文字を含む場合はリンク化せず名前のみ表示する（対象文字の正本は `docs/core.md` の escape 方針）。
 
 ## データモデル
 

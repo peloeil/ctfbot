@@ -44,7 +44,7 @@ jobs:
       - run: uv run python -m unittest discover -s tests -v
 ```
 
-- Python バージョンはワークフローで指定しない。`setup-uv@v6` がリポジトリの `.python-version`（内容: `3.14`）を読んで自動インストールする。バージョン変更は `.python-version` と `pyproject.toml` の `requires-python` を更新する（ワークフローに重複指定を持ち込まない）
+- Python バージョンはワークフローで指定しない。`setup-uv@v6` がリポジトリの `.python-version` を読んで自動インストールする。バージョン変更は `.python-version` と `pyproject.toml` の `requires-python` を更新する（ワークフローに重複指定を持ち込まない）
 - 実行環境は `ubuntu-latest` のみ（`strategy.matrix` は使わない）
 - `--frozen` で lockfile を固定する（`uv.lock` と `pyproject.toml` の不整合を CI 失敗として検出し、再現性を保証する）
 - `permissions`・同時実行の cancel（`concurrency`）・`timeout-minutes` は非目標とし、設定しない
