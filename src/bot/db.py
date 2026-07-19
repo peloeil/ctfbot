@@ -12,7 +12,7 @@ from bot.features.ctf_team.models import (
 )
 from bot.features.sudo.models import SudoGrant
 
-CURRENT_SCHEMA_VERSION = 3
+CURRENT_SCHEMA_VERSION = 4
 _MIGRATIONS: dict[int, str] = {
     1: """\
 CREATE TABLE IF NOT EXISTS audit_log_entry (
@@ -44,17 +44,10 @@ CREATE TABLE IF NOT EXISTS sudo_grant (
 CREATE INDEX IF NOT EXISTS idx_sudo_grant_expires
     ON sudo_grant (expires_at_unix);
 """,
-}
-
-_SCHEMA_DDL = """\
-CREATE TABLE IF NOT EXISTS alpacahack_user (
+    3: """\
+BEGIN;
+CREATE TABLE ctf_team_campaign_v4 (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE
-);
-
-CREATE TABLE IF NOT EXISTS ctf_team_campaign (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guild_id INTEGER NOT NULL,
     channel_id INTEGER NOT NULL,
     message_id INTEGER NOT NULL,
     role_id INTEGER NOT NULL,
@@ -70,17 +63,67 @@ CREATE TABLE IF NOT EXISTS ctf_team_campaign (
     archived_at_unix INTEGER,
     start_notified_at_unix INTEGER,
     voice_channel_id INTEGER,
-    UNIQUE (guild_id, message_id)
+    UNIQUE (message_id)
+);
+INSERT INTO ctf_team_campaign_v4 (
+    id, channel_id, message_id, role_id, ctf_name, start_at_unix, end_at_unix,
+    status, created_by, created_at_unix, closed_at_unix, discussion_channel_id,
+    archive_at_unix, archived_at_unix, start_notified_at_unix, voice_channel_id
+)
+SELECT
+    id, channel_id, message_id, role_id, ctf_name, start_at_unix, end_at_unix,
+    status, created_by, created_at_unix, closed_at_unix, discussion_channel_id,
+    archive_at_unix, archived_at_unix, start_notified_at_unix, voice_channel_id
+FROM ctf_team_campaign;
+DROP TABLE ctf_team_campaign;
+ALTER TABLE ctf_team_campaign_v4 RENAME TO ctf_team_campaign;
+CREATE TABLE sudo_grant_v4 (
+    user_id INTEGER NOT NULL,
+    role_id INTEGER NOT NULL,
+    granted_at_unix INTEGER NOT NULL,
+    expires_at_unix INTEGER NOT NULL,
+    PRIMARY KEY (user_id)
+);
+INSERT INTO sudo_grant_v4 (user_id, role_id, granted_at_unix, expires_at_unix)
+SELECT user_id, role_id, granted_at_unix, expires_at_unix FROM sudo_grant;
+DROP TABLE sudo_grant;
+ALTER TABLE sudo_grant_v4 RENAME TO sudo_grant;
+COMMIT;
+""",
+}
+
+_SCHEMA_DDL = """\
+CREATE TABLE IF NOT EXISTS alpacahack_user (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE
 );
 
-CREATE INDEX IF NOT EXISTS idx_campaign_guild_message
-    ON ctf_team_campaign (guild_id, channel_id, message_id, status);
+CREATE TABLE IF NOT EXISTS ctf_team_campaign (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel_id INTEGER NOT NULL,
+    message_id INTEGER NOT NULL,
+    role_id INTEGER NOT NULL,
+    ctf_name TEXT NOT NULL COLLATE NOCASE,
+    start_at_unix INTEGER NOT NULL,
+    end_at_unix INTEGER,
+    status TEXT NOT NULL CHECK (status IN ('active', 'closed')),
+    created_by INTEGER NOT NULL,
+    created_at_unix INTEGER NOT NULL,
+    closed_at_unix INTEGER,
+    discussion_channel_id INTEGER,
+    archive_at_unix INTEGER,
+    archived_at_unix INTEGER,
+    start_notified_at_unix INTEGER,
+    voice_channel_id INTEGER,
+    UNIQUE (message_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_campaign_status_end
     ON ctf_team_campaign (status, end_at_unix);
-CREATE INDEX IF NOT EXISTS idx_campaign_guild_status
-    ON ctf_team_campaign (guild_id, status, created_at_unix);
+CREATE INDEX IF NOT EXISTS idx_campaign_status_created
+    ON ctf_team_campaign (status, created_at_unix);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_campaign_active_name_unique
-    ON ctf_team_campaign (guild_id, ctf_name)
+    ON ctf_team_campaign (ctf_name)
     WHERE status = 'active';
 
 CREATE TABLE IF NOT EXISTS audit_log_entry (
@@ -100,12 +143,11 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_guild_created
     ON audit_log_entry (guild_id, created_at_unix);
 
 CREATE TABLE IF NOT EXISTS sudo_grant (
-    guild_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
     role_id INTEGER NOT NULL,
     granted_at_unix INTEGER NOT NULL,
     expires_at_unix INTEGER NOT NULL,
-    PRIMARY KEY (guild_id, user_id)
+    PRIMARY KEY (user_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_sudo_grant_expires
@@ -113,14 +155,13 @@ CREATE INDEX IF NOT EXISTS idx_sudo_grant_expires
 """
 
 _CAMPAIGN_COLUMNS = (
-    "id, guild_id, channel_id, message_id, role_id, ctf_name, "
+    "id, channel_id, message_id, role_id, ctf_name, "
     "start_at_unix, end_at_unix, status, created_by, created_at_unix, "
     "start_notified_at_unix, closed_at_unix, archive_at_unix, archived_at_unix, "
     "discussion_channel_id, voice_channel_id"
 )
 
 type _CampaignRow = tuple[
-    int,
     int,
     int,
     int,
@@ -139,7 +180,7 @@ type _CampaignRow = tuple[
     int | None,
 ]
 
-type _SudoGrantRow = tuple[int, int, int, int, int]
+type _SudoGrantRow = tuple[int, int, int, int]
 
 
 class Database:
@@ -196,57 +237,55 @@ class Database:
 
     @staticmethod
     def _to_campaign(row: _CampaignRow) -> Campaign:
-        status = CampaignStatus(row[8])
+        status = CampaignStatus(row[7])
         if status == CampaignStatus.ACTIVE:
             return Database._to_active_campaign(row)
         return Database._to_closed_campaign(row)
 
     @staticmethod
     def _to_active_campaign(row: _CampaignRow) -> ActiveCampaign:
-        if row[12] is not None or row[13] is not None or row[14] is not None:
+        if row[11] is not None or row[12] is not None or row[13] is not None:
             raise RepositoryError(
                 f"Active campaign {row[0]} has closed/archive fields set."
             )
         return ActiveCampaign(
             id=row[0],
-            guild_id=row[1],
-            channel_id=row[2],
-            message_id=row[3],
-            role_id=row[4],
-            ctf_name=row[5],
-            start_at_unix=row[6],
-            end_at_unix=row[7],
+            channel_id=row[1],
+            message_id=row[2],
+            role_id=row[3],
+            ctf_name=row[4],
+            start_at_unix=row[5],
+            end_at_unix=row[6],
             status=CampaignStatus.ACTIVE,
-            created_by=row[9],
-            created_at_unix=row[10],
-            start_notified_at_unix=row[11],
-            discussion_channel_id=row[15] or None,
-            voice_channel_id=row[16] or None,
+            created_by=row[8],
+            created_at_unix=row[9],
+            start_notified_at_unix=row[10],
+            discussion_channel_id=row[14] or None,
+            voice_channel_id=row[15] or None,
         )
 
     @staticmethod
     def _to_closed_campaign(row: _CampaignRow) -> ClosedCampaign:
-        if row[12] is None or row[13] is None:
+        if row[11] is None or row[12] is None:
             raise RepositoryError(
                 f"Closed campaign {row[0]} is missing closed_at or archive_at."
             )
         return ClosedCampaign(
             id=row[0],
-            guild_id=row[1],
-            channel_id=row[2],
-            message_id=row[3],
-            role_id=row[4],
-            ctf_name=row[5],
-            start_at_unix=row[6],
-            end_at_unix=row[7],
+            channel_id=row[1],
+            message_id=row[2],
+            role_id=row[3],
+            ctf_name=row[4],
+            start_at_unix=row[5],
+            end_at_unix=row[6],
             status=CampaignStatus.CLOSED,
-            created_by=row[9],
-            created_at_unix=row[10],
-            closed_at_unix=row[12],
-            archive_at_unix=row[13],
-            archived_at_unix=row[14],
-            discussion_channel_id=row[15] or None,
-            voice_channel_id=row[16] or None,
+            created_by=row[8],
+            created_at_unix=row[9],
+            closed_at_unix=row[11],
+            archive_at_unix=row[12],
+            archived_at_unix=row[13],
+            discussion_channel_id=row[14] or None,
+            voice_channel_id=row[15] or None,
         )
 
     def add_alpacahack_user(self, name: str) -> bool:
@@ -313,16 +352,14 @@ class Database:
     @staticmethod
     def _to_sudo_grant(row: _SudoGrantRow) -> SudoGrant:
         return SudoGrant(
-            guild_id=row[0],
-            user_id=row[1],
-            role_id=row[2],
-            granted_at_unix=row[3],
-            expires_at_unix=row[4],
+            user_id=row[0],
+            role_id=row[1],
+            granted_at_unix=row[2],
+            expires_at_unix=row[3],
         )
 
     def upsert_sudo_grant(
         self,
-        guild_id: int,
         user_id: int,
         role_id: int,
         granted_at_unix: int,
@@ -330,68 +367,67 @@ class Database:
     ) -> SudoGrant:
         with self._connection() as conn:
             conn.execute(
-                "INSERT INTO sudo_grant (guild_id, user_id, role_id, "
-                "granted_at_unix, expires_at_unix) VALUES (?, ?, ?, ?, ?) "
-                "ON CONFLICT (guild_id, user_id) DO UPDATE SET "
+                "INSERT INTO sudo_grant (user_id, role_id, "
+                "granted_at_unix, expires_at_unix) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT (user_id) DO UPDATE SET "
                 "role_id=excluded.role_id, expires_at_unix=excluded.expires_at_unix",
-                (guild_id, user_id, role_id, granted_at_unix, expires_at_unix),
+                (user_id, role_id, granted_at_unix, expires_at_unix),
             )
             conn.commit()
             row = conn.execute(
-                "SELECT guild_id, user_id, role_id, granted_at_unix, "
-                "expires_at_unix FROM sudo_grant WHERE guild_id=? AND user_id=?",
-                (guild_id, user_id),
+                "SELECT user_id, role_id, granted_at_unix, expires_at_unix "
+                "FROM sudo_grant WHERE user_id=?",
+                (user_id,),
             ).fetchone()
         return self._to_sudo_grant(row)
 
-    def get_sudo_grant(self, guild_id: int, user_id: int) -> SudoGrant | None:
+    def get_sudo_grant(self, user_id: int) -> SudoGrant | None:
         with self._connection() as conn:
             row = conn.execute(
-                "SELECT guild_id, user_id, role_id, granted_at_unix, "
-                "expires_at_unix FROM sudo_grant WHERE guild_id=? AND user_id=?",
-                (guild_id, user_id),
+                "SELECT user_id, role_id, granted_at_unix, expires_at_unix "
+                "FROM sudo_grant WHERE user_id=?",
+                (user_id,),
             ).fetchone()
         return self._to_sudo_grant(row) if row else None
 
-    def delete_sudo_grant(self, guild_id: int, user_id: int) -> None:
+    def delete_sudo_grant(self, user_id: int) -> None:
         with self._connection() as conn:
             conn.execute(
-                "DELETE FROM sudo_grant WHERE guild_id=? AND user_id=?",
-                (guild_id, user_id),
+                "DELETE FROM sudo_grant WHERE user_id=?",
+                (user_id,),
             )
             conn.commit()
 
     def list_expired_sudo_grants(self, now_unix: int) -> list[SudoGrant]:
         with self._connection() as conn:
             rows = conn.execute(
-                "SELECT guild_id, user_id, role_id, granted_at_unix, "
-                "expires_at_unix FROM sudo_grant WHERE expires_at_unix <= ? "
+                "SELECT user_id, role_id, granted_at_unix, expires_at_unix "
+                "FROM sudo_grant WHERE expires_at_unix <= ? "
                 "ORDER BY expires_at_unix ASC",
                 (now_unix,),
             ).fetchall()
         return [self._to_sudo_grant(row) for row in rows]
 
-    def count_active_campaigns_by_creator(self, guild_id: int, created_by: int) -> int:
+    def count_active_campaigns_by_creator(self, created_by: int) -> int:
         with self._connection() as conn:
             return conn.execute(
                 "SELECT COUNT(*) FROM ctf_team_campaign "
-                "WHERE guild_id=? AND created_by=? AND status='active'",
-                (guild_id, created_by),
+                "WHERE created_by=? AND status='active'",
+                (created_by,),
             ).fetchone()[0]
 
-    def has_active_campaign_with_name(self, guild_id: int, ctf_name: str) -> bool:
+    def has_active_campaign_with_name(self, ctf_name: str) -> bool:
         with self._connection() as conn:
             row = conn.execute(
                 "SELECT 1 FROM ctf_team_campaign "
-                "WHERE guild_id=? AND ctf_name=? AND status='active' LIMIT 1",
-                (guild_id, ctf_name),
+                "WHERE ctf_name=? AND status='active' LIMIT 1",
+                (ctf_name,),
             ).fetchone()
         return row is not None
 
     def create_campaign(
         self,
         *,
-        guild_id: int,
         channel_id: int,
         message_id: int,
         role_id: int,
@@ -408,20 +444,19 @@ class Database:
             conn.execute("BEGIN IMMEDIATE")
             active_count = conn.execute(
                 "SELECT COUNT(*) FROM ctf_team_campaign "
-                "WHERE guild_id=? AND created_by=? AND status='active'",
-                (guild_id, created_by),
+                "WHERE created_by=? AND status='active'",
+                (created_by,),
             ).fetchone()[0]
             if active_count >= max_active_per_creator:
                 raise ConflictError("Active campaign limit reached.")
             try:
                 cur = conn.execute(
                     "INSERT INTO ctf_team_campaign ("
-                    "guild_id, channel_id, message_id, role_id, "
+                    "channel_id, message_id, role_id, "
                     "discussion_channel_id, voice_channel_id, ctf_name, "
                     "start_at_unix, end_at_unix, status, created_by, created_at_unix"
-                    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)",
+                    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)",
                     (
-                        guild_id,
                         channel_id,
                         message_id,
                         role_id,
@@ -444,25 +479,22 @@ class Database:
         return self._to_active_campaign(row)
 
     def find_active_campaign_by_message(
-        self, *, guild_id: int, channel_id: int, message_id: int
+        self, *, channel_id: int, message_id: int
     ) -> ActiveCampaign | None:
         with self._connection() as conn:
             row = conn.execute(
                 f"SELECT {_CAMPAIGN_COLUMNS} FROM ctf_team_campaign "
-                "WHERE guild_id=? AND channel_id=? "
-                "AND message_id=? AND status='active'",
-                (guild_id, channel_id, message_id),
+                "WHERE channel_id=? AND message_id=? AND status='active'",
+                (channel_id, message_id),
             ).fetchone()
         return self._to_active_campaign(row) if row else None
 
     def find_active_campaign_by_name(
         self,
         *,
-        guild_id: int,
         ctf_name: str,
     ) -> ActiveCampaign | None:
         row = self._find_campaign_by_name_row(
-            guild_id=guild_id,
             ctf_name=ctf_name,
             status=CampaignStatus.ACTIVE,
         )
@@ -471,12 +503,10 @@ class Database:
     def find_closed_campaign_by_name(
         self,
         *,
-        guild_id: int,
         ctf_name: str,
         archived: bool | None = None,
     ) -> ClosedCampaign | None:
         row = self._find_campaign_by_name_row(
-            guild_id=guild_id,
             ctf_name=ctf_name,
             status=CampaignStatus.CLOSED,
             archived=archived,
@@ -486,16 +516,15 @@ class Database:
     def _find_campaign_by_name_row(
         self,
         *,
-        guild_id: int,
         ctf_name: str,
         status: CampaignStatus,
         archived: bool | None = None,
     ) -> _CampaignRow | None:
         sql = (
             f"SELECT {_CAMPAIGN_COLUMNS} FROM ctf_team_campaign "
-            "WHERE guild_id=? AND ctf_name=? AND status=?"
+            "WHERE ctf_name=? AND status=?"
         )
-        params: list[object] = [guild_id, ctf_name, status.value]
+        params: list[object] = [ctf_name, status.value]
         if archived is True:
             sql += " AND archived_at_unix IS NOT NULL"
         elif archived is False:
@@ -552,16 +581,16 @@ class Database:
         )
 
     def list_campaigns(
-        self, guild_id: int, status: CampaignStatus | None, limit: int = 20
+        self, status: CampaignStatus | None, limit: int = 20
     ) -> list[Campaign]:
         if status is None:
             return self._list(
-                "WHERE guild_id=? ORDER BY created_at_unix DESC LIMIT ?",
-                (guild_id, limit),
+                "ORDER BY created_at_unix DESC LIMIT ?",
+                (limit,),
             )
         return self._list(
-            "WHERE guild_id=? AND status=? ORDER BY created_at_unix DESC LIMIT ?",
-            (guild_id, status.value, limit),
+            "WHERE status=? ORDER BY created_at_unix DESC LIMIT ?",
+            (status.value, limit),
         )
 
     def _list(self, suffix: str, params: tuple[object, ...]) -> list[Campaign]:

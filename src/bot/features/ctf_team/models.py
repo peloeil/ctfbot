@@ -11,7 +11,6 @@ class CampaignStatus(Enum):
 @dataclass(frozen=True, slots=True)
 class ActiveCampaign:
     id: int
-    guild_id: int
     channel_id: int
     message_id: int
     role_id: int
@@ -29,7 +28,6 @@ class ActiveCampaign:
 @dataclass(frozen=True, slots=True)
 class ClosedCampaign:
     id: int
-    guild_id: int
     channel_id: int
     message_id: int
     role_id: int
