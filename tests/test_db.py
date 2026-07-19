@@ -124,6 +124,14 @@ PRAGMA user_version = 3;
         self.assertEqual(version, CURRENT_SCHEMA_VERSION)
         Database(self.path)
 
+    def test_connection_failure_raises_repository_error(self) -> None:
+        directory = tempfile.mkdtemp()
+        try:
+            with self.assertRaises(RepositoryError):
+                Database(directory)
+        finally:
+            os.rmdir(directory)
+
     def test_unmanaged_database_raises(self) -> None:
         fd, path = tempfile.mkstemp()
         os.close(fd)

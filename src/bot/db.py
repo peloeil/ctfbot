@@ -190,7 +190,10 @@ class Database:
 
     @contextmanager
     def _connection(self) -> Generator[sqlite3.Connection]:
-        conn = sqlite3.connect(self._path, timeout=10.0)
+        try:
+            conn = sqlite3.connect(self._path, timeout=10.0)
+        except sqlite3.Error as exc:
+            raise RepositoryError(str(exc)) from exc
         try:
             conn.execute("PRAGMA foreign_keys = ON")
             conn.execute("PRAGMA journal_mode = WAL")
