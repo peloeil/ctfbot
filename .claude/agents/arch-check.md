@@ -22,6 +22,8 @@ tools:
 8. **blocking I/O は asyncio.to_thread 経由** — イベントループ外（起動時初期化・同期テスト）は対象外
 9. **dataclass は frozen=True, slots=True**
 
+規範の正本は AGENTS.md（アーキテクチャ制約・コーディング規約）。乖離時はそちらが正。
+
 ## 手順
 
 1. `git diff --name-only HEAD` で変更ファイルを取得

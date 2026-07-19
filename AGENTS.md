@@ -31,7 +31,7 @@
 
 実装時に必ず守ること。制約 2〜6（import 境界）は `tests/test_architecture.py` で静的に検証されている。それ以外はレビューでのみ担保される。
 
-1. **型の境界でモジュールを分割する** — Discord 非依存ロジックを独立してテスト・再利用する必要がある場合は別モジュールに分ける。単一ファイルで完結する小規模 feature（alpacahack, ctftime, times 等）は同居してよい
+1. **型の境界でモジュールを分割する** — Discord 非依存ロジックを独立してテスト・再利用する必要がある場合は別モジュールに分ける。単一ファイルで完結する小規模 feature は同居してよい
 2. **`db.py` は discord を import しない** — feature からの import は `models.py` のみ許可
 3. **feature の `models.py` は discord を import しない** — `db.py` が import するため純粋なデータモデルに限定
 4. **`campaign.py` は discord を import しない**
