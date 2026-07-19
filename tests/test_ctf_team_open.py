@@ -105,7 +105,6 @@ class OpenCampaignTest(unittest.IsolatedAsyncioTestCase):
 
         cleanup.assert_not_awaited()
         active = self.db.find_active_campaign_by_name(
-            guild_id=1,
             ctf_name="Example",
         )
         self.assertIsNotNone(active)
@@ -148,7 +147,6 @@ class OpenCampaignTest(unittest.IsolatedAsyncioTestCase):
             voice=None,
         )
         active = self.db.find_active_campaign_by_name(
-            guild_id=1,
             ctf_name="Example",
         )
         self.assertIsNone(active)

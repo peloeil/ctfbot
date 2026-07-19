@@ -63,18 +63,14 @@ def parse_campaign_draft(
 def ensure_campaign_can_be_created(
     db: Database,
     *,
-    guild_id: int,
     created_by: int,
     draft: CampaignDraft,
 ) -> None:
-    if (
-        db.count_active_campaigns_by_creator(guild_id, created_by)
-        >= MAX_ACTIVE_PER_USER
-    ):
+    if db.count_active_campaigns_by_creator(created_by) >= MAX_ACTIVE_PER_USER:
         raise ServiceError(
             "同時に作成できる active 募集数の上限に達しています。(上限: 5)"
         )
-    if db.has_active_campaign_with_name(guild_id, draft.ctf_name):
+    if db.has_active_campaign_with_name(draft.ctf_name):
         raise ServiceError(
             "同名の active 募集が既に存在します。"
             "別名を使うか既存募集を close してください。"

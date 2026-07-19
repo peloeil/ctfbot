@@ -20,7 +20,6 @@ class ArchiveCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
         os.unlink(self.path)
         self.db = Database(self.path)
         active = self.db.create_campaign(
-            guild_id=1,
             channel_id=2,
             message_id=3,
             role_id=4,
@@ -35,7 +34,6 @@ class ArchiveCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
         )
         self.db.close_campaign(active.id, 201, 300)
         item = self.db.find_closed_campaign_by_name(
-            guild_id=1,
             ctf_name="Example",
         )
         assert item is not None
@@ -88,7 +86,6 @@ class ArchiveCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result)
         discussion.send.assert_not_awaited()
         archived = self.db.find_closed_campaign_by_name(
-            guild_id=1,
             ctf_name="Example",
             archived=True,
         )
@@ -122,7 +119,6 @@ class ArchiveCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
             "📦 このチャンネルは archive カテゴリに移動されました。",
         )
         archived = self.db.find_closed_campaign_by_name(
-            guild_id=1,
             ctf_name="Example",
             archived=True,
         )

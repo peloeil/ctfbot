@@ -26,7 +26,6 @@ class CampaignLogicTest(unittest.TestCase):
         self, name: str = "Existing", created_by: int = 10, message_id: int = 100
     ):
         return self.db.create_campaign(
-            guild_id=1,
             channel_id=2,
             message_id=message_id,
             role_id=3,
@@ -83,9 +82,7 @@ class CampaignLogicTest(unittest.TestCase):
             timezone=self.tz,
         )
         with self.assertRaises(ServiceError):
-            campaign.ensure_campaign_can_be_created(
-                self.db, guild_id=1, created_by=10, draft=draft
-            )
+            campaign.ensure_campaign_can_be_created(self.db, created_by=10, draft=draft)
 
     def test_ensure_rejects_duplicate_name(self) -> None:
         self.create_campaign(name="Same")
@@ -96,9 +93,7 @@ class CampaignLogicTest(unittest.TestCase):
             timezone=self.tz,
         )
         with self.assertRaises(ServiceError):
-            campaign.ensure_campaign_can_be_created(
-                self.db, guild_id=1, created_by=20, draft=draft
-            )
+            campaign.ensure_campaign_can_be_created(self.db, created_by=20, draft=draft)
 
     def test_calculate_close(self) -> None:
         closed_at, archive_at = campaign.calculate_close(self.tz)
@@ -110,7 +105,6 @@ class CampaignLogicTest(unittest.TestCase):
         future = self.create_campaign(name="Future", message_id=2)
         permanent = self.create_campaign(name="Permanent", message_id=3)
         past = self.db.create_campaign(
-            guild_id=2,
             channel_id=2,
             message_id=4,
             role_id=3,
@@ -124,7 +118,6 @@ class CampaignLogicTest(unittest.TestCase):
             max_active_per_creator=campaign.MAX_ACTIVE_PER_USER,
         )
         future = self.db.create_campaign(
-            guild_id=2,
             channel_id=2,
             message_id=5,
             role_id=3,

@@ -20,7 +20,6 @@ class CloseCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
         os.unlink(self.path)
         self.db = Database(self.path)
         self.item = self.db.create_campaign(
-            guild_id=1,
             channel_id=2,
             message_id=3,
             role_id=4,
@@ -67,7 +66,6 @@ class CloseCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
             )
 
         closed = self.db.find_closed_campaign_by_name(
-            guild_id=1,
             ctf_name="Example",
         )
         assert closed is not None
@@ -106,7 +104,6 @@ class CloseCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNone(result)
         active = self.db.find_active_campaign_by_name(
-            guild_id=1,
             ctf_name="Example",
         )
         self.assertIsNotNone(active)

@@ -9,7 +9,6 @@ class CampaignListEmbedTest(unittest.TestCase):
         campaigns: list[Campaign] = [
             ActiveCampaign(
                 id=index,
-                guild_id=1,
                 channel_id=2,
                 message_id=index,
                 role_id=4,

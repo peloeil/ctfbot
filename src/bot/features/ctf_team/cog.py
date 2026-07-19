@@ -126,7 +126,6 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         await interaction.response.defer(ephemeral=True)
         try:
             guild = require_guild(interaction)
-            guild_id = guild.id
             draft = campaign.parse_campaign_draft(
                 ctf_name=ctf_name,
                 start_at_raw=start_at_raw,
@@ -136,7 +135,6 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
             await asyncio.to_thread(
                 campaign.ensure_campaign_can_be_created,
                 self.db,
-                guild_id=guild_id,
                 created_by=interaction.user.id,
                 draft=draft,
             )
@@ -188,7 +186,6 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
 
             created = await asyncio.to_thread(
                 self.db.create_campaign,
-                guild_id=guild.id,
                 channel_id=role_channel.id,
                 message_id=recruit_msg.id,
                 role_id=role.id,
@@ -279,7 +276,6 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         filter_status = None if status == "all" else CampaignStatus(status)
         campaigns = await asyncio.to_thread(
             self.db.list_campaigns,
-            guild_id,
             filter_status,
         )
         embed = _build_campaigns_embed(guild_id, campaigns, _status_label(status))
@@ -298,7 +294,6 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
             return
         found = await asyncio.to_thread(
             self.db.find_active_campaign_by_name,
-            guild_id=guild.id,
             ctf_name=ctf_name.strip(),
         )
         if found is None:
@@ -344,12 +339,11 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
             return
         found = await asyncio.to_thread(
             self.db.find_closed_campaign_by_name,
-            guild_id=guild.id,
             ctf_name=ctf_name.strip(),
             archived=False,
         )
         if found is None:
-            await self._send_archive_not_found(interaction, guild.id, ctf_name)
+            await self._send_archive_not_found(interaction, ctf_name)
             return
         if not _can_manage_campaign(interaction, found):
             await send_interaction(
@@ -386,7 +380,6 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
             return
         found = await asyncio.to_thread(
             self.db.find_active_campaign_by_message,
-            guild_id=payload.guild_id,
             channel_id=payload.channel_id,
             message_id=payload.message_id,
         )
@@ -421,8 +414,8 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         try:
             now = campaign.now_unix(self.settings.tzinfo)
             due = await asyncio.to_thread(self.db.list_due_starts, now)
+            guild = self.bot.get_guild(self.settings.guild_id)
             for item in due:
-                guild = self.bot.get_guild(item.guild_id)
                 if guild is None:
                     continue
                 disc_ch = (
@@ -445,8 +438,8 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         try:
             now = campaign.now_unix(self.settings.tzinfo)
             due = await asyncio.to_thread(self.db.list_due_campaigns, now)
+            guild = self.bot.get_guild(self.settings.guild_id)
             for item in due:
-                guild = self.bot.get_guild(item.guild_id)
                 if guild is not None:
                     await self._close_campaign_resources(guild, item)
         except Exception:
@@ -461,8 +454,8 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         try:
             now = campaign.now_unix(self.settings.tzinfo)
             due = await asyncio.to_thread(self.db.list_due_archives, now)
+            guild = self.bot.get_guild(self.settings.guild_id)
             for item in due:
-                guild = self.bot.get_guild(item.guild_id)
                 if guild is not None:
                     await self._archive_campaign_resources(guild, item)
         except Exception:
@@ -473,11 +466,10 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         await self.bot.wait_until_ready()
 
     async def _send_archive_not_found(
-        self, interaction: discord.Interaction, guild_id: int, ctf_name: str
+        self, interaction: discord.Interaction, ctf_name: str
     ) -> None:
         active = await asyncio.to_thread(
             self.db.find_active_campaign_by_name,
-            guild_id=guild_id,
             ctf_name=ctf_name.strip(),
         )
         if active is not None:
@@ -489,7 +481,6 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
             return
         archived = await asyncio.to_thread(
             self.db.find_closed_campaign_by_name,
-            guild_id=guild_id,
             ctf_name=ctf_name.strip(),
             archived=True,
         )
