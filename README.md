@@ -7,7 +7,7 @@ CTF サーバー向けの Discord bot です。
 - **CTFtime 通知** — 近日開催の CTF イベントを定期通知 / `/ctftime` で手動取得
 - **CTF 募集管理** — `/ctfteam open|list|close|archive` で参加者募集からアーカイブまで
 - **AlpacaHack 連携** — `/alpaca add|del|list|solve` でユーザー管理と週次 solve 集計
-- **times チャンネル** — `/times create` でカテゴリ配下にチャンネルを一括作成
+- **times チャンネル** — `/times create` でカテゴリ配下にチャンネルを作成
 - **ユーティリティ** — `/help`, `/perms`
 - **一時的な管理者昇格** — `/sudo`, `/unsudo` で期限付きロールを管理
 - **Discord 監査ログ保存** — Discord の監査ログエントリを DB に保存
@@ -24,7 +24,7 @@ uv run python src/main.py
 
 ## 環境変数
 
-必須は `DISCORD_TOKEN`・`GUILD_ID`・`CTF_TEAM_CATEGORY_ID`・`CTF_TEAM_ARCHIVE_CATEGORY_ID` の 4 つです。全項目の用途・型・必須性・デフォルト・検証規則は `docs/data-contracts.md`「設定契約」を参照してください（`.env.example` は同表と同期しています）。
+必須は `DISCORD_TOKEN`・`GUILD_ID`・`CTF_TEAM_CATEGORY_ID`・`CTF_TEAM_ARCHIVE_CATEGORY_ID`・`CTF_TEAM_ROLE_CHANNEL_ID` の 5 つです。全項目の用途・型・必須性・デフォルト・検証規則は `docs/data-contracts.md`「設定契約」を参照してください（`.env.example` は同表と同期しています）。
 
 ## Discord の設定
 
@@ -50,8 +50,8 @@ uv run python src/main.py
 
 ### サーバー側の準備
 
-- `CTF_TEAM_CATEGORY_ID` のカテゴリ内に、名前が `role` のテキストチャンネルを作成してください（`/ctfteam open` の募集メッセージ投稿先。無いと open が失敗します）
-- 名前が `times` のカテゴリを作成してください（`/times create` の作成先）
+- 募集メッセージの投稿先テキストチャンネルを作成し、その ID を `CTF_TEAM_ROLE_CHANNEL_ID` に設定してください（無いと `/ctfteam open` が失敗します）
+- `/times create` を使う場合は、作成先カテゴリを作成し、その ID を `TIMES_CATEGORY_ID` に設定してください
 
 ## 運用メモ
 
