@@ -388,6 +388,12 @@ PRAGMA user_version = 3;
         with self.assertRaises(ConflictError):
             self.create_campaign("example", message_id=4)
 
+    def test_duplicate_message_id_raises_repository_error_not_conflict(self) -> None:
+        self.create_campaign("First")
+        with self.assertRaises(RepositoryError) as ctx:
+            self.create_campaign("Second")
+        self.assertNotIsInstance(ctx.exception, ConflictError)
+
     def test_active_campaign_limit_is_enforced_on_insert(self) -> None:
         for index in range(5):
             self.create_campaign(f"Example {index}", message_id=index + 1)

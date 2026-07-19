@@ -473,6 +473,10 @@ class Database:
                     ),
                 )
             except sqlite3.IntegrityError as exc:
+                # 同名 active の unique index 違反のみ ConflictError。
+                # それ以外の制約違反は _connection が RepositoryError に変換する
+                if "ctf_team_campaign.ctf_name" not in str(exc):
+                    raise
                 raise ConflictError("Active campaign already exists.") from exc
             conn.commit()
             row = conn.execute(
