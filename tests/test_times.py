@@ -51,7 +51,7 @@ class TimesChannelsTest(unittest.IsolatedAsyncioTestCase):
             name="alpha-team", category=category
         )
         send_interaction.assert_awaited_once_with(
-            interaction, "✅ #alpha-team を作成しました。"
+            interaction, "✅ <#101> を作成しました。"
         )
         log_audit.assert_awaited_once_with(
             self.bot,
@@ -62,7 +62,7 @@ class TimesChannelsTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_create_times_skips_existing_channel_without_audit(self) -> None:
         category = mock.Mock(spec=discord.CategoryChannel)
-        category.text_channels = [SimpleNamespace(name="existing")]
+        category.text_channels = [SimpleNamespace(name="existing", mention="<#77>")]
         create_text_channel, interaction = self.make_interaction(category)
 
         with (
@@ -78,7 +78,7 @@ class TimesChannelsTest(unittest.IsolatedAsyncioTestCase):
 
         create_text_channel.assert_not_awaited()
         send_interaction.assert_awaited_once_with(
-            interaction, "⏭️ #existing は既に存在します。"
+            interaction, "⏭️ <#77> は既に存在します。"
         )
         log_audit.assert_not_awaited()
 

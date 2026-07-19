@@ -55,12 +55,22 @@ class TimesChannels(commands.GroupCog, group_name="times"):
         except ServiceError as exc:
             await send_interaction(interaction, str(exc))
             return
-        if any(channel.name == normalized for channel in category.text_channels):
-            await send_interaction(interaction, f"⏭️ #{normalized} は既に存在します。")
+        existing = next(
+            (
+                channel
+                for channel in category.text_channels
+                if channel.name == normalized
+            ),
+            None,
+        )
+        if existing is not None:
+            await send_interaction(
+                interaction, f"⏭️ {existing.mention} は既に存在します。"
+            )
             return
 
         channel = await guild.create_text_channel(name=normalized, category=category)
-        await send_interaction(interaction, f"✅ #{channel.name} を作成しました。")
+        await send_interaction(interaction, f"✅ {channel.mention} を作成しました。")
         await log_audit(
             self.bot,
             interaction,
