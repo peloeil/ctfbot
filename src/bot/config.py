@@ -18,8 +18,10 @@ class Settings:
     bot_status_channel_id: int | None
     ctf_team_category_id: int
     ctf_team_archive_category_id: int
+    ctf_team_role_channel_id: int
     ctftime_channel_id: int | None
     alpacahack_channel_id: int | None
+    times_category_id: int | None
     admin_role_id: int | None
     sudoer_role_id: int | None
     sudo_duration_minutes: int
@@ -101,6 +103,9 @@ def load_settings(
     ctf_team_archive_category_id = _read_int(env, "CTF_TEAM_ARCHIVE_CATEGORY_ID")
     if ctf_team_archive_category_id <= 0:
         raise ConfigurationError("CTF_TEAM_ARCHIVE_CATEGORY_ID must be greater than 0.")
+    ctf_team_role_channel_id = _read_int(env, "CTF_TEAM_ROLE_CHANNEL_ID")
+    if ctf_team_role_channel_id <= 0:
+        raise ConfigurationError("CTF_TEAM_ROLE_CHANNEL_ID must be greater than 0.")
 
     database_path = env.get("DATABASE_PATH", "ctfbot.db").strip() or "ctfbot.db"
     parent = Path(database_path).expanduser().resolve().parent
@@ -125,8 +130,10 @@ def load_settings(
         bot_status_channel_id=_read_int(env, "BOT_STATUS_CHANNEL_ID", 0) or None,
         ctf_team_category_id=ctf_team_category_id,
         ctf_team_archive_category_id=ctf_team_archive_category_id,
+        ctf_team_role_channel_id=ctf_team_role_channel_id,
         ctftime_channel_id=_read_int(env, "CTFTIME_CHANNEL_ID", 0) or None,
         alpacahack_channel_id=_read_int(env, "ALPACAHACK_CHANNEL_ID", 0) or None,
+        times_category_id=_read_int(env, "TIMES_CATEGORY_ID", 0) or None,
         admin_role_id=admin_role_id,
         sudoer_role_id=sudoer_role_id,
         sudo_duration_minutes=_require_positive(

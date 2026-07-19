@@ -26,12 +26,14 @@
 |---|---|---|---|---|---|
 | `DISCORD_TOKEN` | Bot トークン | `str` | Yes | なし | 必須文字列 |
 | `GUILD_ID` | bot を運用する唯一の guild（コマンド登録先） | `int` | Yes | なし | 必須 ID（`> 0`） |
-| `CTF_TEAM_CATEGORY_ID` | `#role`（募集メッセージ投稿先）・discussion・voice を配置するカテゴリ | `int` | Yes | なし | 必須 ID（`> 0`） |
+| `CTF_TEAM_CATEGORY_ID` | discussion・voice を配置するカテゴリ | `int` | Yes | なし | 必須 ID（`> 0`） |
 | `CTF_TEAM_ARCHIVE_CATEGORY_ID` | archive 時の discussion 移動先カテゴリ | `int` | Yes | なし | 必須 ID（`> 0`） |
+| `CTF_TEAM_ROLE_CHANNEL_ID` | 募集メッセージの投稿先テキストチャンネル | `int` | Yes | なし | 必須 ID（`> 0`） |
 | `BOT_CHANNEL_ID` | コマンド実行ログ・sudo 自動剥奪通知の送信先（`None` で無効） | `int \| None` | — | `0` | optional ID |
 | `BOT_STATUS_CHANNEL_ID` | 接続状態通知の送信先（`None` で無効） | `int \| None` | — | `0` | optional ID |
 | `CTFTIME_CHANNEL_ID` | CTFtime 週次通知の送信先（`None` で無効） | `int \| None` | — | `0` | optional ID |
 | `ALPACAHACK_CHANNEL_ID` | AlpacaHack 週次通知の送信先（`None` で無効） | `int \| None` | — | `0` | optional ID |
+| `TIMES_CATEGORY_ID` | `/times create` の作成先カテゴリ（`None` で times 機能無効） | `int \| None` | — | `0` | optional ID |
 | `ADMIN_ROLE_ID` | `/sudo` で一時付与する管理者ロール | `int \| None` | — | `0` | optional ID。`SUDOER_ROLE_ID` と**両方設定または両方未設定**（片方だけは起動拒否）。**同一のロール ID は起動拒否**（理由は `docs/features/sudo.md`） |
 | `SUDOER_ROLE_ID` | `/sudo` の実行を許可するロール | `int \| None` | — | `0` | optional ID。同上のペア制約・同一値拒否 |
 | `SUDO_DURATION_MINUTES` | 昇格の有効時間（分） | `int` | — | `30` | `_require_positive` |
@@ -55,8 +57,10 @@ class Settings:
     bot_status_channel_id: int | None
     ctf_team_category_id: int
     ctf_team_archive_category_id: int
+    ctf_team_role_channel_id: int
     ctftime_channel_id: int | None
     alpacahack_channel_id: int | None
+    times_category_id: int | None
     admin_role_id: int | None
     sudoer_role_id: int | None
     sudo_duration_minutes: int
