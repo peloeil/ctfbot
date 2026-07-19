@@ -62,7 +62,7 @@
 
 ## 実装パターン
 
-新しい cog を追加するときの典型的な手順。既存の `features/times.py` が最小の参考例（runtime 不使用）、`features/alpacahack.py` が runtime・DB・定期タスクを使う例。
+新しい cog を追加するときの典型的な手順。既存の `features/times.py` が最小の参考例（settings のみ使用）、`features/alpacahack.py` が runtime・DB・定期タスクを使う例。
 
 1. `src/bot/features/` にファイルを作成する
 2. `commands.Cog`（単発コマンド）または `commands.GroupCog`（サブコマンド群）を継承したクラスを定義する
@@ -99,7 +99,7 @@ async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(MyCog(bot))
 ```
 
-settings / db が不要な cog は `get_runtime` と `self.settings` / `self.db` の 3 行を省く（`times.py` 参照）。
+settings / db が不要な cog は `get_runtime` と `self.settings` / `self.db` の行を省く。
 
 ## 検証
 

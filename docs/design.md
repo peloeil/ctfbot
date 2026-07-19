@@ -59,7 +59,7 @@ ctf_team/discord_ops.py  ✗ db.py（import 禁止）
 sudo/cog.py              → sudo/models.py, helpers.py, runtime.py
 alpacahack.py            → db.py, helpers.py, runtime.py
 ctftime.py               → helpers.py, runtime.py
-times.py                 → helpers.py
+times.py                 → helpers.py, runtime.py
 utility.py               → （bot 内部依存なし）
 audit_log.py             → runtime.py
 db.py                    → features/<feature>/models.py（許可。ただし models.py は discord import 禁止）
