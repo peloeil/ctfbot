@@ -21,6 +21,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
         self.cog.db = self.db
         self.cog._grant_locks = defaultdict(asyncio.Lock)
         self.cog.settings = SimpleNamespace(
+            guild_id=1,
             admin_role_id=10,
             sudoer_role_id=20,
             sudo_duration_minutes=30,
@@ -104,7 +105,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
             await callback(self.cog, interaction)
 
         self.assertEqual(calls, ["db", "discord"])
-        self.db.upsert_sudo_grant.assert_called_once_with(1, 2, 10, 100, 1900)
+        self.db.upsert_sudo_grant.assert_called_once_with(2, 10, 100, 1900)
         member.add_roles.assert_awaited_once_with(role)
         send_interaction.assert_awaited_once_with(
             interaction,
@@ -124,7 +125,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
             callback = cast(Any, self.cog.sudo.callback)
             await callback(self.cog, interaction)
 
-        self.db.delete_sudo_grant.assert_called_once_with(1, 2)
+        self.db.delete_sudo_grant.assert_called_once_with(2)
         send_interaction.assert_awaited_once_with(interaction, ROLE_ADD_ERROR)
 
     async def test_sudo_renewal_uses_original_role_after_config_change(self) -> None:
@@ -139,7 +140,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
             configured_role.id: configured_role,
             granted_role.id: granted_role,
         }.get
-        self.db.get_sudo_grant.return_value = SudoGrant(1, 2, 9, 50, 200)
+        self.db.get_sudo_grant.return_value = SudoGrant(2, 9, 50, 200)
 
         with (
             mock.patch("bot.features.sudo.cog.time.time", return_value=100),
@@ -151,7 +152,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
             callback = cast(Any, self.cog.sudo.callback)
             await callback(self.cog, interaction)
 
-        self.db.upsert_sudo_grant.assert_called_once_with(1, 2, 9, 100, 1900)
+        self.db.upsert_sudo_grant.assert_called_once_with(2, 9, 100, 1900)
         member.add_roles.assert_not_awaited()
         send_interaction.assert_awaited_once_with(
             interaction, "⏫ 有効期限を <t:1900:R> に延長しました。"
@@ -166,7 +167,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
             member_roles=[sudoer_role, granted_role]
         )
         guild.get_role.side_effect = {9: granted_role, 10: None}.get
-        self.db.get_sudo_grant.return_value = SudoGrant(1, 2, 9, 50, 200)
+        self.db.get_sudo_grant.return_value = SudoGrant(2, 9, 50, 200)
 
         with (
             mock.patch("bot.features.sudo.cog.time.time", return_value=100),
@@ -178,7 +179,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
             callback = cast(Any, self.cog.sudo.callback)
             await callback(self.cog, interaction)
 
-        self.db.upsert_sudo_grant.assert_called_once_with(1, 2, 9, 100, 1900)
+        self.db.upsert_sudo_grant.assert_called_once_with(2, 9, 100, 1900)
         member.add_roles.assert_not_awaited()
         self.assertEqual(guild.get_role.call_args_list, [mock.call(9)])
         send_interaction.assert_awaited_once_with(
@@ -203,7 +204,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_sudo_failed_renewal_restores_previous_grant(self) -> None:
         interaction, _, member, _ = self.make_interaction()
-        previous = SudoGrant(1, 2, 10, 50, 200)
+        previous = SudoGrant(2, 10, 50, 200)
         self.db.get_sudo_grant.return_value = previous
         response = mock.Mock(status=403, reason="Forbidden")
         member.add_roles.side_effect = discord.Forbidden(response, "denied")
@@ -226,8 +227,8 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             self.db.upsert_sudo_grant.call_args_list,
             [
-                mock.call(1, 2, 10, 100, 1900),
-                mock.call(1, 2, 10, 50, 200),
+                mock.call(2, 10, 100, 1900),
+                mock.call(2, 10, 50, 200),
             ],
         )
         self.db.delete_sudo_grant.assert_not_called()
@@ -235,7 +236,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_unsudo_keeps_grant_when_role_removal_fails(self) -> None:
         interaction, _, member, _ = self.make_interaction()
-        self.db.get_sudo_grant.return_value = SudoGrant(1, 2, 10, 100, 200)
+        self.db.get_sudo_grant.return_value = SudoGrant(2, 10, 100, 200)
         response = mock.Mock(status=403, reason="Forbidden")
         member.remove_roles.side_effect = discord.Forbidden(response, "denied")
 
@@ -249,7 +250,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
         send_interaction.assert_awaited_once_with(interaction, ROLE_REMOVE_ERROR)
 
     async def test_expired_grant_removes_role_then_record_and_notifies(self) -> None:
-        grant = SudoGrant(1, 2, 10, 100, 200)
+        grant = SudoGrant(2, 10, 100, 200)
         _, guild, member, role = self.make_interaction()
         self.db.get_sudo_grant.return_value = grant
         guild.get_member.return_value = member
@@ -279,11 +280,11 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(calls, ["discord", "db"])
         member.remove_roles.assert_awaited_once_with(role)
-        self.db.delete_sudo_grant.assert_called_once_with(1, 2)
+        self.db.delete_sudo_grant.assert_called_once_with(2)
         send_safely.assert_awaited_once()
 
     async def test_expired_grant_for_departed_member_deletes_only_record(self) -> None:
-        grant = SudoGrant(1, 2, 10, 100, 200)
+        grant = SudoGrant(2, 10, 100, 200)
         _, guild, _, _ = self.make_interaction()
         self.db.get_sudo_grant.return_value = grant
         guild.get_member.return_value = None
@@ -295,11 +296,11 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
 
         await self.cog._revoke_expired_grant(grant)
 
-        self.db.delete_sudo_grant.assert_called_once_with(1, 2)
+        self.db.delete_sudo_grant.assert_called_once_with(2)
         guild.get_role.assert_not_called()
 
     async def test_expired_grant_keeps_record_when_member_lookup_fails(self) -> None:
-        grant = SudoGrant(1, 2, 10, 100, 200)
+        grant = SudoGrant(2, 10, 100, 200)
         _, guild, _, _ = self.make_interaction()
         self.db.get_sudo_grant.return_value = grant
         guild.get_member.return_value = None
@@ -315,8 +316,8 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
         guild.get_role.assert_not_called()
 
     async def test_expired_snapshot_does_not_revoke_renewed_grant(self) -> None:
-        candidate = SudoGrant(1, 2, 10, 100, 200)
-        renewed = SudoGrant(1, 2, 10, 100, 1900)
+        candidate = SudoGrant(2, 10, 100, 200)
+        renewed = SudoGrant(2, 10, 100, 1900)
         self.db.get_sudo_grant.return_value = renewed
 
         await self.cog._revoke_expired_grant(candidate, now_unix=300)
@@ -326,7 +327,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_unsudo_waits_for_in_flight_sudo_transition(self) -> None:
         interaction, _, member, _ = self.make_interaction()
-        grant = SudoGrant(1, 2, 10, 100, 1900)
+        grant = SudoGrant(2, 10, 100, 1900)
         self.db.get_sudo_grant.side_effect = [None, grant]
         role_add_started = asyncio.Event()
         release_role_add = asyncio.Event()
@@ -368,7 +369,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
             await asyncio.gather(sudo_task, unsudo_task)
 
         self.assertEqual(calls, ["add-start", "add-end", "remove"])
-        self.db.delete_sudo_grant.assert_called_once_with(1, 2)
+        self.db.delete_sudo_grant.assert_called_once_with(2)
 
 
 if __name__ == "__main__":

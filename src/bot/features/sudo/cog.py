@@ -32,9 +32,7 @@ class Sudo(commands.Cog):
         self.bot = bot
         self.settings = runtime.settings
         self.db = runtime.db
-        self._grant_locks: defaultdict[tuple[int, int], asyncio.Lock] = defaultdict(
-            asyncio.Lock
-        )
+        self._grant_locks: defaultdict[int, asyncio.Lock] = defaultdict(asyncio.Lock)
         self.revoke_expired_grants.start()
 
     async def cog_unload(self) -> None:
@@ -47,11 +45,9 @@ class Sudo(commands.Cog):
             admin_role_id, sudoer_role_id = self._require_configuration()
             member = self._require_sudoer(interaction, sudoer_role_id)
 
-            lock = self._grant_locks[guild.id, member.id]
+            lock = self._grant_locks[member.id]
             async with lock:
-                grant = await asyncio.to_thread(
-                    self.db.get_sudo_grant, guild.id, member.id
-                )
+                grant = await asyncio.to_thread(self.db.get_sudo_grant, member.id)
                 role, grant = await self._resolve_sudo_role(
                     guild, member, admin_role_id, grant
                 )
@@ -60,7 +56,6 @@ class Sudo(commands.Cog):
                 expires_at_unix = now_unix + self.settings.sudo_duration_minutes * 60
                 await asyncio.to_thread(
                     self.db.upsert_sudo_grant,
-                    guild.id,
                     member.id,
                     role.id,
                     now_unix,
@@ -71,7 +66,7 @@ class Sudo(commands.Cog):
                         await member.add_roles(role)
                     except discord.Forbidden, discord.HTTPException:
                         await self._restore_grant_after_role_add_failure(
-                            guild.id, member.id, grant
+                            member.id, grant
                         )
                         raise ServiceError(ROLE_ADD_ERROR) from None
 
@@ -99,11 +94,9 @@ class Sudo(commands.Cog):
         try:
             guild = require_guild(interaction)
             member = self._require_member(interaction)
-            lock = self._grant_locks[guild.id, member.id]
+            lock = self._grant_locks[member.id]
             async with lock:
-                grant = await asyncio.to_thread(
-                    self.db.get_sudo_grant, guild.id, member.id
-                )
+                grant = await asyncio.to_thread(self.db.get_sudo_grant, member.id)
                 if grant is None:
                     raise ServiceError("昇格中ではありません。")
 
@@ -116,7 +109,7 @@ class Sudo(commands.Cog):
                     except discord.Forbidden, discord.HTTPException:
                         raise ServiceError(ROLE_REMOVE_ERROR) from None
 
-                await asyncio.to_thread(self.db.delete_sudo_grant, guild.id, member.id)
+                await asyncio.to_thread(self.db.delete_sudo_grant, member.id)
         except ServiceError as exc:
             await send_interaction(interaction, str(exc))
             return
@@ -168,9 +161,7 @@ class Sudo(commands.Cog):
             granted_role = guild.get_role(grant.role_id)
             if granted_role is not None:
                 return granted_role, grant
-            await asyncio.to_thread(
-                self.db.delete_sudo_grant, grant.guild_id, grant.user_id
-            )
+            await asyncio.to_thread(self.db.delete_sudo_grant, grant.user_id)
             grant = None
 
         configured_role = guild.get_role(admin_role_id)
@@ -182,17 +173,15 @@ class Sudo(commands.Cog):
 
     async def _restore_grant_after_role_add_failure(
         self,
-        guild_id: int,
         user_id: int,
         previous_grant: SudoGrant | None,
     ) -> None:
         try:
             if previous_grant is None:
-                await asyncio.to_thread(self.db.delete_sudo_grant, guild_id, user_id)
+                await asyncio.to_thread(self.db.delete_sudo_grant, user_id)
                 return
             await asyncio.to_thread(
                 self.db.upsert_sudo_grant,
-                previous_grant.guild_id,
                 previous_grant.user_id,
                 previous_grant.role_id,
                 previous_grant.granted_at_unix,
@@ -213,10 +202,8 @@ class Sudo(commands.Cog):
                     await self._revoke_expired_grant(grant, now_unix)
                 except Exception:
                     logger.exception(
-                        "Failed to process expired sudo grant for member %s "
-                        "in guild %s",
+                        "Failed to process expired sudo grant for member %s",
                         grant.user_id,
-                        grant.guild_id,
                     )
         except Exception:
             logger.exception("Error in revoke_expired_grants")
@@ -228,27 +215,23 @@ class Sudo(commands.Cog):
     async def _revoke_expired_grant(
         self, candidate: SudoGrant, now_unix: int | None = None
     ) -> None:
-        lock = self._grant_locks[candidate.guild_id, candidate.user_id]
+        lock = self._grant_locks[candidate.user_id]
         async with lock:
-            grant = await asyncio.to_thread(
-                self.db.get_sudo_grant, candidate.guild_id, candidate.user_id
-            )
+            grant = await asyncio.to_thread(self.db.get_sudo_grant, candidate.user_id)
             if grant is None:
                 return
             cutoff = int(time.time()) if now_unix is None else now_unix
             if grant.expires_at_unix > cutoff:
                 return
 
-            guild = self.bot.get_guild(grant.guild_id)
+            guild = self.bot.get_guild(self.settings.guild_id)
             if guild is None:
                 return
 
             member, confirmed_absent = await self._resolve_member(guild, grant.user_id)
             if member is None:
                 if confirmed_absent:
-                    await asyncio.to_thread(
-                        self.db.delete_sudo_grant, grant.guild_id, grant.user_id
-                    )
+                    await asyncio.to_thread(self.db.delete_sudo_grant, grant.user_id)
                 return
 
             role = guild.get_role(grant.role_id)
@@ -259,15 +242,12 @@ class Sudo(commands.Cog):
                     pass
                 except discord.Forbidden, discord.HTTPException:
                     logger.warning(
-                        "Failed to revoke sudo role from member %s in guild %s",
+                        "Failed to revoke sudo role from member %s",
                         grant.user_id,
-                        grant.guild_id,
                     )
                     return
 
-            await asyncio.to_thread(
-                self.db.delete_sudo_grant, grant.guild_id, grant.user_id
-            )
+            await asyncio.to_thread(self.db.delete_sudo_grant, grant.user_id)
 
         channel = await resolve_messageable(self.bot, self.settings.bot_channel_id)
         if channel is not None:
