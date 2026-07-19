@@ -8,7 +8,7 @@
 
 ### `/help`
 
-`bot.tree.get_commands()` で全コマンド取得。Group コマンドは 1 段だけ展開して `/group subcommand — description` 形式で（ネストした subgroup の子は列挙しない）、単発コマンドは `/command — description` 形式で列挙し、行の文字列を辞書順にソートして応答。description は各コマンド定義の値をそのまま表示する。
+`bot.tree.get_commands(guild=interaction.guild)` で guild 登録の全コマンドを取得する（起動時に global コマンドを guild へコピーし global 登録を削除するため、guild を指定しない取得は空になる）。Group コマンドは 1 段だけ展開して `/group subcommand — description` 形式で（ネストした subgroup の子は列挙しない）、単発コマンドは `/command — description` 形式で列挙し、行の文字列を辞書順にソートして応答。description は各コマンド定義の値をそのまま表示する。
 
 応答の分割・切り詰めは非目標とする。
 

@@ -43,7 +43,9 @@ class UtilityCommands(commands.Cog):
             await _respond_ephemeral(interaction, "サーバー内で実行してください。")
             return
         lines: list[str] = []
-        for command in self.bot.tree.get_commands():
+        # 起動時に global コマンドを guild へコピーして global 登録を削除するため、
+        # コマンド一覧は guild 側の tree から取得する
+        for command in self.bot.tree.get_commands(guild=interaction.guild):
             if isinstance(command, app_commands.Group):
                 for child in command.commands:
                     lines.append(f"/{command.name} {child.name} — {child.description}")
