@@ -23,7 +23,7 @@
 | AlpacaHack 連携の仕様 | `docs/features/alpacahack.md` |
 | times チャンネルの仕様 | `docs/features/times.md` |
 | ユーティリティコマンドの仕様 | `docs/features/utility.md` |
-| Discord 監査ログ保存の仕様 | `docs/features/audit-log.md` |
+| Discord 監査ログ保存・管理者操作通知の仕様 | `docs/features/audit-log.md` |
 | 一時的な管理者昇格 (sudo) の仕様 | `docs/features/sudo.md` |
 | セットアップ・環境変数・Discord 設定 | `README.md` |
 

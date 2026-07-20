@@ -19,8 +19,13 @@
 
 - `resolve_messageable(bot, channel_id) -> Messageable | None`: 設定されたチャンネル ID を cache → fetch の順で解決する。ID が未設定（None）・解決失敗（`NotFound`・`Forbidden`・`HTTPException`）・送信可能でない場合は None を返し、呼び出し側は通知をスキップする。解決失敗（未設定を除く）は warning ログを 1 行残す（設定不良の検知手段）
 - `send_safely(channel, content=None, embed=None, allowed_mentions=None) -> Message | None`: チャンネルへ送信し、失敗（`HTTPException`）時は例外ログを残して None を返す（raise しない）。通知の失敗で主処理を壊さないための境界。`allowed_mentions` は呼び出し側が明示する（省略時はライブラリ既定）
+- `send_audit_message(bot, lines: Sequence[str]) -> None`: `BOT_CHANNEL_ID` への記録メッセージの共通経路。行を改行で結合し、1900 文字（`MAX_AUDIT_CONTENT_LENGTH`）を超える場合は 1897 文字 + `...` に切り詰め、`AllowedMentions.none()` で送信する。`BOT_CHANNEL_ID` 未設定・チャンネル解決失敗時は何もしない。sanitize は行わない（表示したいメンション `<@{id}>` を壊さないため、ユーザー入力由来の値は呼び出し側が `sanitize_audit_text` を適用してから渡す）。利用者: `log_audit`（下記）と管理者操作の通知（`docs/features/audit-log.md`）
 
 メンション方針: 実際に ping してよいのはメンバーメンションと、CTF 募集メッセージの募集ロール ping（`docs/features/ctf-team.md`「募集メッセージ形式」で明示的に許可する唯一のロール ping）のみ。ユーザー入力（CTF 名等）を含む文面は `AllowedMentions.none()` で、メンバー列挙チャンクは users のみ許可（everyone・roles 拒否）で送る。
+
+## メンバー解決
+
+- `fetch_member(guild, user_id) -> Member | None`: guild メンバーを cache → fetch の順で解決する。解決失敗（`NotFound`・`Forbidden`・`HTTPException`）は None を返し、呼び出し側は該当処理をスキップする
 
 ## 共通エラーハンドラ
 
@@ -41,14 +46,13 @@ cog が処理しなかったコマンドの例外は `app.py` の `bot.tree.erro
 - {details の各行}
 ```
 
-- `AllowedMentions.none()` 付きで送信する（実行者・チャンネルのメンションは表示のみで通知は飛ばない）
+- 送信は `send_audit_message`（上記「チャンネルへの通知」）経由。メンション抑止（`AllowedMentions.none()`。実行者・チャンネルのメンションは表示のみで通知は飛ばない）と 1900 文字（`MAX_AUDIT_CONTENT_LENGTH`。2000 文字制限へのマージン）超過時の切り詰め（1897 文字 + `...`。`...` 込みで 1900 文字以内）はその契約に従う
 - command_name・details を sanitize する: 空白を 1 つに正規化し、`<@` にゼロ幅スペースを挿入（ユーザー入力による ping を無効化）
-- 1900 文字（`MAX_AUDIT_CONTENT_LENGTH`。2000 文字制限へのマージン）を超える場合は 1897 文字に切り詰めて `...` を付ける（`...` 込みで 1900 文字以内）
 - `channel_id` を持たないコンテキストでは `unknown` と表示する（全コマンド guild 限定のため通常は発生しない）
 
 ## 表示テキストの escape 方針
 
-- ping 抑止はメンション制御（`AllowedMentions`）と log_audit の sanitize で行う（上記）
+- ping 抑止はメンション制御（`AllowedMentions`）と sanitize（`sanitize_audit_text`。log_audit と管理者操作通知の `理由` 行で適用）で行う（上記）
 - log_audit 以外では Markdown escape を行わない。平文・Embed 本文に含まれる外部由来文字列（CTF 名・challenge 名等）による表示崩れは許容する
 - 例外: Embed 内のリンク `[名前](URL)` に埋め込む外部由来の値がリンク構文を壊す文字（`]`・`(`・`)`）を含む場合は、リンク化せず名前のみを表示する（URL 側が壊れている場合はリンク行自体を省略する）
 
