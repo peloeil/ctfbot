@@ -95,6 +95,20 @@ def sanitize_audit_text(value: object) -> str:
     return normalized.replace("<@", "<@\u200b")
 
 
+async def send_audit_message(bot: commands.Bot, lines: Sequence[str]) -> None:
+    try:
+        runtime = get_runtime(bot)
+    except RuntimeError:
+        return
+    channel = await resolve_messageable(bot, runtime.settings.bot_channel_id)
+    if channel is None:
+        return
+    content = "\n".join(lines)
+    if len(content) > MAX_AUDIT_CONTENT_LENGTH:
+        content = content[: MAX_AUDIT_CONTENT_LENGTH - 3] + "..."
+    await send_safely(channel, content, allowed_mentions=discord.AllowedMentions.none())
+
+
 async def log_audit(
     bot: commands.Bot,
     interaction: discord.Interaction,
@@ -102,18 +116,6 @@ async def log_audit(
     command_name: str,
     details: Sequence[str] = (),
 ) -> None:
-    try:
-        runtime = get_runtime(bot)
-    except RuntimeError:
-        return
-    channel_id = runtime.settings.bot_channel_id
-    if channel_id is None:
-        return
-
-    channel = await resolve_messageable(bot, channel_id)
-    if channel is None:
-        return
-
     channel_ref = (
         f"<#{interaction.channel_id}>"
         if interaction.channel_id is not None
@@ -126,10 +128,7 @@ async def log_audit(
         f"`/{sanitize_audit_text(command_name)}` を実行しました。"
     ]
     lines.extend(f"- {sanitize_audit_text(item)}" for item in details)
-    content = "\n".join(lines)
-    if len(content) > MAX_AUDIT_CONTENT_LENGTH:
-        content = content[: MAX_AUDIT_CONTENT_LENGTH - 3] + "..."
-    await send_safely(channel, content, allowed_mentions=discord.AllowedMentions.none())
+    await send_audit_message(bot, lines)
 
 
 async def resolve_messageable(
