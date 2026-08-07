@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v9
-      - run: uv sync --frozen --group dev
+      - run: uv sync --frozen
       - run: uv run ruff check src/ tests/
       - run: uv run ruff format --check src/ tests/
 
@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v9
-      - run: uv sync --frozen --group dev
+      - run: uv sync --frozen
       - run: uv run ty check
 
   test:
@@ -40,7 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v9
-      - run: uv sync --frozen --group dev
+      - run: uv sync --frozen
       - run: uv run python -m unittest discover -s tests -v
 ```
 

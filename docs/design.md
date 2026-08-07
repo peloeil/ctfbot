@@ -100,7 +100,7 @@ AlpacaHack のスクレイピング用。HTML パーサーとして `html.parser
 
 ### uv
 
-パッケージ管理・仮想環境管理。`uv sync --group dev` で開発依存を含むインストール。
+パッケージ管理・仮想環境管理。`uv sync` で開発依存を含むインストール（`dev` は既定グループ）。本番は `uv sync --no-dev`。
 
 ## アーキテクチャ判断
 
