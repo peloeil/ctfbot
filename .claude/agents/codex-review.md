@@ -15,7 +15,7 @@ Codex が実装した変更を、docs/ の仕様ドキュメントと照合し�
 3. 以下の観点でレビュー:
    - 仕様に記載されたコマンド・引数・エラーケースが全て実装されているか
    - DB スキーマが仕様と一致するか
-   - AGENTS.md のコーディング規約に準拠しているか（dataclass frozen/slots、例外階層、モジュール分割）
+   - AGENTS.md のコーディング規約に準拠しているか
    - `cogs_loader.py` に登録されているか
    - 情報の書き分け原則に準拠しているか
 4. `uv run ruff check src/ tests/ && uv run ruff format --check src/ tests/` を実行
