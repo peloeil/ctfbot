@@ -458,7 +458,3 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
         log_error.assert_called_once_with(
             "Failed to save audit log entry %s: %s", entry.id, error
         )
-
-
-if __name__ == "__main__":
-    unittest.main()

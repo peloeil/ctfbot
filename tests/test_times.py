@@ -135,7 +135,3 @@ class TimesChannelsTest(unittest.IsolatedAsyncioTestCase):
         send_interaction.assert_awaited_once_with(
             interaction, "times カテゴリが見つかりません。"
         )
-
-
-if __name__ == "__main__":
-    unittest.main()

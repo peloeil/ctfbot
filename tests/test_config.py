@@ -173,7 +173,3 @@ class ConfigTest(unittest.TestCase):
             load_settings(environ=self.env(BOT_CHANNEL_ID="-1"))
         with self.assertRaises(ConfigurationError):
             load_settings(environ=self.env(BOT_CHANNEL_ID="not-an-int"))
-
-
-if __name__ == "__main__":
-    unittest.main()

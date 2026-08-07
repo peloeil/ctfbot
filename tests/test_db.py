@@ -538,7 +538,3 @@ PRAGMA user_version = 3;
             [item.id for item in all_items],
             [closed.id, active_new.id, active_old.id],
         )
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -33,7 +33,3 @@ class AppTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(guild.id, 999)
         self.assertEqual(tree.sync.await_args_list, [mock.call(guild=guild)])
         tree.clear_commands.assert_not_called()
-
-
-if __name__ == "__main__":
-    unittest.main()

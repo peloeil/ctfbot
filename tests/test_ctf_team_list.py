@@ -27,7 +27,3 @@ class CampaignListEmbedTest(unittest.TestCase):
 
         self.assertLessEqual(len(description), 4096)
         self.assertIn(f"他 {len(campaigns) - shown} 件は省略しています。", description)
-
-
-if __name__ == "__main__":
-    unittest.main()

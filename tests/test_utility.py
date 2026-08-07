@@ -68,7 +68,3 @@ class HelpCommandTest(unittest.IsolatedAsyncioTestCase):
         await self.invoke_help()
 
         self.interaction.response.send_message.assert_awaited_once()
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -81,7 +81,3 @@ class ArchitectureTest(unittest.TestCase):
             }
             forbidden -= allowed_self
             self.assertFalse(forbidden, f"{module} imports {sorted(forbidden)}")
-
-
-if __name__ == "__main__":
-    unittest.main()

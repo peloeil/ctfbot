@@ -101,7 +101,3 @@ class CTFTimeClientTest(unittest.TestCase):
             self.client.fetch_events(days=1, limit=1)
         self.assertEqual(get.call_count, 2)
         sleep.assert_called_once_with(0.1)
-
-
-if __name__ == "__main__":
-    unittest.main()

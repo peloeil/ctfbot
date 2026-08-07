@@ -338,7 +338,3 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
         )
         self.cog.db.add_alpacahack_user.assert_called_once_with("alice", max_users=50)
         log_audit.assert_not_awaited()
-
-
-if __name__ == "__main__":
-    unittest.main()

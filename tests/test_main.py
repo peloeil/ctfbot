@@ -41,7 +41,3 @@ class EnsureProjectVenvTest(unittest.TestCase):
             any(name == "bot" or name.startswith("bot.") for name in imports),
             "module-level import of bot defeats ensure_project_venv",
         )
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -374,7 +374,3 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(calls, ["add-start", "add-end", "remove"])
         self.db.delete_sudo_grant.assert_called_once_with(2)
-
-
-if __name__ == "__main__":
-    unittest.main()

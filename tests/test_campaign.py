@@ -135,7 +135,3 @@ class CampaignLogicTest(unittest.TestCase):
         self.assertFalse(campaign.is_expired(permanent, self.tz))
         self.assertTrue(campaign.is_started(past, self.tz))
         self.assertFalse(campaign.is_started(future, self.tz))
-
-
-if __name__ == "__main__":
-    unittest.main()
