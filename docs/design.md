@@ -236,7 +236,7 @@ API クライアントは各 cog の `__init__` でローカル生成する。fe
 - `before_loop` で bot の ready を待つ
 - cog unload 時にループを cancel する
 
-通知の配信保証は全て **at-most-once** とする: claim（状態遷移の確定）に成功した呼び出しだけが送信を試み、送信失敗はログに残して再送しない。at-least-once 化・再送機構の導入は非目標。
+送信失敗はログに残して再送しない。at-least-once 化・再送機構の導入は非目標。
 
 ### 週次通知の実行時刻は start 前に設定する
 
