@@ -17,10 +17,7 @@ Codex が実装した変更を、docs/ の仕様ドキュメントと照合し�
    - DB スキーマが仕様と一致するか
    - AGENTS.md のコーディング規約に準拠しているか（dataclass frozen/slots、例外階層、モジュール分割）
    - `cogs_loader.py` に登録されているか
-   - 情報の書き分け原則に準拠しているか:
-     - テスト名が振る舞い（What）を記述し、assert が型ではなく期待値を検証しているか
-     - コメントが Why not（素直な書き方を避けた理由）に限定されているか。How の説明コメントは削除対象
-     - コミットに本文がある場合、Why（何が問題で、なぜこの変更か）が書かれているか
+   - 情報の書き分け原則に準拠しているか
 4. `uv run ruff check src/ tests/ && uv run ruff format --check src/ tests/` を実行
 5. `uv run ty check` を実行
 6. `uv run python -m unittest discover -s tests -v` を実行
