@@ -57,7 +57,7 @@ sudo/cog.py              → sudo/models.py, helpers.py, runtime.py
 alpacahack.py            → db.py, helpers.py, runtime.py
 ctftime.py               → helpers.py, runtime.py
 times.py                 → helpers.py, runtime.py
-utility.py               → （bot 内部依存なし）
+utility.py               → helpers.py
 audit_log.py             → runtime.py
 db.py                    → features/<feature>/models.py（許可。ただし models.py は discord import 禁止）
 db.py                    ✗ discord（import 禁止）
@@ -68,7 +68,7 @@ errors.py と log.py はどの層から import してもよい（図からは省
 feature 間の相互 import は禁止（features/ 直下のすべての feature が対象）。
 ```
 
-この依存図は許可される依存の上限であり、新しい依存辺の追加は設計判断としてレビューを要する。なお `utility.py` は bot 内部依存を持たないため、`send_interaction` を使わず直接 `interaction.response` で応答する（コマンド応答経路の明示的な例外。`docs/core.md`）。
+この依存図は許可される依存の上限であり、新しい依存辺の追加は設計判断としてレビューを要する。
 
 `tests/test_architecture.py` が AST で静的に検証するのは ✗ の禁止制約・db.py の feature import が models のみであること・feature 間の相互 import 禁止で、→ の依存関係はレビューでのみ担保される。新 feature 追加時は同テストの `feature_modules` 一覧への追加が必要（手順は `AGENTS.md`）。
 
