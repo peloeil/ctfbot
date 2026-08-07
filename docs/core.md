@@ -61,7 +61,3 @@ cog が処理しなかったコマンドの例外は `app.py` の `bot.tree.erro
 - 初回の ready 時のみ: `🟢 ctfbot が接続しました ({YYYY-MM-DD HH:MM:SS TZ})`（再接続では送らない）
 - SIGINT による終了時のみ: `🔴 ctfbot が停止します ({同書式})`
 - SIGTERM 等それ以外の終了経路では切断通知を送らない（非目標）
-
-## 関連設定
-
-環境変数の定義は `docs/data-contracts.md`「設定契約」を正本とする。
