@@ -260,7 +260,6 @@ API クライアントは各 cog の `__init__` でローカル生成する。fe
 |---|---|---|
 | `ServiceError` | ユーザー向けエラー。メッセージは日本語 | cog が catch → `send_interaction` で表示 |
 | `RepositoryError` | DB 操作失敗 | ログに記録 |
-| `ConflictError` | 一意制約違反（同名 campaign 等） | cog が catch → cleanup + エラー表示 |
 | `ExternalAPIError` | 外部 API 呼び出し失敗 | ログに記録 + ユーザーにフォールバック応答 |
 | `ConfigurationError` | 起動時の設定不備 | fail-fast（bot 起動しない） |
 
