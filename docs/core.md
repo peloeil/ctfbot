@@ -10,7 +10,7 @@
 
 ## コマンド応答
 
-- `send_interaction(interaction, content, ephemeral=True) -> None`: 全 cog に共通のコマンド応答経路（例外なし）。デフォルト ephemeral（public にする場合のみ呼び出し側が明示）。初回応答済み（defer 含む）なら followup へ自動で切り替える。メンションは常に `AllowedMentions.none()`。送信失敗（`InteractionResponded`・`NotFound`・`HTTPException`）は例外ログのみで raise しない
+- `send_interaction(interaction, content, ephemeral=True) -> None`: 全 cog に共通のコマンド応答経路。デフォルト ephemeral（public にする場合のみ呼び出し側が明示）。初回応答済み（defer 含む）なら followup へ自動で切り替える。メンションは常に `AllowedMentions.none()`。送信失敗（`InteractionResponded`・`NotFound`・`HTTPException`）は例外ログのみで raise しない
 - `require_guild(interaction) -> Guild`: guild 外での実行に `ServiceError("サーバー内で実行してください。")` を raise する
 
 ## チャンネルへの通知
