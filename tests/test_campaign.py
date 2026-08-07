@@ -32,8 +32,8 @@ class CampaignLogicTest(unittest.TestCase):
             discussion_channel_id=4,
             voice_channel_id=5,
             ctf_name=name,
-            start_at_unix=campaign.to_unix(
-                campaign.parse_datetime("2026-01-01 10:00", self.tz)
+            start_at_unix=int(
+                campaign.parse_datetime("2026-01-01 10:00", self.tz).timestamp()
             ),
             end_at_unix=None,
             created_by=created_by,

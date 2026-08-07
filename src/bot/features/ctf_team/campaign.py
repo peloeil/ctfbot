@@ -21,10 +21,6 @@ def parse_datetime(raw: str, tz: datetime.tzinfo) -> datetime.datetime:
         ) from exc
 
 
-def to_unix(dt: datetime.datetime) -> int:
-    return int(dt.timestamp())
-
-
 def now_unix(tz: datetime.tzinfo) -> int:
     return int(datetime.datetime.now(tz).timestamp())
 
@@ -51,11 +47,11 @@ def parse_campaign_draft(
                 "終了日時は開始日時より後にしてください。"
                 "常設CTFの場合は終了日時を空欄にしてください。"
             )
-        end_at_unix = to_unix(end_at)
+        end_at_unix = int(end_at.timestamp())
 
     return CampaignDraft(
         ctf_name=normalized_name,
-        start_at_unix=to_unix(start_at),
+        start_at_unix=int(start_at.timestamp()),
         end_at_unix=end_at_unix,
     )
 
