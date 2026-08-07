@@ -78,7 +78,7 @@ feature 間の相互 import は禁止（features/ 直下のすべての feature 
 
 ### Python 3.14+
 
-`pyproject.toml` の `requires-python = ">=3.14"` に準拠。
+`pyproject.toml` の `requires-python` に準拠。
 
 ### discord.py 2.x
 
