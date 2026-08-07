@@ -48,31 +48,7 @@
 
 ### Settings
 
-```python
-@dataclass(frozen=True, slots=True)
-class Settings:
-    discord_token: str
-    guild_id: int
-    bot_channel_id: int | None
-    bot_status_channel_id: int | None
-    ctf_team_category_id: int
-    ctf_team_archive_category_id: int
-    ctf_team_role_channel_id: int
-    ctftime_channel_id: int | None
-    alpacahack_channel_id: int | None
-    times_category_id: int | None
-    admin_role_id: int | None
-    sudoer_role_id: int | None
-    sudo_duration_minutes: int
-    tzinfo: ZoneInfo
-    log_level: str
-    database_path: str
-    alpacahack_solve_time: datetime.time
-    ctftime_notification_time: datetime.time
-    ctftime_window_days: int
-    ctftime_event_limit: int
-    ctftime_user_agent: str
-```
+`load_settings()` が返す dataclass。フィールドは上の環境変数一覧と 1 対 1 で、`TIMEZONE` のみ変換後の `tzinfo: ZoneInfo` として保持する。宣言は `src/bot/config.py` を参照する。
 
 ## データモデル
 
@@ -80,56 +56,7 @@ class Settings:
 
 ### ctf_team（`features/ctf_team/models.py`）
 
-```python
-class CampaignStatus(Enum):
-    ACTIVE = "active"
-    CLOSED = "closed"
-
-
-@dataclass(frozen=True, slots=True)
-class ActiveCampaign:
-    id: int
-    channel_id: int
-    message_id: int
-    role_id: int
-    ctf_name: str
-    start_at_unix: int
-    end_at_unix: int | None
-    status: Literal[CampaignStatus.ACTIVE]
-    created_by: int
-    created_at_unix: int
-    discussion_channel_id: int | None = None
-    voice_channel_id: int | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class ClosedCampaign:
-    id: int
-    channel_id: int
-    message_id: int
-    role_id: int
-    ctf_name: str
-    start_at_unix: int
-    end_at_unix: int | None
-    status: Literal[CampaignStatus.CLOSED]
-    created_by: int
-    created_at_unix: int
-    closed_at_unix: int
-    archive_at_unix: int
-    archived_at_unix: int | None = None
-    discussion_channel_id: int | None = None
-    voice_channel_id: int | None = None
-
-
-type Campaign = ActiveCampaign | ClosedCampaign
-
-
-@dataclass(frozen=True, slots=True)
-class CampaignDraft:
-    ctf_name: str
-    start_at_unix: int
-    end_at_unix: int | None
-```
+`CampaignStatus`（`active` / `closed` の Enum）、状態別の `ActiveCampaign` と `ClosedCampaign`、その union である `type Campaign`、parse 済み入力を表す `CampaignDraft` を定義する。`status` は `Literal[CampaignStatus.*]` で discriminator になる（`docs/design.md`「状態依存データは型で表す」）。
 
 invariant（DB decoder が実行時に検証し、違反行は `RepositoryError` にする）:
 
@@ -137,54 +64,18 @@ invariant（DB decoder が実行時に検証し、違反行は `RepositoryError`
 - closed 行は `closed_at_unix`・`archive_at_unix` が非 NULL（`archived_at_unix` は未 archive なら NULL）
 - `end_at_unix` が NULL の campaign は常設（終了期限なし）
 - `discussion_channel_id`・`voice_channel_id` は decoder で `0` を `None` に正規化する
-- `CampaignDraft` は parse 済み入力を表す Discord/DB 非依存モデル
 
 ### sudo（`features/sudo/models.py`）
 
-```python
-@dataclass(frozen=True, slots=True)
-class SudoGrant:
-    user_id: int
-    role_id: int
-    granted_at_unix: int
-    expires_at_unix: int
-```
-
-`role_id` は付与時点の `ADMIN_ROLE_ID` を保存する（grant 有効中の設定変更を反映しない。理由は `docs/features/sudo.md`）。
+`SudoGrant` を定義する。`role_id` は付与時点の `ADMIN_ROLE_ID` を保存する（grant 有効中の設定変更を反映しない。理由は `docs/features/sudo.md`）。
 
 ### ctftime（`features/ctftime.py`）
 
-```python
-@dataclass(frozen=True, slots=True)
-class CTFEvent:
-    title: str
-    start: datetime.datetime
-    finish: datetime.datetime
-    ctftime_url: str
-```
-
-`start`・`finish` は `Settings.tzinfo` へ変換済みの aware datetime。`ctftime_url` は取得できなければ `""`。
+`CTFEvent` を定義する。`start`・`finish` は `Settings.tzinfo` へ変換済みの aware datetime。`ctftime_url` は取得できなければ `""`。
 
 ### alpacahack（`features/alpacahack.py`）
 
-```python
-@dataclass(frozen=True, slots=True)
-class SolveRecord:
-    challenge_name: str
-    challenge_url: str | None
-    solved_at: datetime.datetime
-
-
-@dataclass(frozen=True, slots=True)
-class WeeklySolveSummary:
-    week_start: datetime.date
-    week_end: datetime.date
-    total_users: int
-    weekly_solves: dict[str, list[SolveRecord]]
-    failed_users: list[str]
-```
-
-`solved_at` は `Settings.tzinfo` へ変換済みの aware datetime。`weekly_solves` のキーは username。取得に失敗したユーザーは `weekly_solves` に含めず `failed_users` にのみ入れる。
+`SolveRecord` と、その週次集計である `WeeklySolveSummary` を定義する。`solved_at` は `Settings.tzinfo` へ変換済みの aware datetime。`weekly_solves` のキーは username。取得に失敗したユーザーは `weekly_solves` に含めず `failed_users` にのみ入れる。
 
 ### audit_log
 
