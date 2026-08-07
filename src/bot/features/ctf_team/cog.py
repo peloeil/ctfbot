@@ -278,7 +278,7 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
             self.db.list_campaigns,
             filter_status,
         )
-        embed = _build_campaigns_embed(guild_id, campaigns, _status_label(status))
+        embed = _build_campaigns_embed(guild_id, campaigns, status)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="close", description="CTF募集を終了します。")
@@ -617,13 +617,12 @@ def _can_manage_campaign(interaction: discord.Interaction, item: Campaign) -> bo
     return bool(permissions and permissions.manage_guild)
 
 
-def _status_label(status: str) -> str:
-    return {"active": "募集中", "closed": "終了", "all": "すべて"}.get(status, status)
-
-
 def _build_campaigns_embed(
-    guild_id: int, campaigns: list[Campaign], status_label: str
+    guild_id: int, campaigns: list[Campaign], status: str
 ) -> discord.Embed:
+    status_label = {"active": "募集中", "closed": "終了", "all": "すべて"}.get(
+        status, status
+    )
     embed = discord.Embed(title=f"CTF募集一覧 ({status_label})")
     if not campaigns:
         embed.description = "該当する募集はありません。"

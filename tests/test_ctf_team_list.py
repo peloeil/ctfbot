@@ -22,7 +22,7 @@ class CampaignListEmbedTest(unittest.TestCase):
             for index in range(1, 21)
         ]
 
-        description = _build_campaigns_embed(1, campaigns, "募集中").description or ""
+        description = _build_campaigns_embed(1, campaigns, "active").description or ""
         shown = description.count("\n\n**")
 
         self.assertLessEqual(len(description), 4096)
