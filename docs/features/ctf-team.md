@@ -240,7 +240,6 @@ discussion チャンネルは normalize 結果を、voice チャンネルは `{n
 | `ARCHIVE_DELAY_DAYS` | 30 | close から archive までの日数 |
 | `INPUT_DATETIME_FORMAT` | `%Y-%m-%d %H:%M` | 日時入力形式 |
 | `REACTION_EMOJI` | ✅ | 参加リアクション |
-| `MAX_CHANNEL_NAME_LENGTH` | 100 | チャンネル名の最大長（Discord の上限に一致） |
 | `MENTION_CHUNK_SIZE` | 1700 | メンション分割の 1 メッセージ上限 |
 
 ## 対象外
