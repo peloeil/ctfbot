@@ -37,7 +37,7 @@
 | `ADMIN_ROLE_ID` | `/sudo` で一時付与する管理者ロール | `int \| None` | — | `0` | optional ID。`SUDOER_ROLE_ID` と**両方設定または両方未設定**（片方だけは起動拒否）。**同一のロール ID は起動拒否**（理由は `docs/features/sudo.md`） |
 | `SUDOER_ROLE_ID` | `/sudo` の実行を許可するロール | `int \| None` | — | `0` | optional ID。同上のペア制約・同一値拒否 |
 | `SUDO_DURATION_MINUTES` | 昇格の有効時間（分） | `int` | — | `30` | `_require_positive` |
-| `TIMEZONE` | 日時の解釈・表示のタイムゾーン | `str` + `tzinfo: ZoneInfo` | — | `Asia/Tokyo` | デフォルト付き文字列。`ZoneInfo` で解決できなければ起動拒否 |
+| `TIMEZONE` | 日時の解釈・表示のタイムゾーン | `tzinfo: ZoneInfo` | — | `Asia/Tokyo` | デフォルト付き文字列。`ZoneInfo` で解決できなければ起動拒否 |
 | `LOG_LEVEL` | ログレベル | `str` | — | `INFO` | デフォルト付き文字列 |
 | `DATABASE_PATH` | SQLite DB のパス | `str` | — | `ctfbot.db` | デフォルト付き文字列。親ディレクトリが存在しなければ起動拒否 |
 | `ALPACAHACK_SOLVE_TIME` | 週次 solve 集計の実行時刻（日曜のみ実行） | `datetime.time` | — | `23:00` | 時刻 |
@@ -64,7 +64,6 @@ class Settings:
     admin_role_id: int | None
     sudoer_role_id: int | None
     sudo_duration_minutes: int
-    timezone: str
     tzinfo: ZoneInfo
     log_level: str
     database_path: str

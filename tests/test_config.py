@@ -27,7 +27,7 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(settings.ctf_team_category_id, 123)
         self.assertEqual(settings.ctf_team_archive_category_id, 456)
         self.assertEqual(settings.ctf_team_role_channel_id, 789)
-        self.assertEqual(settings.timezone, "Asia/Tokyo")
+        self.assertEqual(settings.tzinfo.key, "Asia/Tokyo")
         self.assertEqual(settings.tzinfo, ZoneInfo("Asia/Tokyo"))
         self.assertEqual(settings.log_level, "INFO")
         self.assertEqual(settings.database_path, "ctfbot.db")

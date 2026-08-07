@@ -25,7 +25,6 @@ class Settings:
     admin_role_id: int | None
     sudoer_role_id: int | None
     sudo_duration_minutes: int
-    timezone: str
     tzinfo: ZoneInfo
     log_level: str
     database_path: str
@@ -139,7 +138,6 @@ def load_settings(
         sudo_duration_minutes=_require_positive(
             _read_int(env, "SUDO_DURATION_MINUTES", 30), "SUDO_DURATION_MINUTES"
         ),
-        timezone=timezone,
         tzinfo=tzinfo,
         log_level=env.get("LOG_LEVEL", "INFO").strip() or "INFO",
         database_path=database_path,
