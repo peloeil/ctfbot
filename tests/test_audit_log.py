@@ -39,7 +39,6 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
         self.db = mock.Mock()
         self.settings = mock.Mock(spec=Settings)
         self.settings.admin_role_id = 10
-        self.settings.bot_channel_id = 20
         self.bot = cast(
             commands.Bot,
             SimpleNamespace(
