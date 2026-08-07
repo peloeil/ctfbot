@@ -151,23 +151,6 @@ AlpacaHack のスクレイピング用。HTML パーサーとして `html.parser
 
 status などの discriminator によって必須 field や利用可能な field が変わる場合、全状態を nullable field の多い 1 dataclass に詰め込まない。状態ごとの `frozen=True, slots=True` dataclass と `Literal` discriminator を定義し、union type alias でまとめる。
 
-```python
-@dataclass(frozen=True, slots=True)
-class ActiveItem:
-    status: Literal[ItemStatus.ACTIVE]
-    started_at: int
-
-
-@dataclass(frozen=True, slots=True)
-class ClosedItem:
-    status: Literal[ItemStatus.CLOSED]
-    started_at: int
-    closed_at: int
-
-
-type Item = ActiveItem | ClosedItem
-```
-
 このパターンは、次の条件を満たす場合に使う。
 
 - discriminator ごとに「存在してはならない field」または「必須になる field」がある
