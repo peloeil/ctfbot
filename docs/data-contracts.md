@@ -77,10 +77,6 @@ invariant（DB decoder が実行時に検証し、違反行は `RepositoryError`
 
 `SolveRecord` と、その週次集計である `WeeklySolveSummary` を定義する。`solved_at` は `Settings.tzinfo` へ変換済みの aware datetime。`weekly_solves` のキーは username。取得に失敗したユーザーは `weekly_solves` に含めず `failed_users` にのみ入れる。
 
-### audit_log
-
-dataclass は定義しない（書き込み専用で読み取りパスを持たないため）。
-
 ## DB スキーマ
 
 `CURRENT_SCHEMA_VERSION = 4`。
