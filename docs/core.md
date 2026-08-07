@@ -50,7 +50,7 @@ cog が処理しなかったコマンドの例外は `app.py` の `bot.tree.erro
 
 ## 表示テキストの escape 方針
 
-- ping 抑止はメンション制御（`AllowedMentions`）と sanitize（`sanitize_audit_text`。log_audit と管理者操作通知の `理由` 行で適用）で行う（上記）
+- ping 抑止はメンション制御（`AllowedMentions`）と sanitize（`sanitize_audit_text`）で行う（上記）
 - log_audit 以外では Markdown escape を行わない。平文・Embed 本文に含まれる外部由来文字列（CTF 名・challenge 名等）による表示崩れは許容する
 - 例外: Embed 内のリンク `[名前](URL)` に埋め込む外部由来の値がリンク構文を壊す文字（`]`・`(`・`)`）を含む場合は、リンク化せず名前のみを表示する（URL 側が壊れている場合はリンク行自体を省略する）
 
