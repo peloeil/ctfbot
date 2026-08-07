@@ -8,8 +8,6 @@
 
 **全コマンドは guild 限定とする。** スラッシュコマンドは `GUILD_ID` の guild にのみ登録するため（`docs/design.md`「前提: 単一 guild 運用」）、DM にコマンドは露出しない。`require_guild` は通常到達しない防御的境界として維持し、guild 外での実行には「サーバー内で実行してください。」を ephemeral で応答する（`ServiceError`）。DM でのコマンド対応は非目標。
 
-この宣言により、`log_audit` の書式（`#{実行チャンネル名}` を含む）は guild コンテキストを前提としてよい。
-
 ## コマンド応答
 
 - `send_interaction(interaction, content, ephemeral=True) -> None`: 全 cog に共通のコマンド応答経路（例外なし）。デフォルト ephemeral（public にする場合のみ呼び出し側が明示）。初回応答済み（defer 含む）なら followup へ自動で切り替える。メンションは常に `AllowedMentions.none()`。送信失敗（`InteractionResponded`・`NotFound`・`HTTPException`）は例外ログのみで raise しない
