@@ -121,7 +121,9 @@ class AlpacaHackClient:
             if len(cells) < 3:
                 continue
             link = cells[0].find("a")
-            challenge_name = _tag_text(link or cells[0])
+            challenge_name = " ".join(
+                (link or cells[0]).get_text(" ", strip=True).split()
+            )
             if not challenge_name:
                 continue
             href = link.get("href") if isinstance(link, Tag) else None
@@ -158,10 +160,6 @@ def _find_solved_challenges_table(soup: BeautifulSoup) -> Tag | None:
     search_from = parent or soup
     table = search_from.find_next("table")
     return table if isinstance(table, Tag) else None
-
-
-def _tag_text(tag: Tag) -> str:
-    return " ".join(tag.get_text(" ", strip=True).split())
 
 
 def _parse_solved_at(value: str, timezone: datetime.tzinfo) -> datetime.datetime | None:
