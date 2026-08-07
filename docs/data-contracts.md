@@ -77,8 +77,6 @@ invariant（DB decoder が実行時に検証し、違反行は `RepositoryError`
 
 ## DB スキーマ
 
-`CURRENT_SCHEMA_VERSION = 4`。
-
 ### DDL（`_SCHEMA_DDL`）
 
 ```sql
