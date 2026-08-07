@@ -8,7 +8,7 @@ from bot.runtime import BotRuntime
 
 
 class AppTest(unittest.IsolatedAsyncioTestCase):
-    async def test_setup_hook_syncs_configured_guild_and_clears_global(
+    async def test_setup_hook_syncs_commands_to_the_configured_guild_only(
         self,
     ) -> None:
         runtime = BotRuntime(
@@ -31,14 +31,8 @@ class AppTest(unittest.IsolatedAsyncioTestCase):
         tree.copy_global_to.assert_called_once()
         guild = tree.copy_global_to.call_args.kwargs["guild"]
         self.assertEqual(guild.id, 999)
-        self.assertEqual(
-            tree.sync.await_args_list, [mock.call(guild=guild), mock.call()]
-        )
-        tree.clear_commands.assert_called_once_with(guild=None)
-        self.assertLess(
-            tree.method_calls.index(mock.call.copy_global_to(guild=guild)),
-            tree.method_calls.index(mock.call.clear_commands(guild=None)),
-        )
+        self.assertEqual(tree.sync.await_args_list, [mock.call(guild=guild)])
+        tree.clear_commands.assert_not_called()
 
 
 if __name__ == "__main__":

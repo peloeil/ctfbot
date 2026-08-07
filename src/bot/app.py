@@ -29,10 +29,6 @@ class CTFBot(commands.Bot):
         guild = discord.Object(id=self.runtime.settings.guild_id)
         self.tree.copy_global_to(guild=guild)
         synced = await self.tree.sync(guild=guild)
-        # 過去に登録したグローバルコマンドを空の sync で削除する
-        # (guild 登録との二重表示防止)
-        self.tree.clear_commands(guild=None)
-        await self.tree.sync()
         logger.info("Synced %s command(s) to guild %s", len(synced), guild.id)
 
     async def on_ready(self) -> None:

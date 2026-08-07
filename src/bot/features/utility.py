@@ -17,8 +17,8 @@ class UtilityCommands(commands.Cog):
             await send_interaction(interaction, "サーバー内で実行してください。")
             return
         lines: list[str] = []
-        # 起動時に global コマンドを guild へコピーして global 登録を削除するため、
-        # コマンド一覧は guild 側の tree から取得する
+        # 起動時に copy_global_to で guild へコピーしたものが登録済みの一覧なので、
+        # guild を指定して取得する
         for command in self.bot.tree.get_commands(guild=interaction.guild):
             if isinstance(command, app_commands.Group):
                 for child in command.commands:
