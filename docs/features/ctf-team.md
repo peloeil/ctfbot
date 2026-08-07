@@ -227,10 +227,6 @@ discussion チャンネルは normalize 結果を、voice チャンネルは `{n
 
 `MENTION_CHUNK_SIZE`（定数表）ごとに分割して複数メッセージで送信。Discord の 2000 文字制限にマージンを持たせている。
 
-## データモデル
-
-定義は `docs/data-contracts.md`「ctf_team」を正本とする。
-
 ## DB スキーマ
 
 テーブル `ctf_team_campaign` の DDL・query 契約は `docs/data-contracts.md` を正本とする。
