@@ -106,7 +106,7 @@ class AlpacaHackClient:
             records.extend(page_records)
             if len(page_records) < _PAGE_SIZE:
                 break
-            if since and page_records and page_records[-1].solved_at.date() < since:
+            if since and page_records[-1].solved_at.date() < since:
                 break
         return records
 
@@ -256,7 +256,7 @@ def _build_summary_embed(summary: WeeklySolveSummary) -> discord.Embed:
         )
         total += len(name) + len(value)
         shown += 1
-    omitted_users = max(len(summary.weekly_solves) - shown, 0)
+    omitted_users = len(summary.weekly_solves) - shown
     if omitted_users or summary.failed_users:
         extra_lines: list[str] = []
         if omitted_users:
