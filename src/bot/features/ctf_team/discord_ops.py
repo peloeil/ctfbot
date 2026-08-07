@@ -264,18 +264,18 @@ def _chunk_mentions(mentions: list[str]) -> list[str]:
     return chunks
 
 
-async def send_start_announcement(
+async def _send_header_then_mentions(
     channel: discord.TextChannel,
-    campaign_name: str,
-    role: discord.Role,
+    header: str,
+    members: list[discord.Member],
 ) -> tuple[int, bool]:
-    members = list(role.members)
-    sent = await send_safely(
-        channel,
-        f"🚀 **{campaign_name}** が開始しました!",
-        allowed_mentions=discord.AllowedMentions.none(),
-    )
-    success = sent is not None
+    success = (
+        await send_safely(
+            channel,
+            header,
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
+    ) is not None
     for chunk in _chunk_mentions([member.mention for member in members]):
         success = (
             await send_safely(
@@ -289,33 +289,30 @@ async def send_start_announcement(
     return len(members), success
 
 
+async def send_start_announcement(
+    channel: discord.TextChannel,
+    campaign_name: str,
+    role: discord.Role,
+) -> tuple[int, bool]:
+    return await _send_header_then_mentions(
+        channel,
+        f"🚀 **{campaign_name}** が開始しました!",
+        list(role.members),
+    )
+
+
 async def send_close_snapshot(
     channel: discord.TextChannel,
     campaign_name: str,
     role: discord.Role,
 ) -> tuple[int, bool]:
     members = list(role.members)
-    header = f"🔒 **{campaign_name}** の募集が終了しました。"
-    lines = [header, f"参加メンバー ({len(members)}人):"]
-    chunks = _chunk_mentions([member.mention for member in members])
-    success = (
-        await send_safely(
-            channel,
-            "\n".join(lines),
-            allowed_mentions=discord.AllowedMentions.none(),
-        )
-    ) is not None
-    for chunk in chunks:
-        success = (
-            await send_safely(
-                channel,
-                chunk,
-                allowed_mentions=discord.AllowedMentions(
-                    everyone=False, users=True, roles=False
-                ),
-            )
-        ) is not None and success
-    return len(members), success
+    return await _send_header_then_mentions(
+        channel,
+        f"🔒 **{campaign_name}** の募集が終了しました。\n"
+        f"参加メンバー ({len(members)}人):",
+        members,
+    )
 
 
 async def send_join_announcement(
