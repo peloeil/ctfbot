@@ -105,8 +105,6 @@ class CampaignLogicTest(unittest.TestCase):
 
     def test_started_and_expired(self) -> None:
         now = campaign.now_unix(self.tz)
-        past = self.create_campaign(name="Past", message_id=1)
-        future = self.create_campaign(name="Future", message_id=2)
         permanent = self.create_campaign(name="Permanent", message_id=3)
         past = self.db.create_campaign(
             channel_id=2,
