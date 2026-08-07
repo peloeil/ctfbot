@@ -98,7 +98,6 @@ class ActiveCampaign:
     status: Literal[CampaignStatus.ACTIVE]
     created_by: int
     created_at_unix: int
-    start_notified_at_unix: int | None = None
     discussion_channel_id: int | None = None
     voice_channel_id: int | None = None
 

@@ -269,7 +269,6 @@ class Database:
             status=CampaignStatus.ACTIVE,
             created_by=row[8],
             created_at_unix=row[9],
-            start_notified_at_unix=row[10],
             discussion_channel_id=row[14] or None,
             voice_channel_id=row[15] or None,
         )
