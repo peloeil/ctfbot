@@ -44,7 +44,7 @@ cog が処理しなかったコマンドの例外は `app.py` の `bot.tree.erro
 - {details の各行}
 ```
 
-- 送信は `send_audit_message`（上記「チャンネルへの通知」）経由。メンション抑止（`AllowedMentions.none()`。実行者・チャンネルのメンションは表示のみで通知は飛ばない）と 1900 文字（`MAX_AUDIT_CONTENT_LENGTH`。2000 文字制限へのマージン）超過時の切り詰め（1897 文字 + `...`。`...` 込みで 1900 文字以内）はその契約に従う
+- 送信は `send_audit_message`（上記「チャンネルへの通知」）経由。メンション抑止（`AllowedMentions.none()`。実行者・チャンネルのメンションは表示のみで通知は飛ばない）と超過時の切り詰めはその契約に従う
 - command_name・details を sanitize する: 空白を 1 つに正規化し、`<@` にゼロ幅スペースを挿入（ユーザー入力による ping を無効化）
 - `channel_id` を持たないコンテキストでは `unknown` と表示する（全コマンド guild 限定のため通常は発生しない）
 
