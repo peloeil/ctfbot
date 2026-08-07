@@ -20,7 +20,6 @@ packages = ["src/bot"]
 dev = ["ruff>=0.16.0", "ty>=0.0.63"]
 
 [tool.ruff]
-target-version = "py314"
 line-length = 88
 
 [tool.ruff.lint]
@@ -29,4 +28,3 @@ select = ["E", "F", "I", "W", "N", "UP", "B", "C4", "SIM", "RUF"]
 [tool.ty.environment]
 root = ["./src"]
 python = "./.venv"
-python-version = "3.14"
