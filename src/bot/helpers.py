@@ -1,4 +1,3 @@
-import datetime
 import re
 from collections.abc import Sequence
 
@@ -72,18 +71,6 @@ async def send_interaction(
         discord.HTTPException,
     ):
         logger.exception("Failed to send interaction response")
-
-
-def format_timestamp(
-    value: int | float | datetime.datetime | None, *, style: str = "f"
-) -> str:
-    if value is None:
-        return "-"
-    if isinstance(value, datetime.datetime):
-        unix = int(value.timestamp())
-    else:
-        unix = int(value)
-    return f"<t:{unix}:{style}>"
 
 
 def format_timestamp_with_relative(value: int | None, *, style: str = "f") -> str:
