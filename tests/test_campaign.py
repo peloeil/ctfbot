@@ -72,6 +72,9 @@ class CampaignLogicTest(unittest.TestCase):
             with self.subTest(kwargs=kwargs), self.assertRaises(ServiceError):
                 campaign.parse_campaign_draft(timezone=self.tz, **kwargs)
 
+    def test_active_limit_is_five(self) -> None:
+        self.assertEqual(campaign.MAX_ACTIVE_PER_USER, 5)
+
     def test_ensure_rejects_active_limit(self) -> None:
         for i in range(campaign.MAX_ACTIVE_PER_USER):
             self.create_campaign(name=f"CTF {i}", message_id=100 + i)
@@ -81,8 +84,9 @@ class CampaignLogicTest(unittest.TestCase):
             end_at_raw="",
             timezone=self.tz,
         )
-        with self.assertRaises(ServiceError):
+        with self.assertRaises(ServiceError) as ctx:
             campaign.ensure_campaign_can_be_created(self.db, created_by=10, draft=draft)
+        self.assertIn(f"(上限: {campaign.MAX_ACTIVE_PER_USER})", str(ctx.exception))
 
     def test_ensure_rejects_duplicate_name(self) -> None:
         self.create_campaign(name="Same")
