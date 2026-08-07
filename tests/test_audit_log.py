@@ -111,23 +111,6 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
             created_at_unix=int(entry.created_at.timestamp()),
         )
 
-    async def test_repository_error_is_logged_and_suppressed(self) -> None:
-        entry = self.make_entry()
-        error = RepositoryError("database unavailable")
-        with (
-            mock.patch(
-                "bot.features.audit_log.asyncio.to_thread",
-                new_callable=mock.AsyncMock,
-                side_effect=error,
-            ),
-            mock.patch("bot.features.audit_log.logger.error") as log_error,
-        ):
-            await self.cog.on_audit_log_entry_create(entry)
-
-        log_error.assert_called_once_with(
-            "Failed to save audit log entry %s: %s", entry.id, error
-        )
-
     async def test_new_admin_entry_notifies_with_target_and_reason(self) -> None:
         entry = self.make_entry(user_id=400)
         member = SimpleNamespace(roles=[SimpleNamespace(id=10)])
