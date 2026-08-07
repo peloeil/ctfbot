@@ -1,5 +1,5 @@
 import sqlite3
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -559,14 +559,16 @@ class Database:
     def list_due_campaigns(
         self, now_unix: int, limit: int = 20
     ) -> list[ActiveCampaign]:
-        return self._list_active(
+        return self._list(
+            self._to_active_campaign,
             "WHERE status='active' AND end_at_unix IS NOT NULL AND end_at_unix <= ? "
             "ORDER BY end_at_unix ASC LIMIT ?",
             (now_unix, limit),
         )
 
     def list_due_starts(self, now_unix: int, limit: int = 20) -> list[ActiveCampaign]:
-        return self._list_active(
+        return self._list(
+            self._to_active_campaign,
             "WHERE status='active' AND start_notified_at_unix IS NULL "
             "AND start_at_unix <= ? ORDER BY start_at_unix ASC LIMIT ?",
             (now_unix, limit),
@@ -589,7 +591,8 @@ class Database:
         )
 
     def list_due_archives(self, now_unix: int, limit: int = 20) -> list[ClosedCampaign]:
-        return self._list_closed(
+        return self._list(
+            self._to_closed_campaign,
             "WHERE status='closed' AND archive_at_unix IS NOT NULL "
             "AND archive_at_unix <= ? AND archived_at_unix IS NULL "
             "ORDER BY archive_at_unix ASC LIMIT ?",
@@ -608,38 +611,27 @@ class Database:
     ) -> list[Campaign]:
         if status is None:
             return self._list(
+                self._to_campaign,
                 "ORDER BY created_at_unix DESC LIMIT ?",
                 (limit,),
             )
         return self._list(
+            self._to_campaign,
             "WHERE status=? ORDER BY created_at_unix DESC LIMIT ?",
             (status.value, limit),
         )
 
-    def _list(self, suffix: str, params: tuple[object, ...]) -> list[Campaign]:
+    def _list[T](
+        self,
+        decode: Callable[[_CampaignRow], T],
+        suffix: str,
+        params: tuple[object, ...],
+    ) -> list[T]:
         with self._connection() as conn:
             rows = conn.execute(
                 f"SELECT {_CAMPAIGN_COLUMNS} FROM ctf_team_campaign {suffix}", params
             ).fetchall()
-        return [self._to_campaign(row) for row in rows]
-
-    def _list_active(
-        self, suffix: str, params: tuple[object, ...]
-    ) -> list[ActiveCampaign]:
-        with self._connection() as conn:
-            rows = conn.execute(
-                f"SELECT {_CAMPAIGN_COLUMNS} FROM ctf_team_campaign {suffix}", params
-            ).fetchall()
-        return [self._to_active_campaign(row) for row in rows]
-
-    def _list_closed(
-        self, suffix: str, params: tuple[object, ...]
-    ) -> list[ClosedCampaign]:
-        with self._connection() as conn:
-            rows = conn.execute(
-                f"SELECT {_CAMPAIGN_COLUMNS} FROM ctf_team_campaign {suffix}", params
-            ).fetchall()
-        return [self._to_closed_campaign(row) for row in rows]
+        return [decode(row) for row in rows]
 
     def _update(self, sql: str, params: tuple[object, ...]) -> bool:
         with self._connection() as conn:
