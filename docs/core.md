@@ -6,7 +6,7 @@
 
 ## 実行コンテキスト
 
-**全コマンドは guild 限定とする。** スラッシュコマンドは `GUILD_ID` の guild にのみ登録するため（`docs/design.md`「前提: 単一 guild 運用」）、DM にコマンドは露出しない。`require_guild` は通常到達しない防御的境界として維持し、guild 外での実行には「サーバー内で実行してください。」を ephemeral で応答する（`ServiceError`）。DM でのコマンド対応は非目標。
+**全コマンドは guild 限定とする。** `require_guild` は通常到達しない防御的境界として維持し、guild 外での実行には「サーバー内で実行してください。」を ephemeral で応答する（`ServiceError`）。DM でのコマンド対応は非目標。
 
 ## コマンド応答
 
