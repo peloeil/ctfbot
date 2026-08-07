@@ -59,7 +59,7 @@ alpacahack.py            → db.py, helpers.py, runtime.py
 ctftime.py               → helpers.py, runtime.py
 times.py                 → helpers.py, runtime.py
 utility.py               → helpers.py
-audit_log.py             → runtime.py
+audit_log.py             → helpers.py, runtime.py
 db.py                    → features/<feature>/models.py（許可。ただし models.py は discord import 禁止）
 db.py                    ✗ discord（import 禁止）
 helpers.py               → runtime.py
