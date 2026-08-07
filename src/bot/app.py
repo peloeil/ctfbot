@@ -36,8 +36,6 @@ class CTFBot(commands.Bot):
         logger.info("Synced %s command(s) to guild %s", len(synced), guild.id)
 
     async def on_ready(self) -> None:
-        if self.user is None:
-            return
         logger.info("%s has connected to Discord!", self.user)
         if not self._has_announced_ready:
             now = datetime.datetime.now(self.runtime.settings.tzinfo)
