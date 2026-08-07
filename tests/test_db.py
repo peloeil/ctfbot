@@ -361,6 +361,7 @@ PRAGMA user_version = 3;
 
     def test_create_and_find_campaign(self) -> None:
         created = self.create_campaign()
+        self.assertIsInstance(created, ActiveCampaign)
         self.assertEqual(created.status, CampaignStatus.ACTIVE)
         self.assertEqual(created.ctf_name, "Example")
         found = self.db.find_active_campaign_by_message(channel_id=2, message_id=3)
@@ -391,11 +392,6 @@ PRAGMA user_version = 3;
             conn.commit()
         with self.assertRaises(RepositoryError):
             self.db.find_closed_campaign_by_name(ctf_name="Example")
-
-    def test_create_campaign_returns_active_type(self) -> None:
-        c = self.create_campaign()
-        self.assertIsInstance(c, ActiveCampaign)
-        self.assertEqual(c.status, CampaignStatus.ACTIVE)
 
     def test_duplicate_active_name_conflicts(self) -> None:
         self.create_campaign("Example")
