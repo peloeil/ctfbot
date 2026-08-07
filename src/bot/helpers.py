@@ -10,6 +10,13 @@ from bot.log import logger
 from bot.runtime import get_runtime
 
 MAX_AUDIT_CONTENT_LENGTH = 1900  # Margin under Discord's 2000-char message limit
+MAX_CHANNEL_NAME_LENGTH = 100
+
+
+def normalize_channel_name(value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9\-]", "-", value.lower())
+    normalized = re.sub(r"-+", "-", normalized).strip("-")
+    return normalized[:MAX_CHANNEL_NAME_LENGTH]
 
 
 def require_guild(interaction: discord.Interaction) -> discord.Guild:

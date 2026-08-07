@@ -1,25 +1,19 @@
-import re
-
 import discord
 from discord import app_commands
 from discord.ext import commands
 
 from bot.errors import ServiceError
-from bot.helpers import log_audit, require_guild, send_interaction
+from bot.helpers import (
+    log_audit,
+    normalize_channel_name,
+    require_guild,
+    send_interaction,
+)
 from bot.runtime import get_runtime
-
-MAX_CHANNEL_NAME_LENGTH = 100
-
-
-def _normalize_channel_name(value: str) -> str:
-    normalized = value.strip().lower()
-    normalized = re.sub(r"[^a-z0-9\-]", "-", normalized)
-    normalized = re.sub(r"-+", "-", normalized).strip("-")
-    return normalized[:MAX_CHANNEL_NAME_LENGTH]
 
 
 def _parse_times_channel_name(value: str) -> str:
-    normalized = _normalize_channel_name(value)
+    normalized = normalize_channel_name(value)
     if not normalized:
         raise ServiceError("作成するチャンネル名を入力してください。")
     return normalized
