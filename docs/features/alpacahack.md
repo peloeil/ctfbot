@@ -114,7 +114,3 @@ Embed 全体の合計は 6000 文字以内に収める: field 追加で超過す
 ## DB スキーマ
 
 テーブル `alpacahack_user` の DDL は `docs/data-contracts.md` を正本とする。
-
-## 関連設定
-
-環境変数の定義は `docs/data-contracts.md`「設定契約」を正本とする。

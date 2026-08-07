@@ -235,10 +235,6 @@ discussion チャンネルは normalize 結果を、voice チャンネルは `{n
 
 テーブル `ctf_team_campaign` の DDL・query 契約は `docs/data-contracts.md` を正本とする。
 
-## 関連設定
-
-環境変数の定義は `docs/data-contracts.md`「設定契約」を正本とする。
-
 ## 定数
 
 | 定数 | 値 | 説明 |

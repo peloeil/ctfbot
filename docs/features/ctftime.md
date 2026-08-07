@@ -64,7 +64,3 @@ JSON 配列の各要素から:
 ## データモデル
 
 `CTFEvent` の定義は `docs/data-contracts.md`「ctftime」を正本とする。
-
-## 関連設定
-
-環境変数の定義は `docs/data-contracts.md`「設定契約」を正本とする。
