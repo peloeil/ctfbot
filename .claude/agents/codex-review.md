@@ -20,6 +20,6 @@ Codex が実装した変更を、docs/ の仕様ドキュメントと照合し�
    - 情報の書き分け原則に準拠しているか
 4. `uv run ruff check src/ tests/ && uv run ruff format --check src/ tests/` を実行
 5. `uv run ty check` を実行
-6. `uv run python -m unittest discover -s tests -v` を実行
+6. `uv run -m unittest discover -s tests -v` を実行
 7. 仕様との乖離・不足・規約違反があれば具体的に報告
 8. 仕様ドキュメント側の更新が必要な場合も指摘する

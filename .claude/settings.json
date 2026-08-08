@@ -4,7 +4,7 @@
       "Bash(uv run ruff check*)",
       "Bash(uv run ruff format*)",
       "Bash(uv run ty check*)",
-      "Bash(uv run python -m unittest*)",
+      "Bash(uv run -m unittest*)",
       "Bash(uv sync*)",
       "Bash(find *)",
       "Bash(wc *)",

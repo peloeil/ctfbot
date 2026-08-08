@@ -16,6 +16,6 @@ tools:
 
 1. `git diff --name-only HEAD` で変更ファイルを取得
 2. 変更ファイルを読み、上記制約への違反がないか確認
-3. `uv run python -m unittest tests.test_architecture -v` を実行して静的検証
+3. `uv run -m unittest tests.test_architecture -v` を実行して静的検証
 4. 違反があれば具体的なファイル名・行番号・違反内容を報告
 5. 違反がなければ「制約違反なし」と報告
