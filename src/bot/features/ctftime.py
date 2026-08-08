@@ -89,8 +89,7 @@ class CTFTimeClient:
 
 
 def _parse_iso_datetime(value: str) -> datetime.datetime:
-    normalized = value.removesuffix("Z") + ("+00:00" if value.endswith("Z") else "")
-    parsed = datetime.datetime.fromisoformat(normalized)
+    parsed = datetime.datetime.fromisoformat(value)
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=datetime.UTC)
     return parsed
