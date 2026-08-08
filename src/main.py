@@ -7,7 +7,7 @@ def ensure_project_venv() -> None:
     if Path(sys.prefix).resolve() != expected:
         sys.exit(
             f"プロジェクトの venv ({expected}) 以外の Python で起動されました。"
-            " `uv run --env-file .env python src/main.py` で起動してください。"
+            " `uv run --env-file .env src/main.py` で起動してください。"
         )
 
 
