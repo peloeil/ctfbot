@@ -85,12 +85,31 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
             ),
         )
 
+    async def run_entry(
+        self,
+        entry: discord.AuditLogEntry,
+        *,
+        inserted: bool = True,
+        member: object | None = None,
+        insert_error: Exception | None = None,
+    ) -> tuple[mock.AsyncMock, mock.AsyncMock, mock.AsyncMock]:
+        to_thread = mock.AsyncMock(return_value=inserted, side_effect=insert_error)
+        fetch_member = mock.AsyncMock(return_value=member)
+        send_audit_message = mock.AsyncMock()
+        with (
+            mock.patch("bot.features.audit_log.asyncio.to_thread", new=to_thread),
+            mock.patch("bot.features.audit_log.fetch_member", new=fetch_member),
+            mock.patch(
+                "bot.features.audit_log.send_audit_message",
+                new=send_audit_message,
+            ),
+        ):
+            await self.cog.on_audit_log_entry_create(entry)
+        return to_thread, fetch_member, send_audit_message
+
     async def test_event_serializes_and_inserts_entry(self) -> None:
         entry = self.make_entry()
-        with mock.patch(
-            "bot.features.audit_log.asyncio.to_thread", new_callable=mock.AsyncMock
-        ) as to_thread:
-            await self.cog.on_audit_log_entry_create(entry)
+        to_thread, _, _ = await self.run_entry(entry)
 
         to_thread.assert_awaited_once_with(
             self.db.insert_audit_log_entry,
@@ -114,23 +133,7 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
     async def test_new_admin_entry_notifies_with_target_and_reason(self) -> None:
         entry = self.make_entry(user_id=400)
         member = SimpleNamespace(roles=[SimpleNamespace(id=10)])
-        with (
-            mock.patch(
-                "bot.features.audit_log.asyncio.to_thread",
-                new_callable=mock.AsyncMock,
-                return_value=True,
-            ),
-            mock.patch(
-                "bot.features.audit_log.fetch_member",
-                new_callable=mock.AsyncMock,
-                return_value=member,
-            ) as fetch_member,
-            mock.patch(
-                "bot.features.audit_log.send_audit_message",
-                new_callable=mock.AsyncMock,
-            ) as send_audit_message,
-        ):
-            await self.cog.on_audit_log_entry_create(entry)
+        _, fetch_member, send_audit_message = await self.run_entry(entry, member=member)
 
         fetch_member.assert_awaited_once_with(entry.guild, 400)
         send_audit_message.assert_awaited_once_with(
@@ -155,23 +158,7 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
         for target_type, expected in cases:
             with self.subTest(target_type=target_type):
                 entry = self.make_entry(user_id=400, target_type=target_type)
-                with (
-                    mock.patch(
-                        "bot.features.audit_log.asyncio.to_thread",
-                        new_callable=mock.AsyncMock,
-                        return_value=True,
-                    ),
-                    mock.patch(
-                        "bot.features.audit_log.fetch_member",
-                        new_callable=mock.AsyncMock,
-                        return_value=member,
-                    ),
-                    mock.patch(
-                        "bot.features.audit_log.send_audit_message",
-                        new_callable=mock.AsyncMock,
-                    ) as send_audit_message,
-                ):
-                    await self.cog.on_audit_log_entry_create(entry)
+                _, _, send_audit_message = await self.run_entry(entry, member=member)
 
                 call = send_audit_message.await_args
                 assert call is not None
@@ -202,23 +189,7 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
         member = SimpleNamespace(roles=[SimpleNamespace(id=10)])
         for entry, expected in cases:
             with self.subTest(expected=expected):
-                with (
-                    mock.patch(
-                        "bot.features.audit_log.asyncio.to_thread",
-                        new_callable=mock.AsyncMock,
-                        return_value=True,
-                    ),
-                    mock.patch(
-                        "bot.features.audit_log.fetch_member",
-                        new_callable=mock.AsyncMock,
-                        return_value=member,
-                    ),
-                    mock.patch(
-                        "bot.features.audit_log.send_audit_message",
-                        new_callable=mock.AsyncMock,
-                    ) as send_audit_message,
-                ):
-                    await self.cog.on_audit_log_entry_create(entry)
+                _, _, send_audit_message = await self.run_entry(entry, member=member)
 
                 call = send_audit_message.await_args
                 assert call is not None
@@ -232,23 +203,7 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
             extra=SimpleNamespace(channel=SimpleNamespace(id=500), message_id=600),
         )
         member = SimpleNamespace(roles=[SimpleNamespace(id=10)])
-        with (
-            mock.patch(
-                "bot.features.audit_log.asyncio.to_thread",
-                new_callable=mock.AsyncMock,
-                return_value=True,
-            ),
-            mock.patch(
-                "bot.features.audit_log.fetch_member",
-                new_callable=mock.AsyncMock,
-                return_value=member,
-            ),
-            mock.patch(
-                "bot.features.audit_log.send_audit_message",
-                new_callable=mock.AsyncMock,
-            ) as send_audit_message,
-        ):
-            await self.cog.on_audit_log_entry_create(entry)
+        _, _, send_audit_message = await self.run_entry(entry, member=member)
 
         send_audit_message.assert_awaited_once_with(
             self.bot,
@@ -262,23 +217,7 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
     async def test_new_admin_entry_omits_missing_target_and_reason(self) -> None:
         entry = self.make_entry(user_id=400, target_id=None, reason=None)
         member = SimpleNamespace(roles=[SimpleNamespace(id=10)])
-        with (
-            mock.patch(
-                "bot.features.audit_log.asyncio.to_thread",
-                new_callable=mock.AsyncMock,
-                return_value=True,
-            ),
-            mock.patch(
-                "bot.features.audit_log.fetch_member",
-                new_callable=mock.AsyncMock,
-                return_value=member,
-            ),
-            mock.patch(
-                "bot.features.audit_log.send_audit_message",
-                new_callable=mock.AsyncMock,
-            ) as send_audit_message,
-        ):
-            await self.cog.on_audit_log_entry_create(entry)
+        _, _, send_audit_message = await self.run_entry(entry, member=member)
 
         send_audit_message.assert_awaited_once_with(
             self.bot,
@@ -288,44 +227,14 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
     async def test_new_non_admin_entry_does_not_notify(self) -> None:
         entry = self.make_entry(user_id=400)
         member = SimpleNamespace(roles=[SimpleNamespace(id=11)])
-        with (
-            mock.patch(
-                "bot.features.audit_log.asyncio.to_thread",
-                new_callable=mock.AsyncMock,
-                return_value=True,
-            ) as to_thread,
-            mock.patch(
-                "bot.features.audit_log.fetch_member",
-                new_callable=mock.AsyncMock,
-                return_value=member,
-            ),
-            mock.patch(
-                "bot.features.audit_log.send_audit_message",
-                new_callable=mock.AsyncMock,
-            ) as send_audit_message,
-        ):
-            await self.cog.on_audit_log_entry_create(entry)
+        to_thread, _, send_audit_message = await self.run_entry(entry, member=member)
 
         to_thread.assert_awaited_once()
         send_audit_message.assert_not_awaited()
 
     async def test_entry_without_user_does_not_resolve_member_or_notify(self) -> None:
         entry = self.make_entry(user_id=None)
-        with (
-            mock.patch(
-                "bot.features.audit_log.asyncio.to_thread",
-                new_callable=mock.AsyncMock,
-                return_value=True,
-            ) as to_thread,
-            mock.patch(
-                "bot.features.audit_log.fetch_member", new_callable=mock.AsyncMock
-            ) as fetch_member,
-            mock.patch(
-                "bot.features.audit_log.send_audit_message",
-                new_callable=mock.AsyncMock,
-            ) as send_audit_message,
-        ):
-            await self.cog.on_audit_log_entry_create(entry)
+        to_thread, fetch_member, send_audit_message = await self.run_entry(entry)
 
         to_thread.assert_awaited_once()
         fetch_member.assert_not_awaited()
@@ -334,21 +243,7 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
     async def test_entry_without_configured_admin_role_does_not_notify(self) -> None:
         self.settings.admin_role_id = None
         entry = self.make_entry(user_id=400)
-        with (
-            mock.patch(
-                "bot.features.audit_log.asyncio.to_thread",
-                new_callable=mock.AsyncMock,
-                return_value=True,
-            ) as to_thread,
-            mock.patch(
-                "bot.features.audit_log.fetch_member", new_callable=mock.AsyncMock
-            ) as fetch_member,
-            mock.patch(
-                "bot.features.audit_log.send_audit_message",
-                new_callable=mock.AsyncMock,
-            ) as send_audit_message,
-        ):
-            await self.cog.on_audit_log_entry_create(entry)
+        to_thread, fetch_member, send_audit_message = await self.run_entry(entry)
 
         to_thread.assert_awaited_once()
         fetch_member.assert_not_awaited()
@@ -356,44 +251,16 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_entry_with_unresolved_member_does_not_notify(self) -> None:
         entry = self.make_entry(user_id=400)
-        with (
-            mock.patch(
-                "bot.features.audit_log.asyncio.to_thread",
-                new_callable=mock.AsyncMock,
-                return_value=True,
-            ) as to_thread,
-            mock.patch(
-                "bot.features.audit_log.fetch_member",
-                new_callable=mock.AsyncMock,
-                return_value=None,
-            ),
-            mock.patch(
-                "bot.features.audit_log.send_audit_message",
-                new_callable=mock.AsyncMock,
-            ) as send_audit_message,
-        ):
-            await self.cog.on_audit_log_entry_create(entry)
+        to_thread, _, send_audit_message = await self.run_entry(entry)
 
         to_thread.assert_awaited_once()
         send_audit_message.assert_not_awaited()
 
     async def test_duplicate_entry_does_not_resolve_member_or_notify(self) -> None:
         entry = self.make_entry(user_id=400)
-        with (
-            mock.patch(
-                "bot.features.audit_log.asyncio.to_thread",
-                new_callable=mock.AsyncMock,
-                return_value=False,
-            ) as to_thread,
-            mock.patch(
-                "bot.features.audit_log.fetch_member", new_callable=mock.AsyncMock
-            ) as fetch_member,
-            mock.patch(
-                "bot.features.audit_log.send_audit_message",
-                new_callable=mock.AsyncMock,
-            ) as send_audit_message,
-        ):
-            await self.cog.on_audit_log_entry_create(entry)
+        to_thread, fetch_member, send_audit_message = await self.run_entry(
+            entry, inserted=False
+        )
 
         to_thread.assert_awaited_once()
         fetch_member.assert_not_awaited()
@@ -402,19 +269,8 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
     async def test_repository_error_does_not_notify(self) -> None:
         entry = self.make_entry(user_id=400)
         error = RepositoryError("database unavailable")
-        with (
-            mock.patch(
-                "bot.features.audit_log.asyncio.to_thread",
-                new_callable=mock.AsyncMock,
-                side_effect=error,
-            ),
-            mock.patch(
-                "bot.features.audit_log.send_audit_message",
-                new_callable=mock.AsyncMock,
-            ) as send_audit_message,
-            mock.patch("bot.features.audit_log.logger.error") as log_error,
-        ):
-            await self.cog.on_audit_log_entry_create(entry)
+        with mock.patch("bot.features.audit_log.logger.error") as log_error:
+            _, _, send_audit_message = await self.run_entry(entry, insert_error=error)
 
         send_audit_message.assert_not_awaited()
         log_error.assert_called_once_with(
@@ -424,23 +280,7 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
     async def test_admin_entry_sanitizes_reason_before_notification(self) -> None:
         entry = self.make_entry(user_id=400, reason="  <@123>\n  複数   空白  ")
         member = SimpleNamespace(roles=[SimpleNamespace(id=10)])
-        with (
-            mock.patch(
-                "bot.features.audit_log.asyncio.to_thread",
-                new_callable=mock.AsyncMock,
-                return_value=True,
-            ),
-            mock.patch(
-                "bot.features.audit_log.fetch_member",
-                new_callable=mock.AsyncMock,
-                return_value=member,
-            ),
-            mock.patch(
-                "bot.features.audit_log.send_audit_message",
-                new_callable=mock.AsyncMock,
-            ) as send_audit_message,
-        ):
-            await self.cog.on_audit_log_entry_create(entry)
+        _, _, send_audit_message = await self.run_entry(entry, member=member)
 
         call = send_audit_message.await_args
         assert call is not None
