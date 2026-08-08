@@ -42,6 +42,7 @@
 9. **Database は 1 クラスに集約** — 全テーブル・全 SQL が `db.py` に収まる
 10. **async context の blocking I/O は `asyncio.to_thread`** — イベントループ上で実行される同期 I/O（DB アクセス、HTTP リクエスト）は必ずスレッド委譲。イベントループ外（起動時の初期化、同期テスト）は対象外
 11. **定期ループから呼ばれる処理は冪等にする** — 非冪等な副作用（通知送信）は DB の状態遷移確定後に置く。`discord.NotFound` は成功扱い（docs/design.md 参照）
+12. **`create_bot` の `extra_extensions` / `message_content` は下流拡張用** — このリポジトリ内に呼び出し元はないが、ctfbot をライブラリとして使う別プロジェクトが独自の cog を載せるための唯一の口。未使用に見えても削除しない
 
 ## コーディング規約
 

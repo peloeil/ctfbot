@@ -7,7 +7,7 @@ from typing import cast
 import discord
 from discord.ext import commands
 
-from bot.cogs_loader import load_cogs
+from bot.cogs_loader import DEFAULT_EXTENSIONS, load_cogs
 from bot.config import Settings, load_settings
 from bot.db import Database
 from bot.helpers import resolve_messageable, send_interaction, send_safely
@@ -16,16 +16,24 @@ from bot.runtime import BotRuntime
 
 
 class CTFBot(commands.Bot):
-    def __init__(self, runtime: BotRuntime) -> None:
+    def __init__(
+        self,
+        runtime: BotRuntime,
+        *,
+        extensions: tuple[str, ...] = DEFAULT_EXTENSIONS,
+        message_content: bool = False,
+    ) -> None:
         intents = discord.Intents.default()
         intents.members = True
+        intents.message_content = message_content
         super().__init__(command_prefix=commands.when_mentioned, intents=intents)
         self.runtime = runtime
+        self._extension_names = extensions
         self._has_announced_ready = False
         self._shutdown_requested_by_sigint = False
 
     async def setup_hook(self) -> None:
-        await load_cogs(self)
+        await load_cogs(self, self._extension_names)
         guild = discord.Object(id=self.runtime.settings.guild_id)
         self.tree.copy_global_to(guild=guild)
         synced = await self.tree.sync(guild=guild)
@@ -59,12 +67,21 @@ class CTFBot(commands.Bot):
             await send_safely(ch, content)
 
 
-def create_bot(settings: Settings | None = None) -> CTFBot:
+def create_bot(
+    settings: Settings | None = None,
+    *,
+    extra_extensions: tuple[str, ...] = (),
+    message_content: bool = False,
+) -> CTFBot:
     loaded = settings or load_settings()
     configure_logging(loaded.log_level)
     db = Database(loaded.database_path)
     runtime = BotRuntime(settings=loaded, db=db)
-    bot = CTFBot(runtime)
+    bot = CTFBot(
+        runtime,
+        extensions=DEFAULT_EXTENSIONS + extra_extensions,
+        message_content=message_content,
+    )
 
     @bot.tree.error
     async def on_app_command_error(

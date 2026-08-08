@@ -11,8 +11,11 @@ DEFAULT_EXTENSIONS = (
 )
 
 
-async def load_cogs(bot: commands.Bot) -> None:
-    for ext in DEFAULT_EXTENSIONS:
+async def load_cogs(
+    bot: commands.Bot,
+    extensions: tuple[str, ...] = DEFAULT_EXTENSIONS,
+) -> None:
+    for ext in extensions:
         try:
             await bot.load_extension(ext)
         except Exception as exc:
