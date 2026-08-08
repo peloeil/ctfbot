@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from contextlib import suppress
 from types import SimpleNamespace
+from typing import Any
 from unittest import mock
 
 import discord
@@ -38,7 +39,7 @@ class ArchiveCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
         )
         assert item is not None
         self.item = item
-        self.cog = CTFTeamCampaigns.__new__(CTFTeamCampaigns)
+        self.cog: Any = CTFTeamCampaigns.__new__(CTFTeamCampaigns)
         self.cog.bot = mock.Mock()
         self.cog.settings = SimpleNamespace(
             tzinfo=datetime.UTC,

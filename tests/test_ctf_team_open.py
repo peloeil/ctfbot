@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from contextlib import suppress
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any
 from unittest import mock
 
 import discord
@@ -21,7 +21,7 @@ class OpenCampaignTest(unittest.IsolatedAsyncioTestCase):
         os.close(fd)
         os.unlink(self.path)
         self.db = Database(self.path)
-        self.cog = CTFTeamCampaigns.__new__(CTFTeamCampaigns)
+        self.cog: Any = CTFTeamCampaigns.__new__(CTFTeamCampaigns)
         self.cog.bot = mock.Mock()
         self.cog.settings = SimpleNamespace(
             tzinfo=datetime.UTC,
@@ -78,7 +78,7 @@ class OpenCampaignTest(unittest.IsolatedAsyncioTestCase):
         invalid_values = ["#fff", "fff", "#1000000", "#-1", " #3b82f6", "#3b82g6"]
 
         with mock.patch("bot.features.ctf_team.cog.send_interaction", new=send):
-            callback = cast(Any, self.cog.open_campaign.callback)
+            callback = self.cog.open_campaign.callback
             for value in invalid_values:
                 await callback(self.cog, self.interaction, "Example", value)
 
@@ -93,7 +93,7 @@ class OpenCampaignTest(unittest.IsolatedAsyncioTestCase):
         send = mock.AsyncMock()
 
         with mock.patch("bot.features.ctf_team.cog.send_interaction", new=send):
-            callback = cast(Any, self.cog.open_campaign.callback)
+            callback = self.cog.open_campaign.callback
             await callback(self.cog, self.interaction, "Example", "3b82f6")
 
         send.assert_not_awaited()
@@ -203,7 +203,7 @@ class StartDueCampaignsTest(unittest.IsolatedAsyncioTestCase):
             created_at_unix=0,
             max_active_per_creator=5,
         )
-        self.cog = CTFTeamCampaigns.__new__(CTFTeamCampaigns)
+        self.cog: Any = CTFTeamCampaigns.__new__(CTFTeamCampaigns)
         self.cog.bot = mock.Mock()
         self.cog.settings = SimpleNamespace(tzinfo=datetime.UTC, guild_id=1)
         self.cog.db = self.db
@@ -214,7 +214,7 @@ class StartDueCampaignsTest(unittest.IsolatedAsyncioTestCase):
                 os.unlink(self.path + suffix)
 
     async def run_task(self) -> None:
-        coro = cast(Any, self.cog.start_due_campaigns.coro)
+        coro = self.cog.start_due_campaigns.coro
         await coro(self.cog)
 
     async def test_unresolved_resources_log_warning_and_keep_claim(self) -> None:

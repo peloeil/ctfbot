@@ -16,7 +16,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.bot = mock.Mock(spec=commands.Bot)
         self.db = mock.Mock()
-        self.cog = object.__new__(Sudo)
+        self.cog: Any = object.__new__(Sudo)
         self.cog.bot = self.bot
         self.cog.db = self.db
         self.cog._grant_locks = defaultdict(asyncio.Lock)
@@ -53,7 +53,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
         with mock.patch(
             "bot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
         ) as send_interaction:
-            callback = cast(Any, self.cog.sudo.callback)
+            callback = self.cog.sudo.callback
             await callback(self.cog, interaction)
 
         send_interaction.assert_awaited_once_with(
@@ -71,7 +71,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
         with mock.patch(
             "bot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
         ) as send_interaction:
-            callback = cast(Any, self.cog.sudo.callback)
+            callback = self.cog.sudo.callback
             await callback(self.cog, interaction)
 
         send_interaction.assert_awaited_once_with(
@@ -101,7 +101,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
                 "bot.features.sudo.cog.log_audit", new_callable=mock.AsyncMock
             ) as log_audit,
         ):
-            callback = cast(Any, self.cog.sudo.callback)
+            callback = self.cog.sudo.callback
             await callback(self.cog, interaction)
 
         self.assertEqual(calls, ["db", "discord"])
@@ -122,7 +122,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
         with mock.patch(
             "bot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
         ) as send_interaction:
-            callback = cast(Any, self.cog.sudo.callback)
+            callback = self.cog.sudo.callback
             await callback(self.cog, interaction)
 
         self.db.delete_sudo_grant.assert_called_once_with(2)
@@ -149,7 +149,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
             ) as send_interaction,
             mock.patch("bot.features.sudo.cog.log_audit", new_callable=mock.AsyncMock),
         ):
-            callback = cast(Any, self.cog.sudo.callback)
+            callback = self.cog.sudo.callback
             await callback(self.cog, interaction)
 
         self.db.upsert_sudo_grant.assert_called_once_with(2, 9, 100, 1900)
@@ -176,7 +176,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
             ) as send_interaction,
             mock.patch("bot.features.sudo.cog.log_audit", new_callable=mock.AsyncMock),
         ):
-            callback = cast(Any, self.cog.sudo.callback)
+            callback = self.cog.sudo.callback
             await callback(self.cog, interaction)
 
         self.db.upsert_sudo_grant.assert_called_once_with(2, 9, 100, 1900)
@@ -194,7 +194,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
         with mock.patch(
             "bot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
         ) as send_interaction:
-            callback = cast(Any, self.cog.sudo.callback)
+            callback = self.cog.sudo.callback
             await callback(self.cog, interaction)
 
         send_interaction.assert_awaited_once_with(
@@ -221,7 +221,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
                 "bot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
             ) as send_interaction,
         ):
-            callback = cast(Any, self.cog.sudo.callback)
+            callback = self.cog.sudo.callback
             await callback(self.cog, interaction)
 
         self.assertEqual(
@@ -243,7 +243,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
         with mock.patch(
             "bot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
         ) as send_interaction:
-            callback = cast(Any, self.cog.unsudo.callback)
+            callback = self.cog.unsudo.callback
             await callback(self.cog, interaction)
 
         self.db.delete_sudo_grant.assert_not_called()
@@ -362,8 +362,8 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
             ),
             mock.patch("bot.features.sudo.cog.log_audit", new_callable=mock.AsyncMock),
         ):
-            sudo_callback = cast(Any, self.cog.sudo.callback)
-            unsudo_callback = cast(Any, self.cog.unsudo.callback)
+            sudo_callback = self.cog.sudo.callback
+            unsudo_callback = self.cog.unsudo.callback
             sudo_task = asyncio.create_task(sudo_callback(self.cog, interaction))
             await role_add_started.wait()
             unsudo_task = asyncio.create_task(unsudo_callback(self.cog, interaction))

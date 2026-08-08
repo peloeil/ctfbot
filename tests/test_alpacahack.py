@@ -239,7 +239,7 @@ class AlpacaHackTest(unittest.TestCase):
 
 class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
-        self.cog = object.__new__(Alpacahack)
+        self.cog: Any = object.__new__(Alpacahack)
         self.cog.bot = Mock()
         self.cog.db = Mock()
         self.cog.settings = SimpleNamespace(tzinfo=ZoneInfo("Asia/Tokyo"))
@@ -249,7 +249,7 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
         )
 
     async def invoke_add(self, username: str) -> None:
-        callback = cast(Any, self.cog.add_user.callback)
+        callback = self.cog.add_user.callback
         await callback(self.cog, self.interaction, username)
 
     async def test_add_rejects_too_long_and_invalid_usernames(self) -> None:

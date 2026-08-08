@@ -16,7 +16,7 @@ build-backend = "hatchling.build"
 packages = ["src/bot"]
 
 [dependency-groups]
-dev = ["ruff>=0.16.0", "ty>=0.0.63"]
+dev = ["ruff>=0.16.2", "ty>=0.0.69"]
 
 [tool.ruff]
 line-length = 88

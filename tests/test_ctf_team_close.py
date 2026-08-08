@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from contextlib import suppress
 from types import SimpleNamespace
+from typing import Any
 from unittest import mock
 
 import discord
@@ -32,7 +33,7 @@ class CloseCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
             created_at_unix=90,
             max_active_per_creator=5,
         )
-        self.cog = CTFTeamCampaigns.__new__(CTFTeamCampaigns)
+        self.cog: Any = CTFTeamCampaigns.__new__(CTFTeamCampaigns)
         self.cog.bot = mock.Mock()
         self.cog.settings = SimpleNamespace(tzinfo=datetime.UTC)
         self.cog.db = self.db
@@ -112,8 +113,8 @@ class CloseCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
 
 class GuildRequirementTest(unittest.IsolatedAsyncioTestCase):
     async def test_list_command_reports_service_error(self) -> None:
-        cog = CTFTeamCampaigns.__new__(CTFTeamCampaigns)
-        interaction = mock.Mock(spec=discord.Interaction)
+        cog: Any = CTFTeamCampaigns.__new__(CTFTeamCampaigns)
+        interaction: Any = mock.Mock(spec=discord.Interaction)
         interaction.guild = None
         interaction.response = mock.Mock()
         interaction.response.defer = mock.AsyncMock()
