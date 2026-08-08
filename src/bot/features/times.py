@@ -49,14 +49,7 @@ class TimesChannels(commands.GroupCog, group_name="times"):
         except ServiceError as exc:
             await send_interaction(interaction, str(exc))
             return
-        existing = next(
-            (
-                channel
-                for channel in category.text_channels
-                if channel.name == normalized
-            ),
-            None,
-        )
+        existing = discord.utils.get(category.text_channels, name=normalized)
         if existing is not None:
             await send_interaction(
                 interaction, f"⏭️ {existing.mention} は既に存在します。"
