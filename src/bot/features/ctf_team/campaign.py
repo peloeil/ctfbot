@@ -1,4 +1,5 @@
 import datetime
+import time
 
 from bot.db import Database
 from bot.errors import ServiceError
@@ -21,8 +22,8 @@ def parse_datetime(raw: str, tz: datetime.tzinfo) -> datetime.datetime:
         ) from exc
 
 
-def now_unix(tz: datetime.tzinfo) -> int:
-    return int(datetime.datetime.now(tz).timestamp())
+def now_unix() -> int:
+    return int(time.time())
 
 
 def parse_campaign_draft(
@@ -73,15 +74,15 @@ def ensure_campaign_can_be_created(
         )
 
 
-def calculate_close(tz: datetime.tzinfo) -> tuple[int, int]:
-    closed_at = now_unix(tz)
+def calculate_close() -> tuple[int, int]:
+    closed_at = now_unix()
     archive_at = closed_at + ARCHIVE_DELAY_DAYS * 24 * 60 * 60
     return closed_at, archive_at
 
 
-def is_expired(campaign: Campaign, tz: datetime.tzinfo) -> bool:
-    return campaign.end_at_unix is not None and campaign.end_at_unix <= now_unix(tz)
+def is_expired(campaign: Campaign) -> bool:
+    return campaign.end_at_unix is not None and campaign.end_at_unix <= now_unix()
 
 
-def is_started(campaign: Campaign, tz: datetime.tzinfo) -> bool:
-    return campaign.start_at_unix <= now_unix(tz)
+def is_started(campaign: Campaign) -> bool:
+    return campaign.start_at_unix <= now_unix()

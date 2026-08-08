@@ -195,7 +195,7 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
                 start_at_unix=draft.start_at_unix,
                 end_at_unix=draft.end_at_unix,
                 created_by=interaction.user.id,
-                created_at_unix=campaign.now_unix(self.settings.tzinfo),
+                created_at_unix=campaign.now_unix(),
                 max_active_per_creator=campaign.MAX_ACTIVE_PER_USER,
             )
         except ConflictError:
@@ -232,7 +232,7 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
                 logger.warning("Failed to add creator role for campaign %s", created.id)
                 role_assignment_failed = True
 
-        if campaign.is_started(created, self.settings.tzinfo):
+        if campaign.is_started(created):
             try:
                 await self._send_start_if_claimed(discussion, role, created)
             except Exception:
@@ -388,7 +388,7 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         guild = self.bot.get_guild(payload.guild_id)
         if guild is None:
             return
-        if campaign.is_expired(found, self.settings.tzinfo):
+        if campaign.is_expired(found):
             await self._close_campaign_resources(guild, found)
             return
         role = guild.get_role(found.role_id)
@@ -412,7 +412,7 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
     @tasks.loop(minutes=1)
     async def start_due_campaigns(self) -> None:
         try:
-            now = campaign.now_unix(self.settings.tzinfo)
+            now = campaign.now_unix()
             due = await asyncio.to_thread(self.db.list_due_starts, now)
             guild = self.bot.get_guild(self.settings.guild_id)
             if guild is None:
@@ -446,7 +446,7 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
     @tasks.loop(minutes=1)
     async def close_expired_campaigns(self) -> None:
         try:
-            now = campaign.now_unix(self.settings.tzinfo)
+            now = campaign.now_unix()
             due = await asyncio.to_thread(self.db.list_due_campaigns, now)
             guild = self.bot.get_guild(self.settings.guild_id)
             for item in due:
@@ -462,7 +462,7 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
     @tasks.loop(minutes=1)
     async def archive_closed_campaigns(self) -> None:
         try:
-            now = campaign.now_unix(self.settings.tzinfo)
+            now = campaign.now_unix()
             due = await asyncio.to_thread(self.db.list_due_archives, now)
             guild = self.bot.get_guild(self.settings.guild_id)
             for item in due:
@@ -510,7 +510,7 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         claimed = await asyncio.to_thread(
             self.db.mark_started,
             item.id,
-            campaign.now_unix(self.settings.tzinfo),
+            campaign.now_unix(),
         )
         if claimed:
             _, success = await discord_ops.send_start_announcement(
@@ -524,7 +524,7 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
     async def _close_campaign_resources(
         self, guild: discord.Guild, item: ActiveCampaign
     ) -> int | None:
-        closed_at, archive_at = campaign.calculate_close(self.settings.tzinfo)
+        closed_at, archive_at = campaign.calculate_close()
 
         ok = True
         recruit_ch = guild.get_channel(item.channel_id)
@@ -600,7 +600,7 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         claimed = await asyncio.to_thread(
             self.db.mark_archived,
             item.id,
-            campaign.now_unix(self.settings.tzinfo),
+            campaign.now_unix(),
         )
         if claimed and isinstance(disc_ch, discord.TextChannel):
             await send_safely(

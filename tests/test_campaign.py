@@ -100,11 +100,11 @@ class CampaignLogicTest(unittest.TestCase):
             campaign.ensure_campaign_can_be_created(self.db, created_by=20, draft=draft)
 
     def test_calculate_close(self) -> None:
-        closed_at, archive_at = campaign.calculate_close(self.tz)
+        closed_at, archive_at = campaign.calculate_close()
         self.assertEqual(archive_at - closed_at, 30 * 24 * 60 * 60)
 
     def test_started_and_expired(self) -> None:
-        now = campaign.now_unix(self.tz)
+        now = campaign.now_unix()
         permanent = self.create_campaign(name="Permanent", message_id=3)
         past = self.db.create_campaign(
             channel_id=2,
@@ -132,8 +132,8 @@ class CampaignLogicTest(unittest.TestCase):
             created_at_unix=1,
             max_active_per_creator=campaign.MAX_ACTIVE_PER_USER,
         )
-        self.assertTrue(campaign.is_expired(past, self.tz))
-        self.assertFalse(campaign.is_expired(future, self.tz))
-        self.assertFalse(campaign.is_expired(permanent, self.tz))
-        self.assertTrue(campaign.is_started(past, self.tz))
-        self.assertFalse(campaign.is_started(future, self.tz))
+        self.assertTrue(campaign.is_expired(past))
+        self.assertFalse(campaign.is_expired(future))
+        self.assertFalse(campaign.is_expired(permanent))
+        self.assertTrue(campaign.is_started(past))
+        self.assertFalse(campaign.is_started(future))
