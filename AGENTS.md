@@ -111,4 +111,4 @@ uv run ty check
 uv run python -m unittest discover -s tests -v
 ```
 
-**bot の実行（`uv run python src/main.py`）は行わないこと。** Discord トークンが必要であり、実際の Discord 動作確認は人間が行う。
+**bot の実行（`uv run --env-file .env python src/main.py`）は行わないこと。** Discord トークンが必要であり、実際の Discord 動作確認は人間が行う。

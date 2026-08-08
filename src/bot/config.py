@@ -5,8 +5,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from dotenv import load_dotenv
-
 from bot.errors import ConfigurationError
 
 
@@ -73,14 +71,9 @@ def _read_clock_time(
 
 def load_settings(
     *,
-    dotenv_path: str | os.PathLike[str] | None = None,
     environ: Mapping[str, str] | None = None,
 ) -> Settings:
-    if environ is None:
-        load_dotenv(dotenv_path=dotenv_path)
-        env = os.environ
-    else:
-        env = environ
+    env = os.environ if environ is None else environ
 
     discord_token = env.get("DISCORD_TOKEN", "").strip()
     if not discord_token:

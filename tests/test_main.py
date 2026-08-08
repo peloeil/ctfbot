@@ -33,7 +33,9 @@ class EnsureProjectVenvTest(unittest.TestCase):
         ):
             main.ensure_project_venv()
 
-        self.assertIn("uv run python src/main.py", str(ctx.exception.code))
+        self.assertIn(
+            "uv run --env-file .env python src/main.py", str(ctx.exception.code)
+        )
 
     def test_bot_package_is_not_imported_before_the_venv_check(self) -> None:
         imports = module_level_imports(MAIN_PATH)

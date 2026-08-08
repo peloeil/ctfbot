@@ -19,7 +19,7 @@ CTF サーバー向けの Discord bot です。
 uv sync  # 開発ツール込み。本番運用は uv sync --no-dev
 cp .env.example .env
 # .env を編集（下記「環境変数」参照）
-uv run python src/main.py
+uv run --env-file .env python src/main.py
 ```
 
 ## 環境変数

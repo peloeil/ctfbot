@@ -13,7 +13,7 @@
       "Bash(git diff*)"
     ],
     "deny": [
-      "Bash(uv run python src/main.py*)"
+      "Bash(uv run *python src/main.py*)"
     ]
   },
   "hooks": {
