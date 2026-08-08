@@ -90,10 +90,7 @@ def sanitize_audit_text(value: object) -> str:
 
 
 async def send_audit_message(bot: commands.Bot, lines: Sequence[str]) -> None:
-    try:
-        runtime = get_runtime(bot)
-    except RuntimeError:
-        return
+    runtime = get_runtime(bot)
     channel = await resolve_messageable(bot, runtime.settings.bot_channel_id)
     if channel is None:
         return
