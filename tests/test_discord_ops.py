@@ -62,6 +62,11 @@ class DiscordOpsTest(unittest.TestCase):
             discord_ops.normalize_channel_name("My CTF 2026"), "my-ctf-2026"
         )
 
+    def test_normalize_channel_name_preserves_japanese(self) -> None:
+        self.assertEqual(
+            discord_ops.normalize_channel_name("ボードゲーム"), "ボードゲーム"
+        )
+
     def test_normalize_channel_name_replaces_symbols_and_collapses_dashes(
         self,
     ) -> None:

@@ -176,7 +176,7 @@ description の 4096 文字上限を超えるブロック以降は載せず、�
 
 ### チャンネル名の正規化
 
-`normalize_channel_name`: times の正規化（`docs/features/times.md`）を適用し、結果が空なら `"ctf"` にフォールバックする。
+`normalize_channel_name`: lowercase、Unicode 英数字と `-` 以外を `-` に置換、連続 `-` を 1 つにし、先頭末尾 `-` を除去して 100 文字に切り詰める。結果が空なら `"ctf"` にフォールバックする。
 
 discussion チャンネルは normalize 結果を、voice チャンネルは `{normalize結果}-voice` を base として命名する。
 

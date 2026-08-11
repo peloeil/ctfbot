@@ -1,3 +1,5 @@
+import re
+
 import discord
 from discord.ext import commands
 
@@ -8,7 +10,6 @@ from bot.helpers import (
     format_timestamp_with_relative,
     send_safely,
 )
-from bot.helpers import normalize_channel_name as _normalize_channel_name
 from bot.log import logger
 
 CLOSED_HEADER = "🔒 **この募集は終了しました。**"
@@ -33,7 +34,9 @@ def require_role_channel(guild: discord.Guild, channel_id: int) -> discord.TextC
 
 
 def normalize_channel_name(ctf_name: str) -> str:
-    return _normalize_channel_name(ctf_name) or "ctf"
+    normalized = re.sub(r"(?:[^\w-]|_)+", "-", ctf_name.lower())
+    normalized = re.sub(r"-+", "-", normalized).strip("-")
+    return normalized[:MAX_CHANNEL_NAME_LENGTH] or "ctf"
 
 
 def pick_unique_channel_name(category: discord.CategoryChannel, base: str) -> str:
