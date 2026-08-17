@@ -14,9 +14,9 @@ class Settings:
     guild_id: int
     bot_channel_id: int | None
     bot_status_channel_id: int | None
-    ctf_team_category_id: int
-    ctf_team_archive_category_id: int
-    ctf_team_role_channel_id: int
+    ctfteam_category_id: int
+    ctfteam_archive_category_id: int
+    ctfteam_role_channel_id: int
     ctftime_channel_id: int | None
     alpacahack_channel_id: int | None
     times_category_id: int | None
@@ -89,14 +89,14 @@ def load_settings(
     except ZoneInfoNotFoundError as exc:
         raise ConfigurationError(f"Unknown TIMEZONE: {timezone}") from exc
 
-    ctf_team_category_id = _read_int(env, "CTF_TEAM_CATEGORY_ID")
-    if ctf_team_category_id <= 0:
+    ctfteam_category_id = _read_int(env, "CTF_TEAM_CATEGORY_ID")
+    if ctfteam_category_id <= 0:
         raise ConfigurationError("CTF_TEAM_CATEGORY_ID must be greater than 0.")
-    ctf_team_archive_category_id = _read_int(env, "CTF_TEAM_ARCHIVE_CATEGORY_ID")
-    if ctf_team_archive_category_id <= 0:
+    ctfteam_archive_category_id = _read_int(env, "CTF_TEAM_ARCHIVE_CATEGORY_ID")
+    if ctfteam_archive_category_id <= 0:
         raise ConfigurationError("CTF_TEAM_ARCHIVE_CATEGORY_ID must be greater than 0.")
-    ctf_team_role_channel_id = _read_int(env, "CTF_TEAM_ROLE_CHANNEL_ID")
-    if ctf_team_role_channel_id <= 0:
+    ctfteam_role_channel_id = _read_int(env, "CTF_TEAM_ROLE_CHANNEL_ID")
+    if ctfteam_role_channel_id <= 0:
         raise ConfigurationError("CTF_TEAM_ROLE_CHANNEL_ID must be greater than 0.")
 
     database_path = env.get("DATABASE_PATH", "ctfbot.db").strip() or "ctfbot.db"
@@ -120,9 +120,9 @@ def load_settings(
         guild_id=guild_id,
         bot_channel_id=_read_int(env, "BOT_CHANNEL_ID", 0) or None,
         bot_status_channel_id=_read_int(env, "BOT_STATUS_CHANNEL_ID", 0) or None,
-        ctf_team_category_id=ctf_team_category_id,
-        ctf_team_archive_category_id=ctf_team_archive_category_id,
-        ctf_team_role_channel_id=ctf_team_role_channel_id,
+        ctfteam_category_id=ctfteam_category_id,
+        ctfteam_archive_category_id=ctfteam_archive_category_id,
+        ctfteam_role_channel_id=ctfteam_role_channel_id,
         ctftime_channel_id=_read_int(env, "CTFTIME_CHANNEL_ID", 0) or None,
         alpacahack_channel_id=_read_int(env, "ALPACAHACK_CHANNEL_ID", 0) or None,
         times_category_id=_read_int(env, "TIMES_CATEGORY_ID", 0) or None,

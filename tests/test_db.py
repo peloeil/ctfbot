@@ -8,7 +8,7 @@ from unittest import mock
 
 from bot.db import _MIGRATIONS, CURRENT_SCHEMA_VERSION, Database
 from bot.errors import ConflictError, RepositoryError
-from bot.features.ctf_team.models import (
+from bot.features.ctfteam.models import (
     ActiveCampaign,
     CampaignStatus,
     ClosedCampaign,

@@ -39,7 +39,7 @@ docs/ 配下の文書は AI が実装の正本として読む。各記述は「�
 
 Discord 非依存ロジックを独立してテスト・再利用する必要がある場合は別モジュールに分ける。単一ファイルで完結する小規模 feature では同居してよい。分割の判断基準は行数ではなく「Discord のモック無しでテストしたいか」「他の feature から再利用するか」。ただし feature 間の相互 import は禁止のため、feature をまたいで再利用するロジックは昇格させる: Discord 依存なら `helpers.py`、DB 操作なら `db.py`。どちらにも依存しない共有ロジックが必要になった場合は、`errors.py`・`log.py` と同列のコア層モジュールとして追加する。
 
-### `discord_ops.py` を ctf_team cog から分離する
+### `discord_ops.py` を ctfteam cog から分離する
 
 Discord リソース操作（チャンネル作成、権限設定、archive 移動など）を standalone 関数に切り出す。関数シグネチャが依存を型で明示するため、暗黙の `self` 参照が発生しない。変更時に影響範囲が関数単位で閉じる。
 
@@ -49,11 +49,11 @@ Discord リソース操作（チャンネル作成、権限設定、archive 移�
 bot パッケージ内部の依存のみ示す（discord・標準ライブラリ・外部ライブラリは省略）。
 ✗ は import 禁止の制約。
 
-ctf_team/cog.py          → ctf_team/campaign.py, ctf_team/discord_ops.py, ctf_team/models.py, helpers.py, runtime.py
-ctf_team/campaign.py     → db.py, ctf_team/models.py
-ctf_team/campaign.py     ✗ discord（import 禁止）
-ctf_team/discord_ops.py  → helpers.py, ctf_team/models.py
-ctf_team/discord_ops.py  ✗ db.py（import 禁止）
+ctfteam/cog.py           → ctfteam/campaign.py, ctfteam/discord_ops.py, ctfteam/models.py, helpers.py, runtime.py
+ctfteam/campaign.py      → db.py, ctfteam/models.py
+ctfteam/campaign.py      ✗ discord（import 禁止）
+ctfteam/discord_ops.py   → helpers.py, ctfteam/models.py
+ctfteam/discord_ops.py   ✗ db.py（import 禁止）
 sudo/cog.py              → sudo/models.py, helpers.py, runtime.py
 alpacahack.py            → db.py, helpers.py, runtime.py
 ctftime.py               → helpers.py, runtime.py

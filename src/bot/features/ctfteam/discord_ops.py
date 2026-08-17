@@ -4,7 +4,7 @@ import discord
 from discord.ext import commands
 
 from bot.errors import ServiceError
-from bot.features.ctf_team.models import CampaignDraft
+from bot.features.ctfteam.models import CampaignDraft
 from bot.helpers import (
     MAX_CHANNEL_NAME_LENGTH,
     format_timestamp_with_relative,

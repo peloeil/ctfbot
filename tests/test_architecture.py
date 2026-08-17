@@ -19,7 +19,7 @@ def imports_for(path: Path) -> set[str]:
 
 class ArchitectureTest(unittest.TestCase):
     def test_campaign_does_not_import_discord(self) -> None:
-        imports = imports_for(SRC / "features" / "ctf_team" / "campaign.py")
+        imports = imports_for(SRC / "features" / "ctfteam" / "campaign.py")
         self.assertFalse(
             any(name == "discord" or name.startswith("discord.") for name in imports)
         )
@@ -31,7 +31,7 @@ class ArchitectureTest(unittest.TestCase):
         )
 
     def test_discord_ops_does_not_import_db(self) -> None:
-        imports = imports_for(SRC / "features" / "ctf_team" / "discord_ops.py")
+        imports = imports_for(SRC / "features" / "ctfteam" / "discord_ops.py")
         self.assertNotIn("bot.db", imports)
 
     def test_feature_models_do_not_import_discord(self) -> None:
@@ -57,7 +57,7 @@ class ArchitectureTest(unittest.TestCase):
             "bot.features.times",
             "bot.features.utility",
             "bot.features.audit_log",
-            "bot.features.ctf_team",
+            "bot.features.ctfteam",
             "bot.features.sudo",
         }
         for path in (SRC / "features").rglob("*.py"):

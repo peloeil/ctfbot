@@ -1,4 +1,4 @@
-# CTF 募集管理 (ctf_team)
+# CTF 募集管理 (ctfteam)
 
 ## 概要
 
@@ -54,7 +54,7 @@ close は毎分ループからリトライされるため、以下の順序で�
 
 #### archive 処理の順序（冪等性保証）
 
-close と同じく「Discord リソース → DB → 通知」の順で行う。archive カテゴリ（`settings.ctf_team_archive_category_id`）が解決できなければその時点で失敗（DB 未更新、リトライ対象）。それ以外のリソース操作は途中で失敗しても最後まで試行し、**すべて成功した場合のみ** DB を更新する:
+close と同じく「Discord リソース → DB → 通知」の順で行う。archive カテゴリ（`settings.ctfteam_archive_category_id`）が解決できなければその時点で失敗（DB 未更新、リトライ対象）。それ以外のリソース操作は途中で失敗しても最後まで試行し、**すべて成功した場合のみ** DB を更新する:
 
 1. discussion チャンネルの archive（`NotFound` は成功扱い）: bot へ `manage_channels` overwrite を付与 → archive カテゴリへ移動 → `@everyone` を読み取り専用の権限に置き換え → ロールの overwrite を削除
 2. voice チャンネルが残っていれば削除（`NotFound` は成功扱い）
@@ -171,8 +171,8 @@ description の 4096 文字上限を超えるブロック以降は載せず、�
 
 ### boundary 関数
 
-- `require_category`: `settings.ctf_team_category_id` のカテゴリを解決。失敗時「CTF募集カテゴリが見つかりません。」
-- `require_role_channel`: `settings.ctf_team_role_channel_id` のチャンネルをテキストチャンネルとして解決する。失敗時（不在・テキストチャンネル以外）は「募集チャンネルが見つかりません。」。CTF募集カテゴリ内にある必要はない
+- `require_category`: `settings.ctfteam_category_id` のカテゴリを解決。失敗時「CTF募集カテゴリが見つかりません。」
+- `require_role_channel`: `settings.ctfteam_role_channel_id` のチャンネルをテキストチャンネルとして解決する。失敗時（不在・テキストチャンネル以外）は「募集チャンネルが見つかりません。」。CTF募集カテゴリ内にある必要はない
 
 ### チャンネル名の正規化
 

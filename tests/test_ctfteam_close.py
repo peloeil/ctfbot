@@ -10,8 +10,8 @@ from unittest import mock
 import discord
 
 from bot.db import Database
-from bot.features.ctf_team import discord_ops
-from bot.features.ctf_team.cog import CTFTeamCampaigns
+from bot.features.ctfteam import discord_ops
+from bot.features.ctfteam.cog import CTFTeamCampaigns
 
 
 class CloseCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
@@ -120,6 +120,6 @@ class GuildRequirementTest(unittest.IsolatedAsyncioTestCase):
         interaction.response.defer = mock.AsyncMock()
         send = mock.AsyncMock()
 
-        with mock.patch("bot.features.ctf_team.cog.send_interaction", new=send):
+        with mock.patch("bot.features.ctfteam.cog.send_interaction", new=send):
             await CTFTeamCampaigns.list_campaigns.callback(cog, interaction)
             send.assert_awaited_once_with(interaction, "サーバー内で実行してください。")

@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 from bot.db import Database
 from bot.errors import ServiceError
-from bot.features.ctf_team import campaign
+from bot.features.ctfteam import campaign
 
 
 class CampaignLogicTest(unittest.TestCase):

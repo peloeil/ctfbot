@@ -4,7 +4,7 @@ DEFAULT_EXTENSIONS = (
     "bot.features.utility",
     "bot.features.times",
     "bot.features.alpacahack",
-    "bot.features.ctf_team.cog",
+    "bot.features.ctfteam.cog",
     "bot.features.ctftime",
     "bot.features.audit_log",
     "bot.features.sudo.cog",

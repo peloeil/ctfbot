@@ -52,7 +52,7 @@
 
 ## データモデル
 
-### ctf_team（`features/ctf_team/models.py`）
+### ctfteam（`features/ctfteam/models.py`）
 
 `CampaignStatus`（`active` / `closed` の Enum）、状態別の `ActiveCampaign` と `ClosedCampaign`、その union である `type Campaign`、parse 済み入力を表す `CampaignDraft` を定義する。`status` は `Literal[CampaignStatus.*]` で discriminator になる（`docs/design.md`「状態依存データは型で表す」）。
 

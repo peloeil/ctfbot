@@ -3,7 +3,7 @@ import time
 
 from bot.db import Database
 from bot.errors import ServiceError
-from bot.features.ctf_team.models import Campaign, CampaignDraft
+from bot.features.ctfteam.models import Campaign, CampaignDraft
 
 MAX_ACTIVE_PER_USER = 5
 MAX_CTF_NAME_LENGTH = 60

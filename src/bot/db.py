@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from bot.errors import ConflictError, RepositoryError
-from bot.features.ctf_team.models import (
+from bot.features.ctfteam.models import (
     ActiveCampaign,
     Campaign,
     CampaignStatus,

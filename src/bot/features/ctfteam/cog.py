@@ -6,8 +6,8 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from bot.errors import ConflictError, ServiceError
-from bot.features.ctf_team import campaign, discord_ops
-from bot.features.ctf_team.models import (
+from bot.features.ctfteam import campaign, discord_ops
+from bot.features.ctfteam.models import (
     ActiveCampaign,
     Campaign,
     CampaignStatus,
@@ -149,10 +149,10 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
 
         try:
             category = discord_ops.require_category(
-                guild, self.settings.ctf_team_category_id
+                guild, self.settings.ctfteam_category_id
             )
             role_channel = discord_ops.require_role_channel(
-                guild, self.settings.ctf_team_role_channel_id
+                guild, self.settings.ctfteam_role_channel_id
             )
 
             role = await guild.create_role(
@@ -559,11 +559,11 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
     async def _archive_campaign_resources(
         self, guild: discord.Guild, item: ClosedCampaign
     ) -> bool:
-        archive_category = guild.get_channel(self.settings.ctf_team_archive_category_id)
+        archive_category = guild.get_channel(self.settings.ctfteam_archive_category_id)
         if not isinstance(archive_category, discord.CategoryChannel):
             logger.warning(
                 "Archive category %s not found",
-                self.settings.ctf_team_archive_category_id,
+                self.settings.ctfteam_archive_category_id,
             )
             return False
 

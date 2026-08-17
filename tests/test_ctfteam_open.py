@@ -11,8 +11,8 @@ import discord
 
 from bot.db import Database
 from bot.errors import ServiceError
-from bot.features.ctf_team import discord_ops
-from bot.features.ctf_team.cog import CTFTeamCampaigns
+from bot.features.ctfteam import discord_ops
+from bot.features.ctfteam.cog import CTFTeamCampaigns
 
 
 class OpenCampaignTest(unittest.IsolatedAsyncioTestCase):
@@ -25,8 +25,8 @@ class OpenCampaignTest(unittest.IsolatedAsyncioTestCase):
         self.cog.bot = mock.Mock()
         self.cog.settings = SimpleNamespace(
             tzinfo=datetime.UTC,
-            ctf_team_category_id=8,
-            ctf_team_role_channel_id=9,
+            ctfteam_category_id=8,
+            ctfteam_role_channel_id=9,
         )
         self.cog.db = self.db
 
@@ -77,7 +77,7 @@ class OpenCampaignTest(unittest.IsolatedAsyncioTestCase):
         send = mock.AsyncMock()
         invalid_values = ["#fff", "fff", "#1000000", "#-1", " #3b82f6", "#3b82g6"]
 
-        with mock.patch("bot.features.ctf_team.cog.send_interaction", new=send):
+        with mock.patch("bot.features.ctfteam.cog.send_interaction", new=send):
             callback = self.cog.open_campaign.callback
             for value in invalid_values:
                 await callback(self.cog, self.interaction, "Example", value)
@@ -92,7 +92,7 @@ class OpenCampaignTest(unittest.IsolatedAsyncioTestCase):
         self.interaction.response.send_modal = mock.AsyncMock()
         send = mock.AsyncMock()
 
-        with mock.patch("bot.features.ctf_team.cog.send_interaction", new=send):
+        with mock.patch("bot.features.ctfteam.cog.send_interaction", new=send):
             callback = self.cog.open_campaign.callback
             await callback(self.cog, self.interaction, "Example", "3b82f6")
 
@@ -126,8 +126,8 @@ class OpenCampaignTest(unittest.IsolatedAsyncioTestCase):
                 new=mock.AsyncMock(return_value=self.voice),
             ),
             mock.patch.object(discord_ops, "cleanup_resources", new=cleanup),
-            mock.patch("bot.features.ctf_team.cog.send_interaction", new=send),
-            mock.patch("bot.features.ctf_team.cog.log_audit", new=audit),
+            mock.patch("bot.features.ctfteam.cog.send_interaction", new=send),
+            mock.patch("bot.features.ctfteam.cog.log_audit", new=audit),
         ):
             await self.submit()
 
@@ -164,7 +164,7 @@ class OpenCampaignTest(unittest.IsolatedAsyncioTestCase):
                 new=create_discussion,
             ),
             mock.patch.object(discord_ops, "cleanup_resources", new=cleanup),
-            mock.patch("bot.features.ctf_team.cog.send_interaction", new=send),
+            mock.patch("bot.features.ctfteam.cog.send_interaction", new=send),
         ):
             await self.submit()
 

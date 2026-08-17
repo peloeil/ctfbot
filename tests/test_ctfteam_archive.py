@@ -10,8 +10,8 @@ from unittest import mock
 import discord
 
 from bot.db import Database
-from bot.features.ctf_team import discord_ops
-from bot.features.ctf_team.cog import CTFTeamCampaigns
+from bot.features.ctfteam import discord_ops
+from bot.features.ctfteam.cog import CTFTeamCampaigns
 
 
 class ArchiveCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
@@ -43,7 +43,7 @@ class ArchiveCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
         self.cog.bot = mock.Mock()
         self.cog.settings = SimpleNamespace(
             tzinfo=datetime.UTC,
-            ctf_team_archive_category_id=8,
+            ctfteam_archive_category_id=8,
         )
         self.cog.db = self.db
 
@@ -126,7 +126,7 @@ class ArchiveCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             mock.patch.object(discord_ops, "delete_voice_channel", new=delete_voice),
-            mock.patch("bot.features.ctf_team.cog.send_safely", new=send),
+            mock.patch("bot.features.ctfteam.cog.send_safely", new=send),
         ):
             result = await self.cog._archive_campaign_resources(guild, self.item)
 

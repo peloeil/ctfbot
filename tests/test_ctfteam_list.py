@@ -1,7 +1,7 @@
 import unittest
 
-from bot.features.ctf_team.cog import _build_campaigns_embed
-from bot.features.ctf_team.models import ActiveCampaign, Campaign, CampaignStatus
+from bot.features.ctfteam.cog import _build_campaigns_embed
+from bot.features.ctfteam.models import ActiveCampaign, Campaign, CampaignStatus
 
 
 class CampaignListEmbedTest(unittest.TestCase):
