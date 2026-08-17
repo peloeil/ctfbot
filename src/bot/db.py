@@ -12,7 +12,7 @@ from bot.features.ctfteam.models import (
 )
 from bot.features.sudo.models import SudoGrant
 
-CURRENT_SCHEMA_VERSION = 5
+CURRENT_SCHEMA_VERSION = 6
 _MIGRATIONS: dict[int, str] = {
     1: """\
 CREATE TABLE IF NOT EXISTS audit_log_entry (
@@ -141,12 +141,21 @@ DROP TABLE ctfteam_campaign;
 ALTER TABLE ctfteam_campaign_v5 RENAME TO ctfteam_campaign;
 COMMIT;
 """,
+    5: """\
+CREATE TABLE IF NOT EXISTS alpacahack_daily_notification (
+    challenge_url TEXT PRIMARY KEY
+);
+""",
 }
 
 _SCHEMA_DDL = """\
 CREATE TABLE IF NOT EXISTS alpacahack_user (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS alpacahack_daily_notification (
+    challenge_url TEXT PRIMARY KEY
 );
 
 CREATE TABLE IF NOT EXISTS ctfteam_campaign (
@@ -382,6 +391,17 @@ class Database:
                 "SELECT name FROM alpacahack_user ORDER BY name ASC"
             ).fetchall()
         return [row[0] for row in rows]
+
+    def reserve_alpacahack_daily_notification(self, challenge_url: str) -> bool:
+        with self._connection() as conn:
+            cur = conn.execute(
+                "INSERT INTO alpacahack_daily_notification "
+                "(challenge_url) VALUES (?) "
+                "ON CONFLICT (challenge_url) DO NOTHING",
+                (challenge_url,),
+            )
+            conn.commit()
+            return cur.rowcount > 0
 
     def insert_audit_log_entry(
         self,

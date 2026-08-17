@@ -4,7 +4,8 @@ import re
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
-from urllib.parse import urljoin
+from pathlib import PurePosixPath
+from urllib.parse import unquote, urljoin, urlparse
 
 import discord
 import requests
@@ -33,6 +34,10 @@ _USERNAME_PATTERN = re.compile(r"[0-9A-Za-z_-]+")
 _MAX_USERS = 50
 _EMBED_TOTAL_LIMIT = 6000
 _FINAL_FIELD_RESERVE = 1100  # Room for the final summary field (name + value)
+_DAILY_URL = "https://alpacahack.com/daily"
+_DAILY_CHALLENGE_PATH = re.compile(r"^/daily/challenges/[^/]+$")
+_ATTACHMENT_URL_PREFIX = "https://alpacahack-prod.s3.ap-northeast-1.amazonaws.com/"
+_DAILY_DESCRIPTION_LIMIT = 3500
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +54,17 @@ class WeeklySolveSummary:
     total_users: int
     weekly_solves: dict[str, list[SolveRecord]]
     failed_users: list[str]
+
+
+@dataclass(frozen=True, slots=True)
+class DailyChallenge:
+    title: str
+    url: str
+    author: str
+    categories: tuple[str, ...]
+    difficulty: str
+    description: str
+    attachment_urls: tuple[str, ...]
 
 
 def get_week_range(
@@ -79,6 +95,64 @@ class AlpacaHackClient:
         self._timezone = timezone
         self._timeout = request_timeout
 
+    def fetch_daily_challenge(self) -> DailyChallenge | None:
+        index = BeautifulSoup(self._get_html(_DAILY_URL), "html.parser")
+        label = index.find(
+            string=lambda value: bool(
+                value and value.strip().lower() == "today's challenge"
+            )
+        )
+        if label is None:
+            raise ExternalAPIError("Unexpected Daily AlpacaHack page.")
+        container = label.find_parent("div")
+        if not isinstance(container, Tag):
+            raise ExternalAPIError("Unexpected Daily AlpacaHack page.")
+        card = container.find(
+            "a", href=lambda value: bool(value and _DAILY_CHALLENGE_PATH.match(value))
+        )
+        if not isinstance(card, Tag):
+            return None
+        parts = [
+            text.strip()
+            for text in card.find_all(string=True)
+            if text.parent
+            and text.parent.name not in {"script", "style"}
+            and text.strip()
+        ]
+        if len(parts) < 5:
+            raise ExternalAPIError("Unexpected Daily AlpacaHack challenge card.")
+        challenge_url = urljoin(_DAILY_URL, str(card["href"]))
+        page = BeautifulSoup(self._get_html(challenge_url), "html.parser")
+        heading = page.find("h1")
+        if not isinstance(heading, Tag):
+            raise ExternalAPIError("Unexpected Daily AlpacaHack challenge page.")
+        title = " ".join(heading.get_text(" ", strip=True).split())
+        description = _parse_daily_description(heading, page)
+        attachment_urls = tuple(
+            dict.fromkeys(
+                str(link["href"])
+                for link in page.find_all("a", href=True)
+                if str(link["href"]).startswith(_ATTACHMENT_URL_PREFIX)
+            )
+        )
+        return DailyChallenge(
+            title=title,
+            url=challenge_url,
+            author=parts[0],
+            categories=tuple(parts[2:-2]),
+            difficulty=parts[-2],
+            description=description,
+            attachment_urls=attachment_urls,
+        )
+
+    def _get_html(self, url: str, *, params: dict[str, int] | None = None) -> str:
+        try:
+            response = requests.get(url, params=params, timeout=self._timeout)
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            raise ExternalAPIError("AlpacaHack からの取得に失敗しました。") from exc
+        return response.text
+
     def fetch_solve_records(
         self,
         username: str,
@@ -93,16 +167,11 @@ class AlpacaHackClient:
             params: dict[str, int] = {}
             if page > 1:
                 params["solvesPage"] = page
-            try:
-                response = requests.get(
-                    f"https://alpacahack.com/users/{username}/solved-challenges",
-                    params=params,
-                    timeout=self._timeout,
-                )
-                response.raise_for_status()
-            except requests.RequestException as exc:
-                raise ExternalAPIError("AlpacaHack からの取得に失敗しました。") from exc
-            page_records = self._parse_html(response.text)
+            html = self._get_html(
+                f"https://alpacahack.com/users/{username}/solved-challenges",
+                params=params,
+            )
+            page_records = self._parse_html(html)
             records.extend(page_records)
             if len(page_records) < _PAGE_SIZE:
                 break
@@ -148,6 +217,25 @@ class AlpacaHackClient:
                 )
             )
         return records
+
+
+def _parse_daily_description(heading: Tag, page: BeautifulSoup) -> str:
+    first_markdown_element = heading.find_next(attrs={"node": True})
+    if isinstance(first_markdown_element, Tag) and isinstance(
+        first_markdown_element.parent, Tag
+    ):
+        blocks = [
+            " ".join(child.stripped_strings)
+            for child in first_markdown_element.parent.find_all(recursive=False)
+            if child.name not in {"script", "style"}
+        ]
+        description = "\n\n".join(block for block in blocks if block)
+        if description:
+            return description
+    meta = page.find("meta", attrs={"name": "description"})
+    if isinstance(meta, Tag):
+        return str(meta.get("content", "")).strip()
+    return ""
 
 
 def _find_solved_challenges_table(soup: BeautifulSoup) -> Tag | None:
@@ -270,6 +358,41 @@ def _build_summary_embed(summary: WeeklySolveSummary) -> discord.Embed:
     return embed
 
 
+def _build_daily_embed(challenge: DailyChallenge) -> discord.Embed:
+    description = challenge.description
+    if len(description) > _DAILY_DESCRIPTION_LIMIT:
+        description = description[: _DAILY_DESCRIPTION_LIMIT - 3] + "..."
+    embed = discord.Embed(
+        title=f"🦙 {challenge.title}"[:256],
+        url=challenge.url,
+        description=description or "問題ページを確認してください。",
+        color=ALPACAHACK_EMBED_COLOR,
+    )
+    categories = " / ".join(challenge.categories) or "-"
+    embed.add_field(
+        name="カテゴリ / 難易度",
+        value=f"{categories} / {challenge.difficulty}"[:256],
+        inline=True,
+    )
+    embed.add_field(name="作問者", value=challenge.author[:256], inline=True)
+    if challenge.attachment_urls:
+        lines = []
+        for url in challenge.attachment_urls:
+            name = unquote(PurePosixPath(urlparse(url).path).name) or "添付ファイル"
+            lines.append(
+                f"- [{name}]({url})"
+                if is_markdown_link_safe(name) and is_markdown_link_safe(url)
+                else url
+            )
+        value = "\n".join(lines)
+        embed.add_field(
+            name="添付ファイル",
+            value=value if len(value) <= 1024 else value[:1021] + "...",
+            inline=False,
+        )
+    return embed
+
+
 class Alpacahack(commands.GroupCog, group_name="alpaca"):
     def __init__(self, bot: commands.Bot) -> None:
         super().__init__()
@@ -281,10 +404,43 @@ class Alpacahack(commands.GroupCog, group_name="alpaca"):
         self.weekly_solve_report.change_interval(
             time=self.settings.alpacahack_solve_time
         )
+        self.daily_challenge_report.change_interval(
+            time=self.settings.alpacahack_daily_time
+        )
         self.weekly_solve_report.start()
+        self.daily_challenge_report.start()
 
     async def cog_unload(self) -> None:
         self.weekly_solve_report.cancel()
+        self.daily_challenge_report.cancel()
+
+    @tasks.loop(hours=24)
+    async def daily_challenge_report(self) -> None:
+        try:
+            channel = await resolve_messageable(
+                self.bot, self.settings.alpacahack_channel_id
+            )
+            if channel is None:
+                return
+            challenge = await asyncio.to_thread(self.client.fetch_daily_challenge)
+            if challenge is None:
+                return
+            reserved = await asyncio.to_thread(
+                self.db.reserve_alpacahack_daily_notification,
+                challenge.url,
+            )
+            if reserved:
+                await send_safely(
+                    channel,
+                    embed=_build_daily_embed(challenge),
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+        except Exception:
+            logger.exception("Error in daily_challenge_report")
+
+    @daily_challenge_report.before_loop
+    async def before_daily_challenge(self) -> None:
+        await self.bot.wait_until_ready()
 
     @tasks.loop(hours=24)
     async def weekly_solve_report(self) -> None:

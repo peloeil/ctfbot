@@ -32,6 +32,10 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(settings.log_level, "INFO")
         self.assertEqual(settings.database_path, "ctfbot.db")
         self.assertEqual(
+            settings.alpacahack_daily_time,
+            datetime.time(0, 5, tzinfo=settings.tzinfo),
+        )
+        self.assertEqual(
             settings.alpacahack_solve_time, datetime.time(23, 0, tzinfo=settings.tzinfo)
         )
         self.assertEqual(

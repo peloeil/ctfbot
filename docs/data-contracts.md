@@ -32,7 +32,7 @@
 | `BOT_CHANNEL_ID` | コマンド実行ログ・sudo 自動剥奪通知の送信先（`None` で無効） | `int \| None` | — | `0` | optional ID |
 | `BOT_STATUS_CHANNEL_ID` | 接続状態通知の送信先（`None` で無効） | `int \| None` | — | `0` | optional ID |
 | `CTFTIME_CHANNEL_ID` | CTFtime 週次通知の送信先（`None` で無効） | `int \| None` | — | `0` | optional ID |
-| `ALPACAHACK_CHANNEL_ID` | AlpacaHack 週次通知の送信先（`None` で無効） | `int \| None` | — | `0` | optional ID |
+| `ALPACAHACK_CHANNEL_ID` | AlpacaHack Daily・週次通知の送信先（`None` で無効） | `int \| None` | — | `0` | optional ID |
 | `TIMES_CATEGORY_ID` | `/times create` の作成先カテゴリ（`None` で times 機能無効） | `int \| None` | — | `0` | optional ID |
 | `ADMIN_ROLE_ID` | `/sudo` で一時付与する管理者ロール | `int \| None` | — | `0` | optional ID。`SUDOER_ROLE_ID` と**両方設定または両方未設定**（片方だけは起動拒否）。**同一のロール ID は起動拒否**（理由は `docs/features/sudo.md`） |
 | `SUDOER_ROLE_ID` | `/sudo` の実行を許可するロール | `int \| None` | — | `0` | optional ID。同上のペア制約・同一値拒否 |
@@ -40,6 +40,7 @@
 | `TIMEZONE` | 日時の解釈・表示のタイムゾーン | `tzinfo: ZoneInfo` | — | `Asia/Tokyo` | デフォルト付き文字列。`ZoneInfo` で解決できなければ起動拒否 |
 | `LOG_LEVEL` | ログレベル | `str` | — | `INFO` | デフォルト付き文字列 |
 | `DATABASE_PATH` | SQLite DB のパス | `str` | — | `ctfbot.db` | デフォルト付き文字列。親ディレクトリが存在しなければ起動拒否 |
+| `ALPACAHACK_DAILY_TIME` | Daily AlpacaHack の新着確認時刻 | `datetime.time` | — | `00:05` | 時刻 |
 | `ALPACAHACK_SOLVE_TIME` | 週次 solve 集計の実行時刻（日曜のみ実行） | `datetime.time` | — | `23:00` | 時刻 |
 | `CTFTIME_NOTIFICATION_TIME` | CTFtime 週次通知の実行時刻（月曜のみ実行） | `datetime.time` | — | `09:00` | 時刻 |
 | `CTFTIME_WINDOW_DAYS` | 取得するイベント期間（日数） | `int` | — | `14` | `_require_positive` |
@@ -73,7 +74,7 @@ invariant（DB decoder が実行時に検証し、違反行は `RepositoryError`
 
 ### alpacahack（`features/alpacahack.py`）
 
-`SolveRecord` と、その週次集計である `WeeklySolveSummary` を定義する。`solved_at` は `Settings.tzinfo` へ変換済みの aware datetime。`weekly_solves` のキーは username。取得に失敗したユーザーは `weekly_solves` に含めず `failed_users` にのみ入れる。
+`SolveRecord` と、その週次集計である `WeeklySolveSummary`、Daily 問題を表す `DailyChallenge` を定義する。`DailyChallenge` は title・url・author・categories・difficulty・description・attachment_urls を保持する。`solved_at` は `Settings.tzinfo` へ変換済みの aware datetime。`weekly_solves` のキーは username。取得に失敗したユーザーは `weekly_solves` に含めず `failed_users` にのみ入れる。
 
 ## DB スキーマ
 
@@ -83,6 +84,10 @@ invariant（DB decoder が実行時に検証し、違反行は `RepositoryError`
 CREATE TABLE IF NOT EXISTS alpacahack_user (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS alpacahack_daily_notification (
+    challenge_url TEXT PRIMARY KEY
 );
 
 CREATE TABLE IF NOT EXISTS ctfteam_campaign (
@@ -301,6 +306,12 @@ COMMIT;
 | `add_alpacahack_user(name, *, max_users) -> bool` | `name.strip()` して挿入。strip 後空は `RepositoryError`。`BEGIN IMMEDIATE` で同名存在 → `False`、`COUNT(*) >= max_users`（新規名）→ `ConflictError("AlpacaHack user limit reached.")`、それ以外は挿入して `True` |
 | `delete_alpacahack_user(name) -> bool` | `name.strip()` で削除。`True`=削除、`False`=不在 |
 | `list_alpacahack_users() -> list[str]` | `name` 昇順の全件 |
+
+### alpacahack_daily_notification
+
+| メソッド | 契約 |
+|---|---|
+| `reserve_alpacahack_daily_notification(challenge_url) -> bool` | challenge URL を通知済みとして挿入。新規なら `True`、既存なら変更せず `False`。通知送信より先に呼び、重複送信を防ぐ |
 
 ### audit_log_entry
 

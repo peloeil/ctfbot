@@ -113,6 +113,7 @@ PRAGMA user_version = 3;
             }
             version = conn.execute("PRAGMA user_version").fetchone()[0]
         self.assertIn("alpacahack_user", tables)
+        self.assertIn("alpacahack_daily_notification", tables)
         self.assertIn("ctfteam_campaign", tables)
         self.assertIn("audit_log_entry", tables)
         self.assertIn("sudo_grant", tables)
@@ -326,6 +327,39 @@ PRAGMA user_version = 3;
         self.assertEqual(len(first_campaign), 1)
         self.assertEqual(second_campaign, first_campaign)
 
+    def test_migration_from_version_five_adds_daily_notification_schema(
+        self,
+    ) -> None:
+        with sqlite3.connect(self.path) as conn:
+            conn.execute("DROP TABLE alpacahack_daily_notification")
+            conn.execute("PRAGMA user_version = 5")
+
+        Database(self.path)
+
+        with sqlite3.connect(self.path) as conn:
+            table = conn.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type = 'table' AND name = 'alpacahack_daily_notification'"
+            ).fetchone()
+        self.assertEqual(table, ("alpacahack_daily_notification",))
+
+    def test_version_five_migration_can_be_applied_twice(self) -> None:
+        with sqlite3.connect(self.path) as conn:
+            conn.execute(
+                "INSERT INTO alpacahack_daily_notification VALUES (?)",
+                ("https://alpacahack.com/daily/challenges/example",),
+            )
+            conn.executescript(_MIGRATIONS[5])
+            conn.executescript(_MIGRATIONS[5])
+            rows = conn.execute(
+                "SELECT challenge_url FROM alpacahack_daily_notification"
+            ).fetchall()
+
+        self.assertEqual(
+            rows,
+            [("https://alpacahack.com/daily/challenges/example",)],
+        )
+
     def test_alpacahack_users(self) -> None:
         self.assertTrue(self.db.add_alpacahack_user(" zeta ", max_users=2))
         self.assertFalse(self.db.add_alpacahack_user("zeta", max_users=2))
@@ -347,6 +381,17 @@ PRAGMA user_version = 3;
         self.assertTrue(self.db.add_alpacahack_user("alice", max_users=1))
 
         self.assertFalse(self.db.add_alpacahack_user("alice", max_users=1))
+
+    def test_alpacahack_daily_notification_reservation_is_idempotent(self) -> None:
+        url = "https://alpacahack.com/daily/challenges/example"
+
+        self.assertTrue(self.db.reserve_alpacahack_daily_notification(url))
+        self.assertFalse(self.db.reserve_alpacahack_daily_notification(url))
+        with sqlite3.connect(self.path) as conn:
+            row = conn.execute(
+                "SELECT challenge_url FROM alpacahack_daily_notification"
+            ).fetchone()
+        self.assertEqual(row, (url,))
 
     def test_insert_audit_log_entry_is_idempotent(self) -> None:
         values = {

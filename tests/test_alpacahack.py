@@ -16,8 +16,10 @@ from bot.errors import ConflictError, ExternalAPIError
 from bot.features.alpacahack import (
     Alpacahack,
     AlpacaHackClient,
+    DailyChallenge,
     SolveRecord,
     WeeklySolveSummary,
+    _build_daily_embed,
     _build_summary_embed,
     collect_weekly_summary,
     get_week_range,
@@ -58,6 +60,68 @@ class AlpacaHackTest(unittest.TestCase):
             week_end=datetime.date(2026, 6, 21),
         )
         self.assertEqual([record.challenge_name for record in selected], ["one", "two"])
+
+    @patch("bot.features.alpacahack.requests.get")
+    def test_fetch_daily_challenge_parses_description_and_attachments(
+        self, get: Mock
+    ) -> None:
+        index_response = Mock()
+        index_response.raise_for_status.return_value = None
+        index_response.text = """
+        <div>
+          <span>Today's Challenge</span>
+          <a href="/daily/challenges/example">
+            <span>alice</span><span>Example</span><span>Misc</span>
+            <span>Crypto</span><span>Easy</span><span>10 solves</span>
+          </a>
+        </div>
+        """
+        challenge_response = Mock()
+        challenge_response.raise_for_status.return_value = None
+        challenge_response.text = """
+        <html><head><meta name="description" content="fallback"></head><body>
+          <h1>Example Challenge</h1>
+          <div>
+            <style>.description { color: orange; }</style>
+            <p node="[object Object]">Recover the flag.</p>
+            <details><summary>Beginner Hint</summary>Read the source.</details>
+          </div>
+          <a href="https://alpacahack-prod.s3.ap-northeast-1.amazonaws.com/id/example.tar.gz">example.tar.gz</a>
+        </body></html>
+        """
+        get.side_effect = [index_response, challenge_response]
+
+        challenge = AlpacaHackClient(timezone=self.tz).fetch_daily_challenge()
+
+        self.assertEqual(
+            challenge,
+            DailyChallenge(
+                title="Example Challenge",
+                url="https://alpacahack.com/daily/challenges/example",
+                author="alice",
+                categories=("Misc", "Crypto"),
+                difficulty="Easy",
+                description="Recover the flag.\n\nBeginner Hint Read the source.",
+                attachment_urls=(
+                    "https://alpacahack-prod.s3.ap-northeast-1.amazonaws.com/"
+                    "id/example.tar.gz",
+                ),
+            ),
+        )
+
+    @patch("bot.features.alpacahack.requests.get")
+    def test_fetch_daily_challenge_returns_none_without_active_challenge(
+        self, get: Mock
+    ) -> None:
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.text = "<div><span>Today's Challenge</span></div>"
+        get.return_value = response
+
+        challenge = AlpacaHackClient(timezone=self.tz).fetch_daily_challenge()
+
+        self.assertIsNone(challenge)
+        get.assert_called_once()
 
     @patch("bot.features.alpacahack.requests.get")
     def test_fetch_solve_records_parses_html(self, get: Mock) -> None:
@@ -236,13 +300,40 @@ class AlpacaHackTest(unittest.TestCase):
 
         self.assertEqual(embed.fields[0].value, "- broken)")
 
+    def test_daily_embed_links_attachment_and_limits_description(self) -> None:
+        challenge = DailyChallenge(
+            title="Example",
+            url="https://alpacahack.com/daily/challenges/example",
+            author="alice",
+            categories=("Pwn",),
+            difficulty="Medium",
+            description="x" * 4000,
+            attachment_urls=(
+                "https://alpacahack-prod.s3.ap-northeast-1.amazonaws.com/"
+                "id/example%20file.tar.gz",
+            ),
+        )
+
+        embed = _build_daily_embed(challenge)
+
+        self.assertEqual(len(embed.description or ""), 3500)
+        self.assertEqual(embed.fields[0].value, "Pwn / Medium")
+        self.assertEqual(
+            embed.fields[2].value,
+            "- [example file.tar.gz](https://alpacahack-prod.s3.ap-northeast-1."
+            "amazonaws.com/id/example%20file.tar.gz)",
+        )
+
 
 class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.cog: Any = object.__new__(Alpacahack)
         self.cog.bot = Mock()
         self.cog.db = Mock()
-        self.cog.settings = SimpleNamespace(tzinfo=ZoneInfo("Asia/Tokyo"))
+        self.cog.client = Mock()
+        self.cog.settings = SimpleNamespace(
+            tzinfo=ZoneInfo("Asia/Tokyo"), alpacahack_channel_id=10
+        )
         self.interaction = cast(
             discord.Interaction,
             SimpleNamespace(guild=SimpleNamespace(id=1)),
@@ -251,6 +342,40 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
     async def invoke_add(self, username: str) -> None:
         callback = self.cog.add_user.callback
         await callback(self.cog, self.interaction, username)
+
+    async def test_daily_report_sends_only_after_new_challenge_is_reserved(
+        self,
+    ) -> None:
+        challenge = DailyChallenge(
+            title="Example",
+            url="https://alpacahack.com/daily/challenges/example",
+            author="alice",
+            categories=("Misc",),
+            difficulty="Easy",
+            description="Recover the flag.",
+            attachment_urls=(),
+        )
+        self.cog.client.fetch_daily_challenge.return_value = challenge
+        self.cog.db.reserve_alpacahack_daily_notification.side_effect = [True, False]
+        channel = Mock()
+        with (
+            patch(
+                "bot.features.alpacahack.resolve_messageable",
+                new_callable=mock.AsyncMock,
+                return_value=channel,
+            ),
+            patch(
+                "bot.features.alpacahack.send_safely",
+                new_callable=mock.AsyncMock,
+            ) as send_safely,
+        ):
+            await self.cog.daily_challenge_report.coro(self.cog)
+            await self.cog.daily_challenge_report.coro(self.cog)
+
+        self.assertEqual(
+            self.cog.db.reserve_alpacahack_daily_notification.call_count, 2
+        )
+        send_safely.assert_awaited_once()
 
     async def test_add_rejects_too_long_and_invalid_usernames(self) -> None:
         invalid_names = ["a" * 33, "invalid/name", "日本語"]

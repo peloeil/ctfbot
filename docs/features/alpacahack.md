@@ -2,7 +2,7 @@
 
 ## 概要
 
-AlpacaHack のユーザーを登録し、毎週日曜に solve 状況を集計・通知する。
+AlpacaHack のユーザーを登録して毎週日曜に solve 状況を集計し、Daily AlpacaHack の新着問題を通知する。
 
 ## コマンド
 
@@ -33,6 +33,30 @@ AlpacaHack のユーザーを登録し、毎週日曜に solve 状況を集計�
 - 実行時刻の設定順序は `docs/design.md`「週次通知の実行時刻は start 前に設定する」に従う
 - 集計全体の失敗はログのみでチャンネルへは通知せず、失敗メッセージの通知は非目標とする。ユーザー単位の失敗は Embed の「取得失敗」に表示する
 - 日曜の実行時刻以降の solve はその週の通知に含まれない。通知後も `/alpaca solve` では参照できる
+
+## Daily 問題通知
+
+- 毎日 `ALPACAHACK_DAILY_TIME` に `https://alpacahack.com/daily` を確認する
+- `ALPACAHACK_CHANNEL_ID` が未設定・解決不能なら取得せずスキップする
+- 「Today's Challenge」が公開中なら問題ページからタイトル、作問者、カテゴリ、難易度、概要、添付ファイル URL を取得する
+- challenge URL を `alpacahack_daily_notification` に挿入できた場合だけ Embed を送る。DB 更新は送信より先に確定し、同じ公開期間や bot 再起動で再送しない
+- 公開中の問題がなければ何も送らない。取得・パース・送信の失敗はログに記録し、次回以降のループを継続する
+- 添付ファイルはダウンロード・再アップロードせず、AlpacaHack が公開する S3 URL へのリンクとして表示する
+
+### Daily HTML パース
+
+1. `/daily` の「Today's Challenge」を含む要素内から `/daily/challenges/{slug}` のリンクを取得する
+2. card の表示テキストから作問者、カテゴリ、難易度を取得する
+3. 問題ページの最初の `<h1>` をタイトルとする
+4. markdown 描画要素の親要素から概要をプレーンテキスト化し、取得不能なら `meta[name=description]` にフォールバックする
+5. `https://alpacahack-prod.s3.ap-northeast-1.amazonaws.com/` で始まるリンクを添付ファイルとする
+
+### Daily Embed
+
+- title: `🦙 {title}`、title URL: challenge URL、color: `#FD8028`
+- description: 問題概要。3500 文字を超える場合は省略する。空なら「問題ページを確認してください。」
+- field: 「カテゴリ / 難易度」「作問者」
+- 添付がある場合は「添付ファイル」field にファイル名付きリンクを表示し、1024 文字を超える場合は省略する
 
 ## スクレイパー (AlpacaHackClient)
 
@@ -109,8 +133,8 @@ Embed 全体の合計は 6000 文字以内に収める: field 追加で超過す
 
 ## データモデル
 
-`SolveRecord` / `WeeklySolveSummary` の定義は `docs/data-contracts.md`「alpacahack」を正本とする。
+`SolveRecord` / `WeeklySolveSummary` / `DailyChallenge` の定義は `docs/data-contracts.md`「alpacahack」を正本とする。
 
 ## DB スキーマ
 
-テーブル `alpacahack_user` の DDL は `docs/data-contracts.md` を正本とする。
+テーブル `alpacahack_user` / `alpacahack_daily_notification` の DDL は `docs/data-contracts.md` を正本とする。

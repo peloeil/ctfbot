@@ -26,6 +26,7 @@ class Settings:
     tzinfo: ZoneInfo
     log_level: str
     database_path: str
+    alpacahack_daily_time: datetime.time
     alpacahack_solve_time: datetime.time
     ctftime_notification_time: datetime.time
     ctftime_window_days: int
@@ -142,6 +143,9 @@ def load_settings(
         tzinfo=tzinfo,
         log_level=env.get("LOG_LEVEL", "INFO").strip() or "INFO",
         database_path=database_path,
+        alpacahack_daily_time=_read_clock_time(
+            env, "ALPACAHACK_DAILY_TIME", "00:05", tzinfo=tzinfo
+        ),
         alpacahack_solve_time=_read_clock_time(
             env, "ALPACAHACK_SOLVE_TIME", "23:00", tzinfo=tzinfo
         ),
