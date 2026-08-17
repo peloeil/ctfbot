@@ -6,7 +6,7 @@ CTF サーバー向けの Discord bot です。
 
 - **CTFtime 通知** — 近日開催の CTF イベントを定期通知 / `/ctftime` で手動取得
 - **CTF 募集管理** — `/ctfteam open|list|close|archive` で参加者募集からアーカイブまで
-- **AlpacaHack 連携** — Daily 問題通知と `/alpaca add|del|list|solve` による週次 solve 集計
+- **AlpacaHack 連携** — Daily 問題通知と `/alpaca add|del|list|daily|solve` による手動取得・週次 solve 集計
 - **times チャンネル** — `/times create` でカテゴリ配下にチャンネルを作成
 - **ユーティリティ** — `/help`, `/perms`
 - **一時的な管理者昇格** — `/sudo`, `/unsudo` で期限付きロールを管理

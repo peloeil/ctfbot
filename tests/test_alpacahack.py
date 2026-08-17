@@ -336,9 +336,15 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
         self.cog.settings = SimpleNamespace(
             tzinfo=ZoneInfo("Asia/Tokyo"), alpacahack_channel_id=10
         )
+        self.defer = mock.AsyncMock()
+        self.followup_send = mock.AsyncMock()
         self.interaction = cast(
             discord.Interaction,
-            SimpleNamespace(guild=SimpleNamespace(id=1)),
+            SimpleNamespace(
+                guild=SimpleNamespace(id=1),
+                response=SimpleNamespace(defer=self.defer),
+                followup=SimpleNamespace(send=self.followup_send),
+            ),
         )
 
     async def invoke_add(self, username: str) -> None:
@@ -378,6 +384,55 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
             self.cog.db.reserve_alpacahack_daily_notification.call_count, 2
         )
         send_safely.assert_awaited_once()
+
+    async def test_daily_command_displays_current_challenge_without_reserving(
+        self,
+    ) -> None:
+        challenge = DailyChallenge(
+            title="Example",
+            url="https://alpacahack.com/daily/challenges/example",
+            author="alice",
+            categories=("Misc",),
+            difficulty="Easy",
+            description="Recover the flag.",
+            attachment_urls=(),
+        )
+        self.cog.client.fetch_daily_challenge.return_value = challenge
+
+        await self.cog.show_daily.callback(self.cog, self.interaction)
+
+        self.defer.assert_awaited_once()
+        self.followup_send.assert_awaited_once_with(embed=_build_daily_embed(challenge))
+        self.cog.db.reserve_alpacahack_daily_notification.assert_not_called()
+
+    async def test_daily_command_reports_when_no_challenge_is_active(self) -> None:
+        self.cog.client.fetch_daily_challenge.return_value = None
+        with patch(
+            "bot.features.alpacahack.cog.send_interaction",
+            new_callable=mock.AsyncMock,
+        ) as send_interaction:
+            await self.cog.show_daily.callback(self.cog, self.interaction)
+
+        send_interaction.assert_awaited_once_with(
+            self.interaction,
+            "公開中の Daily AlpacaHack 問題はありません。",
+            ephemeral=False,
+        )
+        self.cog.db.reserve_alpacahack_daily_notification.assert_not_called()
+
+    async def test_daily_command_reports_fetch_failure(self) -> None:
+        self.cog.client.fetch_daily_challenge.side_effect = ExternalAPIError("failed")
+        with patch(
+            "bot.features.alpacahack.cog.send_interaction",
+            new_callable=mock.AsyncMock,
+        ) as send_interaction:
+            await self.cog.show_daily.callback(self.cog, self.interaction)
+
+        send_interaction.assert_awaited_once_with(
+            self.interaction,
+            "AlpacaHack からの取得に失敗しました。",
+            ephemeral=False,
+        )
 
     async def test_add_rejects_too_long_and_invalid_usernames(self) -> None:
         invalid_names = ["a" * 33, "invalid/name", "日本語"]

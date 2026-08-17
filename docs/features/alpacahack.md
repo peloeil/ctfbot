@@ -6,7 +6,7 @@ AlpacaHack のユーザーを登録して毎週日曜に solve 状況を集計�
 
 ## コマンド
 
-`add` / `del` / `list` の応答は ephemeral、`solve` は public。`add` / `del` は `username.strip()` した値を `{name}` として扱う。空なら「ユーザー名が空です。」と応答し、`add` はさらに形式を検証する: 32 文字以内かつ `[0-9A-Za-z_-]` のみ。違反は「ユーザー名は 32 文字以内の英数字と `-` `_` で入力してください。」と応答する。成功時のみ `log_audit` を送信する。
+`add` / `del` / `list` の応答は ephemeral、`daily` / `solve` は public。`add` / `del` は `username.strip()` した値を `{name}` として扱う。空なら「ユーザー名が空です。」と応答し、`add` はさらに形式を検証する: 32 文字以内かつ `[0-9A-Za-z_-]` のみ。違反は「ユーザー名は 32 文字以内の英数字と `-` `_` で入力してください。」と応答する。成功時のみ `log_audit` を送信する。
 
 ### `/alpaca add username`
 
@@ -25,6 +25,10 @@ AlpacaHack のユーザーを登録して毎週日曜に solve 状況を集計�
 ### `/alpaca solve`
 
 `interaction.response.defer()` → 今週の solve 状況を集計 → Embed で応答。guild ごとに 60 秒 1 回のクールダウンを設ける（超過時は共通エラーハンドラの「コマンドはクールダウン中です。」）。登録 0 人でも Embed を送る（`0人/0人, 0 solves`・field なし）。
+
+### `/alpaca daily`
+
+`interaction.response.defer()` → 現在の Daily 問題を取得 → Daily Embed で応答。guild ごとに 60 秒 1 回のクールダウンを設ける。通知済み DB は変更せず、定期通知を抑止しない。公開中の問題がなければ「公開中の Daily AlpacaHack 問題はありません。」、取得失敗時は「AlpacaHack からの取得に失敗しました。」と public で応答する。
 
 ## 週次通知
 

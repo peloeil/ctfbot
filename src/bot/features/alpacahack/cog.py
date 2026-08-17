@@ -8,7 +8,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from bot.errors import ConflictError
+from bot.errors import ConflictError, ExternalAPIError
 from bot.features.alpacahack.service import (
     AlpacaHackClient,
     DailyChallenge,
@@ -292,6 +292,31 @@ class Alpacahack(commands.GroupCog, group_name="alpaca"):
             timezone=self.settings.tzinfo,
         )
         await interaction.followup.send(embed=_build_summary_embed(summary))
+
+    @app_commands.command(name="daily", description="現在のDaily問題を表示します。")
+    @app_commands.checks.cooldown(1, 60.0, key=lambda i: i.guild_id)
+    async def show_daily(self, interaction: discord.Interaction) -> None:
+        if interaction.guild is None:
+            await send_interaction(interaction, "サーバー内で実行してください。")
+            return
+        await interaction.response.defer()
+        try:
+            challenge = await asyncio.to_thread(self.client.fetch_daily_challenge)
+        except ExternalAPIError:
+            await send_interaction(
+                interaction,
+                "AlpacaHack からの取得に失敗しました。",
+                ephemeral=False,
+            )
+            return
+        if challenge is None:
+            await send_interaction(
+                interaction,
+                "公開中の Daily AlpacaHack 問題はありません。",
+                ephemeral=False,
+            )
+            return
+        await interaction.followup.send(embed=_build_daily_embed(challenge))
 
 
 async def setup(bot: commands.Bot) -> None:
