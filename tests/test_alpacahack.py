@@ -103,7 +103,7 @@ class AlpacaHackTest(unittest.TestCase):
                 author="alice",
                 categories=("Misc", "Crypto"),
                 difficulty="Easy",
-                description="Recover the flag.\n\nBeginner Hint Read the source.",
+                description="Recover the flag.\n\nBeginner Hint\n||Read the source.||",
                 attachment_urls=(
                     "https://alpacahack-prod.s3.ap-northeast-1.amazonaws.com/"
                     "id/example.tar.gz",
@@ -325,6 +325,22 @@ class AlpacaHackTest(unittest.TestCase):
             "- [example file.tar.gz](https://alpacahack-prod.s3.ap-northeast-1."
             "amazonaws.com/id/example%20file.tar.gz)",
         )
+
+    def test_daily_embed_closes_truncated_hint_spoiler(self) -> None:
+        challenge = DailyChallenge(
+            title="Example",
+            url="https://alpacahack.com/daily/challenges/example",
+            author="alice",
+            categories=("Pwn",),
+            difficulty="Medium",
+            description="Beginner Hint\n||" + "x" * 4000 + "||",
+            attachment_urls=(),
+        )
+
+        embed = _build_daily_embed(challenge)
+
+        self.assertEqual(len(embed.description or ""), 3500)
+        self.assertTrue((embed.description or "").endswith("...||"))
 
 
 class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):

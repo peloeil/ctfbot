@@ -52,7 +52,7 @@ AlpacaHack のユーザーを登録して毎週日曜に solve 状況を集計�
 1. `/daily` の「Today's Challenge」を含む要素内から `/daily/challenges/{slug}` のリンクを取得する
 2. card の表示テキストから作問者、カテゴリ、難易度を取得する
 3. 問題ページの最初の `<h1>` をタイトルとする
-4. markdown 描画要素の親要素から概要をプレーンテキスト化し、取得不能なら `meta[name=description]` にフォールバックする
+4. markdown 描画要素の親要素から概要をプレーンテキスト化する。`details` は summary を表示し、本文を Discord の spoiler (`||...||`) にする。取得不能なら `meta[name=description]` にフォールバックする
 5. `https://alpacahack-prod.s3.ap-northeast-1.amazonaws.com/` で始まるリンクを添付ファイルとする
 
 ### Daily Embed

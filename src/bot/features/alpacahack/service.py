@@ -202,11 +202,17 @@ def _parse_daily_description(heading: Tag, page: BeautifulSoup) -> str:
     if isinstance(first_markdown_element, Tag) and isinstance(
         first_markdown_element.parent, Tag
     ):
-        blocks = [
-            " ".join(child.stripped_strings)
-            for child in first_markdown_element.parent.find_all(recursive=False)
-            if child.name not in {"script", "style"}
-        ]
+        blocks = []
+        for child in first_markdown_element.parent.find_all(recursive=False):
+            if child.name in {"script", "style"}:
+                continue
+            text = " ".join(child.stripped_strings)
+            summary = child.find("summary") if child.name == "details" else None
+            if isinstance(summary, Tag):
+                label = " ".join(summary.stripped_strings)
+                body = text.removeprefix(label).strip()
+                text = f"{label}\n||{body}||" if body else label
+            blocks.append(text)
         description = "\n\n".join(block for block in blocks if block)
         if description:
             return description

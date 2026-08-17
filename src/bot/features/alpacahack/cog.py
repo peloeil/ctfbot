@@ -99,7 +99,11 @@ def _build_summary_embed(summary: WeeklySolveSummary) -> discord.Embed:
 def _build_daily_embed(challenge: DailyChallenge) -> discord.Embed:
     description = challenge.description
     if len(description) > _DAILY_DESCRIPTION_LIMIT:
-        description = description[: _DAILY_DESCRIPTION_LIMIT - 3] + "..."
+        description = description[: _DAILY_DESCRIPTION_LIMIT - 3]
+        if description.count("||") % 2:
+            description = description[: _DAILY_DESCRIPTION_LIMIT - 5] + "...||"
+        else:
+            description += "..."
     embed = discord.Embed(
         title=f"🦙 {challenge.title}"[:256],
         url=challenge.url,
