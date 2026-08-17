@@ -23,7 +23,7 @@ DB の `status` は `'active'` / `'closed'` の 2 値のみ。archived は独立
 
 ### active 状態
 
-- 募集メッセージが募集チャンネル（`CTF_TEAM_ROLE_CHANNEL_ID`）に投稿されている
+- 募集メッセージが募集チャンネル（`CTFTEAM_ROLE_CHANNEL_ID`）に投稿されている
 - リアクション (✅) でロール付与が行われる
 - discussion / voice チャンネルが存在する
 

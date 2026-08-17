@@ -26,9 +26,9 @@
 |---|---|---|---|---|---|
 | `DISCORD_TOKEN` | Bot トークン | `str` | Yes | なし | 必須文字列 |
 | `GUILD_ID` | bot を運用する唯一の guild（コマンド登録先） | `int` | Yes | なし | 必須 ID（`> 0`） |
-| `CTF_TEAM_CATEGORY_ID` | discussion・voice を配置するカテゴリ | `int` | Yes | なし | 必須 ID（`> 0`） |
-| `CTF_TEAM_ARCHIVE_CATEGORY_ID` | archive 時の discussion 移動先カテゴリ | `int` | Yes | なし | 必須 ID（`> 0`） |
-| `CTF_TEAM_ROLE_CHANNEL_ID` | 募集メッセージの投稿先テキストチャンネル | `int` | Yes | なし | 必須 ID（`> 0`） |
+| `CTFTEAM_CATEGORY_ID` | discussion・voice を配置するカテゴリ | `int` | Yes | なし | 必須 ID（`> 0`） |
+| `CTFTEAM_ARCHIVE_CATEGORY_ID` | archive 時の discussion 移動先カテゴリ | `int` | Yes | なし | 必須 ID（`> 0`） |
+| `CTFTEAM_ROLE_CHANNEL_ID` | 募集メッセージの投稿先テキストチャンネル | `int` | Yes | なし | 必須 ID（`> 0`） |
 | `BOT_CHANNEL_ID` | コマンド実行ログ・sudo 自動剥奪通知の送信先（`None` で無効） | `int \| None` | — | `0` | optional ID |
 | `BOT_STATUS_CHANNEL_ID` | 接続状態通知の送信先（`None` で無効） | `int \| None` | — | `0` | optional ID |
 | `CTFTIME_CHANNEL_ID` | CTFtime 週次通知の送信先（`None` で無効） | `int \| None` | — | `0` | optional ID |

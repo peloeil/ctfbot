@@ -13,9 +13,9 @@ class ConfigTest(unittest.TestCase):
         base = {
             "DISCORD_TOKEN": "token",
             "GUILD_ID": "999",
-            "CTF_TEAM_CATEGORY_ID": "123",
-            "CTF_TEAM_ARCHIVE_CATEGORY_ID": "456",
-            "CTF_TEAM_ROLE_CHANNEL_ID": "789",
+            "CTFTEAM_CATEGORY_ID": "123",
+            "CTFTEAM_ARCHIVE_CATEGORY_ID": "456",
+            "CTFTEAM_ROLE_CHANNEL_ID": "789",
         }
         base.update(overrides)
         return base
@@ -98,19 +98,19 @@ class ConfigTest(unittest.TestCase):
 
     def test_category_must_be_positive(self) -> None:
         with self.assertRaises(ConfigurationError):
-            load_settings(environ=self.env(CTF_TEAM_CATEGORY_ID="0"))
+            load_settings(environ=self.env(CTFTEAM_CATEGORY_ID="0"))
         with self.assertRaises(ConfigurationError):
-            load_settings(environ=self.env(CTF_TEAM_ARCHIVE_CATEGORY_ID="0"))
+            load_settings(environ=self.env(CTFTEAM_ARCHIVE_CATEGORY_ID="0"))
 
     def test_role_channel_id_is_required(self) -> None:
         env = self.env()
-        del env["CTF_TEAM_ROLE_CHANNEL_ID"]
+        del env["CTFTEAM_ROLE_CHANNEL_ID"]
         with self.assertRaises(ConfigurationError):
             load_settings(environ=env)
 
     def test_role_channel_id_must_be_positive(self) -> None:
         with self.assertRaises(ConfigurationError):
-            load_settings(environ=self.env(CTF_TEAM_ROLE_CHANNEL_ID="0"))
+            load_settings(environ=self.env(CTFTEAM_ROLE_CHANNEL_ID="0"))
 
     def test_invalid_timezone_raises(self) -> None:
         with self.assertRaises(ConfigurationError):

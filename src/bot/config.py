@@ -89,15 +89,15 @@ def load_settings(
     except ZoneInfoNotFoundError as exc:
         raise ConfigurationError(f"Unknown TIMEZONE: {timezone}") from exc
 
-    ctfteam_category_id = _read_int(env, "CTF_TEAM_CATEGORY_ID")
+    ctfteam_category_id = _read_int(env, "CTFTEAM_CATEGORY_ID")
     if ctfteam_category_id <= 0:
-        raise ConfigurationError("CTF_TEAM_CATEGORY_ID must be greater than 0.")
-    ctfteam_archive_category_id = _read_int(env, "CTF_TEAM_ARCHIVE_CATEGORY_ID")
+        raise ConfigurationError("CTFTEAM_CATEGORY_ID must be greater than 0.")
+    ctfteam_archive_category_id = _read_int(env, "CTFTEAM_ARCHIVE_CATEGORY_ID")
     if ctfteam_archive_category_id <= 0:
-        raise ConfigurationError("CTF_TEAM_ARCHIVE_CATEGORY_ID must be greater than 0.")
-    ctfteam_role_channel_id = _read_int(env, "CTF_TEAM_ROLE_CHANNEL_ID")
+        raise ConfigurationError("CTFTEAM_ARCHIVE_CATEGORY_ID must be greater than 0.")
+    ctfteam_role_channel_id = _read_int(env, "CTFTEAM_ROLE_CHANNEL_ID")
     if ctfteam_role_channel_id <= 0:
-        raise ConfigurationError("CTF_TEAM_ROLE_CHANNEL_ID must be greater than 0.")
+        raise ConfigurationError("CTFTEAM_ROLE_CHANNEL_ID must be greater than 0.")
 
     database_path = env.get("DATABASE_PATH", "ctfbot.db").strip() or "ctfbot.db"
     parent = Path(database_path).expanduser().resolve().parent
