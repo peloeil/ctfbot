@@ -13,14 +13,16 @@ import discord
 
 from bot.db import Database
 from bot.errors import ConflictError, ExternalAPIError
-from bot.features.alpacahack import (
+from bot.features.alpacahack.cog import (
     Alpacahack,
+    _build_daily_embed,
+    _build_summary_embed,
+)
+from bot.features.alpacahack.service import (
     AlpacaHackClient,
     DailyChallenge,
     SolveRecord,
     WeeklySolveSummary,
-    _build_daily_embed,
-    _build_summary_embed,
     collect_weekly_summary,
     get_week_range,
     select_weekly_solves,
@@ -61,7 +63,7 @@ class AlpacaHackTest(unittest.TestCase):
         )
         self.assertEqual([record.challenge_name for record in selected], ["one", "two"])
 
-    @patch("bot.features.alpacahack.requests.get")
+    @patch("bot.features.alpacahack.service.requests.get")
     def test_fetch_daily_challenge_parses_description_and_attachments(
         self, get: Mock
     ) -> None:
@@ -109,7 +111,7 @@ class AlpacaHackTest(unittest.TestCase):
             ),
         )
 
-    @patch("bot.features.alpacahack.requests.get")
+    @patch("bot.features.alpacahack.service.requests.get")
     def test_fetch_daily_challenge_returns_none_without_active_challenge(
         self, get: Mock
     ) -> None:
@@ -123,7 +125,7 @@ class AlpacaHackTest(unittest.TestCase):
         self.assertIsNone(challenge)
         get.assert_called_once()
 
-    @patch("bot.features.alpacahack.requests.get")
+    @patch("bot.features.alpacahack.service.requests.get")
     def test_fetch_solve_records_parses_html(self, get: Mock) -> None:
         response = Mock()
         response.raise_for_status.return_value = None
@@ -148,7 +150,7 @@ class AlpacaHackTest(unittest.TestCase):
         )
         self.assertEqual(records[0].solved_at.hour, 21)
 
-    @patch("bot.features.alpacahack.requests.get")
+    @patch("bot.features.alpacahack.service.requests.get")
     def test_fetch_solve_records_skips_rows_with_invalid_datetime(
         self, get: Mock
     ) -> None:
@@ -177,7 +179,7 @@ class AlpacaHackTest(unittest.TestCase):
         records = client.fetch_solve_records("alice", page_interval=0)
         self.assertEqual([record.challenge_name for record in records], ["Good"])
 
-    @patch("bot.features.alpacahack.requests.get")
+    @patch("bot.features.alpacahack.service.requests.get")
     def test_fetch_solve_records_paginates(self, get: Mock) -> None:
         def make_page(names: list[str]) -> Mock:
             rows = "\n".join(
@@ -360,12 +362,12 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
         channel = Mock()
         with (
             patch(
-                "bot.features.alpacahack.resolve_messageable",
+                "bot.features.alpacahack.cog.resolve_messageable",
                 new_callable=mock.AsyncMock,
                 return_value=channel,
             ),
             patch(
-                "bot.features.alpacahack.send_safely",
+                "bot.features.alpacahack.cog.send_safely",
                 new_callable=mock.AsyncMock,
             ) as send_safely,
         ):
@@ -380,7 +382,7 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
     async def test_add_rejects_too_long_and_invalid_usernames(self) -> None:
         invalid_names = ["a" * 33, "invalid/name", "日本語"]
         with patch(
-            "bot.features.alpacahack.send_interaction",
+            "bot.features.alpacahack.cog.send_interaction",
             new_callable=mock.AsyncMock,
         ) as send_interaction:
             for name in invalid_names:
@@ -401,11 +403,11 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
         self.cog.db.add_alpacahack_user.return_value = True
         with (
             patch(
-                "bot.features.alpacahack.send_interaction",
+                "bot.features.alpacahack.cog.send_interaction",
                 new_callable=mock.AsyncMock,
             ) as send_interaction,
             patch(
-                "bot.features.alpacahack.log_audit",
+                "bot.features.alpacahack.cog.log_audit",
                 new_callable=mock.AsyncMock,
             ),
         ):
@@ -424,11 +426,11 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
         )
         with (
             patch(
-                "bot.features.alpacahack.send_interaction",
+                "bot.features.alpacahack.cog.send_interaction",
                 new_callable=mock.AsyncMock,
             ) as send_interaction,
             patch(
-                "bot.features.alpacahack.log_audit",
+                "bot.features.alpacahack.cog.log_audit",
                 new_callable=mock.AsyncMock,
             ) as log_audit,
         ):
@@ -448,11 +450,11 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
         self.cog.db.add_alpacahack_user.return_value = False
         with (
             patch(
-                "bot.features.alpacahack.send_interaction",
+                "bot.features.alpacahack.cog.send_interaction",
                 new_callable=mock.AsyncMock,
             ) as send_interaction,
             patch(
-                "bot.features.alpacahack.log_audit",
+                "bot.features.alpacahack.cog.log_audit",
                 new_callable=mock.AsyncMock,
             ) as log_audit,
         ):

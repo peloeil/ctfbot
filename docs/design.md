@@ -55,7 +55,8 @@ ctfteam/campaign.py      ✗ discord（import 禁止）
 ctfteam/discord_ops.py   → helpers.py, ctfteam/models.py
 ctfteam/discord_ops.py   ✗ db.py（import 禁止）
 sudo/cog.py              → sudo/models.py, helpers.py, runtime.py
-alpacahack.py            → db.py, helpers.py, runtime.py
+alpacahack/cog.py        → alpacahack/service.py, helpers.py, runtime.py
+alpacahack/service.py    → db.py
 ctftime.py               → helpers.py, runtime.py
 times.py                 → helpers.py, runtime.py
 utility.py               → helpers.py

@@ -24,6 +24,12 @@ class ArchitectureTest(unittest.TestCase):
             any(name == "discord" or name.startswith("discord.") for name in imports)
         )
 
+    def test_alpacahack_service_does_not_import_discord(self) -> None:
+        imports = imports_for(SRC / "features" / "alpacahack" / "service.py")
+        self.assertFalse(
+            any(name == "discord" or name.startswith("discord.") for name in imports)
+        )
+
     def test_db_does_not_import_discord(self) -> None:
         imports = imports_for(SRC / "db.py")
         self.assertFalse(

@@ -63,7 +63,7 @@
 
 ## 実装パターン
 
-新しい cog を追加するときの典型的な手順。既存の `features/times.py` が最小の参考例（settings のみ使用）、`features/alpacahack.py` が runtime・DB・定期タスクを使う例。
+新しい cog を追加するときの典型的な手順。既存の `features/times.py` が最小の参考例（settings のみ使用）、`features/alpacahack/cog.py` が runtime・DB・定期タスクを使う例。
 
 1. `src/bot/features/` にファイルを作成する
 2. `commands.Cog`（単発コマンド）または `commands.GroupCog`（サブコマンド群）を継承したクラスを定義する

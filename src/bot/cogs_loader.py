@@ -3,7 +3,7 @@ from discord.ext import commands
 DEFAULT_EXTENSIONS = (
     "bot.features.utility",
     "bot.features.times",
-    "bot.features.alpacahack",
+    "bot.features.alpacahack.cog",
     "bot.features.ctfteam.cog",
     "bot.features.ctftime",
     "bot.features.audit_log",
