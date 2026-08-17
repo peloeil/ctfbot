@@ -56,7 +56,7 @@ cog が処理しなかったコマンドの例外は `app.py` の `bot.tree.erro
 
 ## 接続状態通知
 
-`BOT_STATUS_CHANNEL_ID` のチャンネルへ送信する（未設定なら何もしない）:
+`BOT_CHANNEL_ID` のチャンネルへ送信する（未設定なら何もしない）:
 
 - 初回の ready 時のみ: `🟢 ctfbot が接続しました ({YYYY-MM-DD HH:MM:SS TZ})`（再接続では送らない）
 - SIGINT による終了時のみ: `🔴 ctfbot が停止します ({同書式})`

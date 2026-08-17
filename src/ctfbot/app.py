@@ -60,9 +60,7 @@ class CTFBot(commands.Bot):
         self._shutdown_requested_by_sigint = True
 
     async def _send_status(self, content: str) -> None:
-        ch = await resolve_messageable(
-            self, self.runtime.settings.bot_status_channel_id
-        )
+        ch = await resolve_messageable(self, self.runtime.settings.bot_channel_id)
         if ch is not None:
             await send_safely(ch, content)
 

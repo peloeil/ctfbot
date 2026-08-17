@@ -58,7 +58,6 @@ class ConfigTest(unittest.TestCase):
         explicit_zeroes = load_settings(
             environ=self.env(
                 BOT_CHANNEL_ID="0",
-                BOT_STATUS_CHANNEL_ID="0",
                 CTFTEAM_CATEGORY_ID="0",
                 CTFTEAM_ARCHIVE_CATEGORY_ID="0",
                 CTFTEAM_ROLE_CHANNEL_ID="0",
@@ -69,7 +68,6 @@ class ConfigTest(unittest.TestCase):
         )
         for settings in (defaults, explicit_zeroes):
             self.assertIsNone(settings.bot_channel_id)
-            self.assertIsNone(settings.bot_status_channel_id)
             self.assertIsNone(settings.ctfteam_category_id)
             self.assertIsNone(settings.ctfteam_archive_category_id)
             self.assertIsNone(settings.ctfteam_role_channel_id)
@@ -81,14 +79,12 @@ class ConfigTest(unittest.TestCase):
         settings = load_settings(
             environ=self.env(
                 BOT_CHANNEL_ID="42",
-                BOT_STATUS_CHANNEL_ID="43",
                 CTFTIME_CHANNEL_ID="44",
                 ALPACAHACK_CHANNEL_ID="45",
                 TIMES_CATEGORY_ID="46",
             )
         )
         self.assertEqual(settings.bot_channel_id, 42)
-        self.assertEqual(settings.bot_status_channel_id, 43)
         self.assertEqual(settings.ctftime_channel_id, 44)
         self.assertEqual(settings.alpacahack_channel_id, 45)
         self.assertEqual(settings.times_category_id, 46)

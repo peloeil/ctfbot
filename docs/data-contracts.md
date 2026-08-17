@@ -29,8 +29,7 @@
 | `CTFTEAM_CATEGORY_ID` | discussion・voice を配置するカテゴリ | `int \| None` | — | `0` | optional ID。CTFTEAM の 3 ID はすべて設定またはすべて未設定 |
 | `CTFTEAM_ARCHIVE_CATEGORY_ID` | archive 時の discussion 移動先カテゴリ | `int \| None` | — | `0` | optional ID。同上 |
 | `CTFTEAM_ROLE_CHANNEL_ID` | 募集メッセージの投稿先テキストチャンネル | `int \| None` | — | `0` | optional ID。同上 |
-| `BOT_CHANNEL_ID` | コマンド実行ログ・sudo 自動剥奪通知の送信先（`None` で無効） | `int \| None` | — | `0` | optional ID |
-| `BOT_STATUS_CHANNEL_ID` | 接続状態通知の送信先（`None` で無効） | `int \| None` | — | `0` | optional ID |
+| `BOT_CHANNEL_ID` | コマンド実行ログ・sudo 自動剥奪通知・接続状態通知の送信先（`None` で無効） | `int \| None` | — | `0` | optional ID |
 | `CTFTIME_CHANNEL_ID` | CTFtime 週次通知の送信先（`None` で無効） | `int \| None` | — | `0` | optional ID |
 | `ALPACAHACK_CHANNEL_ID` | AlpacaHack Daily・週次通知の送信先（`None` で無効） | `int \| None` | — | `0` | optional ID |
 | `TIMES_CATEGORY_ID` | `/times create` の作成先カテゴリ（`None` で times 機能無効） | `int \| None` | — | `0` | optional ID |

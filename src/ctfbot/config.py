@@ -13,7 +13,6 @@ class Settings:
     discord_token: str
     guild_id: int
     bot_channel_id: int | None
-    bot_status_channel_id: int | None
     ctfteam_category_id: int | None
     ctfteam_archive_category_id: int | None
     ctfteam_role_channel_id: int | None
@@ -128,7 +127,6 @@ def load_settings(
         discord_token=discord_token,
         guild_id=guild_id,
         bot_channel_id=_read_int(env, "BOT_CHANNEL_ID", 0) or None,
-        bot_status_channel_id=_read_int(env, "BOT_STATUS_CHANNEL_ID", 0) or None,
         ctfteam_category_id=ctfteam_category_id,
         ctfteam_archive_category_id=ctfteam_archive_category_id,
         ctfteam_role_channel_id=ctfteam_role_channel_id,
