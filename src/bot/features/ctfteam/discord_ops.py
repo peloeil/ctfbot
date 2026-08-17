@@ -19,14 +19,22 @@ type OverwriteMap = dict[
 ]
 
 
-def require_category(guild: discord.Guild, category_id: int) -> discord.CategoryChannel:
+def require_category(
+    guild: discord.Guild, category_id: int | None
+) -> discord.CategoryChannel:
+    if category_id is None:
+        raise ServiceError("ctfteam 機能が設定されていません。")
     channel = guild.get_channel(category_id)
     if not isinstance(channel, discord.CategoryChannel):
         raise ServiceError("CTF募集カテゴリが見つかりません。")
     return channel
 
 
-def require_role_channel(guild: discord.Guild, channel_id: int) -> discord.TextChannel:
+def require_role_channel(
+    guild: discord.Guild, channel_id: int | None
+) -> discord.TextChannel:
+    if channel_id is None:
+        raise ServiceError("ctfteam 機能が設定されていません。")
     channel = guild.get_channel(channel_id)
     if not isinstance(channel, discord.TextChannel):
         raise ServiceError("募集チャンネルが見つかりません。")

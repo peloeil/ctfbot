@@ -10,6 +10,12 @@ from bot.features.ctfteam.models import CampaignDraft
 
 
 class RequireCategoryTest(unittest.TestCase):
+    def test_unconfigured_feature_raises(self) -> None:
+        guild = mock.Mock(spec=discord.Guild)
+        with self.assertRaisesRegex(ServiceError, "ctfteam 機能が設定されていません。"):
+            discord_ops.require_category(guild, None)
+        guild.get_channel.assert_not_called()
+
     def test_returns_category_channel(self) -> None:
         guild = mock.Mock(spec=discord.Guild)
         category = mock.Mock(spec=discord.CategoryChannel)

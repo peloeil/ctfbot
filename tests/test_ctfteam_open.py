@@ -88,6 +88,22 @@ class OpenCampaignTest(unittest.IsolatedAsyncioTestCase):
         )
         self.interaction.response.send_modal.assert_not_awaited()
 
+    async def test_open_rejects_unconfigured_feature_before_showing_modal(
+        self,
+    ) -> None:
+        self.cog.settings.ctfteam_category_id = None
+        self.interaction.response.send_modal = mock.AsyncMock()
+        send = mock.AsyncMock()
+
+        with mock.patch("bot.features.ctfteam.cog.send_interaction", new=send):
+            callback = self.cog.open_campaign.callback
+            await callback(self.cog, self.interaction, "Example", "3b82f6")
+
+        send.assert_awaited_once_with(
+            self.interaction, "ctfteam 機能が設定されていません。"
+        )
+        self.interaction.response.send_modal.assert_not_awaited()
+
     async def test_open_accepts_six_hex_digit_color_without_prefix(self) -> None:
         self.interaction.response.send_modal = mock.AsyncMock()
         send = mock.AsyncMock()

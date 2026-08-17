@@ -42,7 +42,5 @@ uv run --env-file .env src/main.py
 
 ### サーバー側の準備
 
-- 募集メッセージの投稿先テキストチャンネルを作成し、その ID を `CTFTEAM_ROLE_CHANNEL_ID` に設定してください（無いと `/ctfteam open` が失敗します）
-- CTF 用チャンネルの作成先カテゴリを作成し、その ID を `CTFTEAM_CATEGORY_ID` に設定してください（無いと `/ctfteam open` が失敗します）
-- archive 先カテゴリを作成し、その ID を `CTFTEAM_ARCHIVE_CATEGORY_ID` に設定してください（無いと close 済み募集の archive が失敗し続けます）
+- CTF 募集管理を使う場合は、募集メッセージの投稿先チャンネルと CTF 用・archive 先カテゴリを作成し、`CTFTEAM_ROLE_CHANNEL_ID`・`CTFTEAM_CATEGORY_ID`・`CTFTEAM_ARCHIVE_CATEGORY_ID` をすべて設定してください
 - `/times create` を使う場合は、作成先カテゴリを作成し、その ID を `TIMES_CATEGORY_ID` に設定してください

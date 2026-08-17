@@ -46,11 +46,18 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(settings.sudo_duration_minutes, 30)
 
     def test_optional_channel_ids_default_to_none(self) -> None:
-        defaults = load_settings(environ=self.env())
+        env = self.env()
+        del env["CTFTEAM_CATEGORY_ID"]
+        del env["CTFTEAM_ARCHIVE_CATEGORY_ID"]
+        del env["CTFTEAM_ROLE_CHANNEL_ID"]
+        defaults = load_settings(environ=env)
         explicit_zeroes = load_settings(
             environ=self.env(
                 BOT_CHANNEL_ID="0",
                 BOT_STATUS_CHANNEL_ID="0",
+                CTFTEAM_CATEGORY_ID="0",
+                CTFTEAM_ARCHIVE_CATEGORY_ID="0",
+                CTFTEAM_ROLE_CHANNEL_ID="0",
                 CTFTIME_CHANNEL_ID="0",
                 ALPACAHACK_CHANNEL_ID="0",
                 TIMES_CATEGORY_ID="0",
@@ -59,6 +66,9 @@ class ConfigTest(unittest.TestCase):
         for settings in (defaults, explicit_zeroes):
             self.assertIsNone(settings.bot_channel_id)
             self.assertIsNone(settings.bot_status_channel_id)
+            self.assertIsNone(settings.ctfteam_category_id)
+            self.assertIsNone(settings.ctfteam_archive_category_id)
+            self.assertIsNone(settings.ctfteam_role_channel_id)
             self.assertIsNone(settings.ctftime_channel_id)
             self.assertIsNone(settings.alpacahack_channel_id)
             self.assertIsNone(settings.times_category_id)
@@ -96,21 +106,14 @@ class ConfigTest(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(ConfigurationError):
                 load_settings(environ=self.env(GUILD_ID=value))
 
-    def test_category_must_be_positive(self) -> None:
-        with self.assertRaises(ConfigurationError):
-            load_settings(environ=self.env(CTFTEAM_CATEGORY_ID="0"))
-        with self.assertRaises(ConfigurationError):
-            load_settings(environ=self.env(CTFTEAM_ARCHIVE_CATEGORY_ID="0"))
-
-    def test_role_channel_id_is_required(self) -> None:
-        env = self.env()
-        del env["CTFTEAM_ROLE_CHANNEL_ID"]
-        with self.assertRaises(ConfigurationError):
-            load_settings(environ=env)
-
-    def test_role_channel_id_must_be_positive(self) -> None:
-        with self.assertRaises(ConfigurationError):
-            load_settings(environ=self.env(CTFTEAM_ROLE_CHANNEL_ID="0"))
+    def test_ctfteam_ids_must_be_configured_together(self) -> None:
+        for name in (
+            "CTFTEAM_CATEGORY_ID",
+            "CTFTEAM_ARCHIVE_CATEGORY_ID",
+            "CTFTEAM_ROLE_CHANNEL_ID",
+        ):
+            with self.subTest(name=name), self.assertRaises(ConfigurationError):
+                load_settings(environ=self.env(**{name: "0"}))
 
     def test_invalid_timezone_raises(self) -> None:
         with self.assertRaises(ConfigurationError):

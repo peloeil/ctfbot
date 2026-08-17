@@ -14,9 +14,9 @@ class Settings:
     guild_id: int
     bot_channel_id: int | None
     bot_status_channel_id: int | None
-    ctfteam_category_id: int
-    ctfteam_archive_category_id: int
-    ctfteam_role_channel_id: int
+    ctfteam_category_id: int | None
+    ctfteam_archive_category_id: int | None
+    ctfteam_role_channel_id: int | None
     ctftime_channel_id: int | None
     alpacahack_channel_id: int | None
     times_category_id: int | None
@@ -89,15 +89,23 @@ def load_settings(
     except ZoneInfoNotFoundError as exc:
         raise ConfigurationError(f"Unknown TIMEZONE: {timezone}") from exc
 
-    ctfteam_category_id = _read_int(env, "CTFTEAM_CATEGORY_ID")
-    if ctfteam_category_id <= 0:
-        raise ConfigurationError("CTFTEAM_CATEGORY_ID must be greater than 0.")
-    ctfteam_archive_category_id = _read_int(env, "CTFTEAM_ARCHIVE_CATEGORY_ID")
-    if ctfteam_archive_category_id <= 0:
-        raise ConfigurationError("CTFTEAM_ARCHIVE_CATEGORY_ID must be greater than 0.")
-    ctfteam_role_channel_id = _read_int(env, "CTFTEAM_ROLE_CHANNEL_ID")
-    if ctfteam_role_channel_id <= 0:
-        raise ConfigurationError("CTFTEAM_ROLE_CHANNEL_ID must be greater than 0.")
+    ctfteam_category_id = _read_int(env, "CTFTEAM_CATEGORY_ID", 0) or None
+    ctfteam_archive_category_id = (
+        _read_int(env, "CTFTEAM_ARCHIVE_CATEGORY_ID", 0) or None
+    )
+    ctfteam_role_channel_id = _read_int(env, "CTFTEAM_ROLE_CHANNEL_ID", 0) or None
+    ctfteam_ids = (
+        ctfteam_category_id,
+        ctfteam_archive_category_id,
+        ctfteam_role_channel_id,
+    )
+    if any(value is None for value in ctfteam_ids) and any(
+        value is not None for value in ctfteam_ids
+    ):
+        raise ConfigurationError(
+            "CTFTEAM_CATEGORY_ID, CTFTEAM_ARCHIVE_CATEGORY_ID, and "
+            "CTFTEAM_ROLE_CHANNEL_ID must all be set or all be unset."
+        )
 
     database_path = env.get("DATABASE_PATH", "ctfbot.db").strip() or "ctfbot.db"
     parent = Path(database_path).expanduser().resolve().parent

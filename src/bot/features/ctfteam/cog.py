@@ -105,6 +105,9 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         ctf_name: str,
         role_color: str = "#3b82f6",
     ) -> None:
+        if self.settings.ctfteam_category_id is None:
+            await send_interaction(interaction, "ctfteam 機能が設定されていません。")
+            return
         if re.fullmatch(r"#?[0-9A-Fa-f]{6}", role_color) is None:
             await send_interaction(
                 interaction, "ロール色は #RRGGBB 形式で指定してください。"
@@ -559,11 +562,15 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
     async def _archive_campaign_resources(
         self, guild: discord.Guild, item: ClosedCampaign
     ) -> bool:
-        archive_category = guild.get_channel(self.settings.ctfteam_archive_category_id)
+        archive_category_id = self.settings.ctfteam_archive_category_id
+        if archive_category_id is None:
+            logger.warning("ctfteam is not configured")
+            return False
+        archive_category = guild.get_channel(archive_category_id)
         if not isinstance(archive_category, discord.CategoryChannel):
             logger.warning(
                 "Archive category %s not found",
-                self.settings.ctfteam_archive_category_id,
+                archive_category_id,
             )
             return False
 
