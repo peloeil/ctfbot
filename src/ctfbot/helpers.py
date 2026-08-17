@@ -119,12 +119,6 @@ async def log_audit(
         f"`/{sanitize_audit_text(command_name)}` を実行しました。"
     ]
     lines.extend(f"- {sanitize_audit_text(item)}" for item in details)
-    logger.info(
-        "Command completed: command=/%s user_id=%s channel_id=%s",
-        command_name,
-        interaction.user.id,
-        interaction.channel_id,
-    )
     await send_audit_message(bot, lines)
 
 

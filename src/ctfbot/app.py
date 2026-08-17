@@ -48,6 +48,18 @@ class CTFBot(commands.Bot):
             )
             self._has_announced_ready = True
 
+    async def on_app_command_completion(
+        self,
+        interaction: discord.Interaction,
+        command: discord.app_commands.Command | discord.app_commands.ContextMenu,
+    ) -> None:
+        logger.info(
+            "Application command completed: command=/%s user_id=%s channel_id=%s",
+            command.qualified_name,
+            interaction.user.id,
+            interaction.channel_id,
+        )
+
     async def close(self) -> None:
         if self._shutdown_requested_by_sigint and not self.is_closed():
             now = datetime.datetime.now(self.runtime.settings.tzinfo)

@@ -257,6 +257,7 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
             command_name="ctfteam open",
             details=[f"CTF名: {draft.ctf_name}"],
         )
+        logger.info("Campaign created: campaign_id=%s", created.id)
 
     @app_commands.command(name="list", description="CTF募集の一覧を表示します。")
     @app_commands.describe(status="表示するステータス")
@@ -405,6 +406,11 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         except discord.Forbidden, discord.HTTPException:
             logger.warning("Failed to add role to member %s", payload.user_id)
             return
+        logger.info(
+            "Campaign role added: campaign_id=%s user_id=%s",
+            found.id,
+            payload.user_id,
+        )
         if found.discussion_channel_id is not None:
             disc_ch = guild.get_channel(found.discussion_channel_id)
             if isinstance(disc_ch, discord.TextChannel):
