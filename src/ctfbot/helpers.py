@@ -90,17 +90,15 @@ def sanitize_audit_text(value: object) -> str:
     return normalized.replace("<@", "<@\u200b")
 
 
-def paginate_lines(
-    lines: Sequence[str], *, limit: int = MAX_EMBED_DESCRIPTION_LENGTH
-) -> list[str]:
+def paginate_lines(lines: Sequence[str]) -> list[str]:
     pages: list[str] = []
     current = ""
     for line in lines:
         # Empty lines must be visited so separators between lines are preserved.
-        for start in range(0, len(line) or 1, limit):
-            fragment = line[start : start + limit]
+        for start in range(0, len(line) or 1, MAX_EMBED_DESCRIPTION_LENGTH):
+            fragment = line[start : start + MAX_EMBED_DESCRIPTION_LENGTH]
             candidate = current + "\n" + fragment if current else fragment
-            if current and len(candidate) > limit:
+            if current and len(candidate) > MAX_EMBED_DESCRIPTION_LENGTH:
                 pages.append(current)
                 current = fragment
             else:

@@ -34,8 +34,3 @@ class PaginateLinesTest(unittest.TestCase):
         line = "x" * MAX_EMBED_DESCRIPTION_LENGTH
 
         self.assertEqual(paginate_lines(["", line]), [line])
-
-    def test_custom_limit_is_applied(self) -> None:
-        self.assertEqual(
-            paginate_lines(["first", "second"], limit=10), ["first", "second"]
-        )
