@@ -9,6 +9,7 @@ from ctfbot.log import logger
 from ctfbot.runtime import get_runtime
 
 MAX_MESSAGE_CONTENT_LENGTH = 1900  # Margin under Discord's 2000-char message limit
+MAX_EMBED_DESCRIPTION_LENGTH = 4096
 MAX_CHANNEL_NAME_LENGTH = 100
 
 
@@ -89,15 +90,17 @@ def sanitize_audit_text(value: object) -> str:
     return normalized.replace("<@", "<@\u200b")
 
 
-def paginate_lines(lines: Sequence[str], *, separator: str = "\n") -> list[str]:
+def paginate_lines(
+    lines: Sequence[str], *, limit: int = MAX_EMBED_DESCRIPTION_LENGTH
+) -> list[str]:
     pages: list[str] = []
     current = ""
     for line in lines:
         # Empty lines must be visited so separators between lines are preserved.
-        for start in range(0, len(line) or 1, MAX_MESSAGE_CONTENT_LENGTH):
-            fragment = line[start : start + MAX_MESSAGE_CONTENT_LENGTH]
-            candidate = current + separator + fragment if current else fragment
-            if current and len(candidate) > MAX_MESSAGE_CONTENT_LENGTH:
+        for start in range(0, len(line) or 1, limit):
+            fragment = line[start : start + limit]
+            candidate = current + "\n" + fragment if current else fragment
+            if current and len(candidate) > limit:
                 pages.append(current)
                 current = fragment
             else:
