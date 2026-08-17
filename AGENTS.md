@@ -112,4 +112,4 @@ uv run ty check
 uv run -m unittest discover -s tests -v
 ```
 
-**bot の実行（`uv run --locked --env-file .env -m ctfbot`）は行わないこと。** Discord トークンが必要であり、実際の Discord 動作確認は人間が行う。
+**bot の実行（`uv run --no-dev --locked --env-file .env -m ctfbot`）は行わないこと。** Discord トークンが必要であり、実際の Discord 動作確認は人間が行う。

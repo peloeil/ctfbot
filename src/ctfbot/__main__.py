@@ -7,7 +7,7 @@ def ensure_project_venv() -> None:
     if Path(sys.prefix).resolve() != expected:
         sys.exit(
             f"プロジェクトの venv ({expected}) 以外の Python で起動されました。"
-            " `uv run --locked --env-file .env -m ctfbot` で起動してください。"
+            " `uv run --no-dev --locked --env-file .env -m ctfbot` で起動してください。"
         )
 
 

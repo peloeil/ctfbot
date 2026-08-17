@@ -34,7 +34,8 @@ class EnsureProjectVenvTest(unittest.TestCase):
             main.ensure_project_venv()
 
         self.assertIn(
-            "uv run --locked --env-file .env -m ctfbot", str(ctx.exception.code)
+            "--no-dev --locked --env-file .env -m ctfbot",
+            str(ctx.exception.code),
         )
 
     def test_bot_package_is_not_imported_before_the_venv_check(self) -> None:
