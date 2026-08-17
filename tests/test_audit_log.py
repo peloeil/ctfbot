@@ -269,7 +269,7 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
     async def test_repository_error_does_not_notify(self) -> None:
         entry = self.make_entry(user_id=400)
         error = RepositoryError("database unavailable")
-        with mock.patch("ctfbot.features.audit_log.logger.error") as log_error:
+        with mock.patch("ctfbot.features.audit_log.logger.exception") as log_error:
             _, _, send_audit_message = await self.run_entry(entry, insert_error=error)
 
         send_audit_message.assert_not_awaited()
@@ -290,7 +290,7 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
         self,
     ) -> None:
         entry = self.make_entry(UnserializableValue())
-        with mock.patch("ctfbot.features.audit_log.logger.error") as log_error:
+        with mock.patch("ctfbot.features.audit_log.logger.exception") as log_error:
             await self.cog.on_audit_log_entry_create(entry)
 
         error = log_error.call_args.args[2]

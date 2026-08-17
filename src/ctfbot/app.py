@@ -95,7 +95,7 @@ def create_bot(
             )
             return
         name = interaction.command.name if interaction.command else "<unknown>"
-        logger.error("Unhandled error in /%s: %s", name, error)
+        logger.error("Unhandled error in /%s: %s", name, error, exc_info=error)
         await send_interaction(interaction, "コマンド実行中にエラーが発生しました。")
 
     return bot

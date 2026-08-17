@@ -77,7 +77,7 @@ class AuditLog(commands.Cog):
             if inserted:
                 await self._notify_admin_action(entry)
         except Exception as exc:
-            logger.error("Failed to save audit log entry %s: %s", entry.id, exc)
+            logger.exception("Failed to save audit log entry %s: %s", entry.id, exc)
 
     async def _notify_admin_action(self, entry: discord.AuditLogEntry) -> None:
         admin_role_id = self.settings.admin_role_id

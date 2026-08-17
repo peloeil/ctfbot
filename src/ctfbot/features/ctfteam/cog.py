@@ -523,6 +523,8 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
                 logger.warning(
                     "Failed to send start announcement for campaign %s", item.id
                 )
+            else:
+                logger.info("Campaign started: campaign_id=%s", item.id)
 
     async def _close_campaign_resources(
         self, guild: discord.Guild, item: ActiveCampaign
@@ -557,6 +559,9 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         role = guild.get_role(item.role_id)
         if isinstance(disc_ch, discord.TextChannel) and role is not None:
             await discord_ops.send_close_snapshot(disc_ch, item.ctf_name, role)
+        logger.info(
+            "Campaign closed: campaign_id=%s archive_at=%s", item.id, archive_at
+        )
         return archive_at
 
     async def _archive_campaign_resources(
@@ -614,6 +619,8 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
                 disc_ch,
                 "📦 このチャンネルは archive カテゴリに移動されました。",
             )
+        if claimed:
+            logger.info("Campaign archived: campaign_id=%s", item.id)
         return True
 
 

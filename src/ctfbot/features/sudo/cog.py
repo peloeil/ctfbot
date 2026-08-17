@@ -248,6 +248,7 @@ class Sudo(commands.Cog):
                     return
 
             await asyncio.to_thread(self.db.delete_sudo_grant, grant.user_id)
+            logger.info("Expired sudo grant revoked: user_id=%s", grant.user_id)
 
         channel = await resolve_messageable(self.bot, self.settings.bot_channel_id)
         if channel is not None:

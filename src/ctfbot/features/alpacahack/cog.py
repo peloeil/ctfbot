@@ -179,11 +179,13 @@ class Alpacahack(commands.GroupCog, group_name="alpaca"):
                 challenge.url,
             )
             if reserved:
-                await send_safely(
+                sent = await send_safely(
                     channel,
                     embed=_build_daily_embed(challenge),
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
+                if sent is not None:
+                    logger.info("Daily AlpacaHack challenge notification sent")
         except Exception:
             logger.exception("Error in daily_challenge_report")
 
@@ -207,7 +209,16 @@ class Alpacahack(commands.GroupCog, group_name="alpaca"):
                 self.client,
                 timezone=self.settings.tzinfo,
             )
-            await send_safely(channel, embed=_build_summary_embed(summary))
+            if (
+                await send_safely(channel, embed=_build_summary_embed(summary))
+                is not None
+            ):
+                log = logger.warning if summary.failed_users else logger.info
+                log(
+                    "Weekly AlpacaHack report sent: users=%s failed_users=%s",
+                    summary.total_users,
+                    len(summary.failed_users),
+                )
         except Exception:
             logger.exception("Error in weekly_solve_report")
 
@@ -313,7 +324,8 @@ class Alpacahack(commands.GroupCog, group_name="alpaca"):
         await interaction.response.defer()
         try:
             challenge = await asyncio.to_thread(self.client.fetch_daily_challenge)
-        except ExternalAPIError:
+        except ExternalAPIError as exc:
+            logger.warning("Manual AlpacaHack daily fetch failed: %s", exc)
             await send_interaction(
                 interaction,
                 "AlpacaHack からの取得に失敗しました。",

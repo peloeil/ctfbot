@@ -415,6 +415,41 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
         )
         send_safely.assert_awaited_once()
 
+    async def test_weekly_report_logs_partial_failure_as_warning(self) -> None:
+        summary = WeeklySolveSummary(
+            week_start=datetime.date(2026, 6, 15),
+            week_end=datetime.date(2026, 6, 21),
+            total_users=2,
+            weekly_solves={},
+            failed_users=["alice"],
+        )
+        current = datetime.datetime(2026, 6, 21, tzinfo=datetime.UTC)
+        with (
+            patch("ctfbot.features.alpacahack.cog.datetime.datetime") as now,
+            patch(
+                "ctfbot.features.alpacahack.cog.resolve_messageable",
+                new_callable=mock.AsyncMock,
+                return_value=Mock(),
+            ),
+            patch(
+                "ctfbot.features.alpacahack.cog.collect_weekly_summary",
+                return_value=summary,
+            ),
+            patch(
+                "ctfbot.features.alpacahack.cog.send_safely",
+                new_callable=mock.AsyncMock,
+            ),
+            patch("ctfbot.features.alpacahack.cog.logger.warning") as warning,
+        ):
+            now.now.return_value = current
+            await self.cog.weekly_solve_report.coro(self.cog)
+
+        warning.assert_called_once_with(
+            "Weekly AlpacaHack report sent: users=%s failed_users=%s",
+            2,
+            1,
+        )
+
     async def test_daily_command_displays_current_challenge_without_reserving(
         self,
     ) -> None:

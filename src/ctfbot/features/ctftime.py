@@ -160,7 +160,8 @@ class CTFTimeNotifications(commands.Cog):
                 await send_safely(channel, "CTFtime からの取得に失敗しました。")
                 return
             embed = _build_events_embed(events, self.settings.ctftime_window_days)
-            await send_safely(channel, embed=embed)
+            if await send_safely(channel, embed=embed) is not None:
+                logger.info("Weekly CTFtime notification sent: events=%s", len(events))
         except Exception:
             logger.exception("Error in weekly_ctf_notification")
 
@@ -182,7 +183,8 @@ class CTFTimeNotifications(commands.Cog):
                 self.settings.ctftime_window_days,
                 self.settings.ctftime_event_limit,
             )
-        except ExternalAPIError:
+        except ExternalAPIError as exc:
+            logger.warning("Manual CTFtime fetch failed: %s", exc)
             await send_interaction(
                 interaction, "CTFtime からの取得に失敗しました。", ephemeral=False
             )
