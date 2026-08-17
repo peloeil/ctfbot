@@ -2,14 +2,14 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from bot.errors import ServiceError
-from bot.helpers import (
+from ctfbot.errors import ServiceError
+from ctfbot.helpers import (
     log_audit,
     normalize_channel_name,
     require_guild,
     send_interaction,
 )
-from bot.runtime import get_runtime
+from ctfbot.runtime import get_runtime
 
 
 def _parse_times_channel_name(value: str) -> str:

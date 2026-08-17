@@ -49,7 +49,7 @@
 
 ### Settings
 
-`load_settings()` が返す dataclass。フィールドは上の環境変数一覧と 1 対 1 で、`TIMEZONE` のみ変換後の `tzinfo: ZoneInfo` として保持する。宣言は `src/bot/config.py` を参照する。
+`load_settings()` が返す dataclass。フィールドは上の環境変数一覧と 1 対 1 で、`TIMEZONE` のみ変換後の `tzinfo: ZoneInfo` として保持する。宣言は `src/ctfbot/config.py` を参照する。
 
 ## データモデル
 

@@ -6,17 +6,17 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from bot.errors import RepositoryError, ServiceError
-from bot.features.sudo.models import SudoGrant
-from bot.helpers import (
+from ctfbot.errors import RepositoryError, ServiceError
+from ctfbot.features.sudo.models import SudoGrant
+from ctfbot.helpers import (
     log_audit,
     require_guild,
     resolve_messageable,
     send_interaction,
     send_safely,
 )
-from bot.log import logger
-from bot.runtime import get_runtime
+from ctfbot.log import logger
+from ctfbot.runtime import get_runtime
 
 ROLE_ADD_ERROR = (
     "ロールを付与できません。bot のロール権限と順位を確認してください(/perms)。"

@@ -2,8 +2,8 @@ from dataclasses import dataclass
 
 from discord.ext import commands
 
-from bot.config import Settings
-from bot.db import Database
+from ctfbot.config import Settings
+from ctfbot.db import Database
 
 
 @dataclass(frozen=True, slots=True)

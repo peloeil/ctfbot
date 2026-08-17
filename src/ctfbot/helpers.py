@@ -4,9 +4,9 @@ from collections.abc import Sequence
 import discord
 from discord.ext import commands
 
-from bot.errors import ServiceError
-from bot.log import logger
-from bot.runtime import get_runtime
+from ctfbot.errors import ServiceError
+from ctfbot.log import logger
+from ctfbot.runtime import get_runtime
 
 MAX_AUDIT_CONTENT_LENGTH = 1900  # Margin under Discord's 2000-char message limit
 MAX_CHANNEL_NAME_LENGTH = 100

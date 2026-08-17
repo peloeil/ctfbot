@@ -6,14 +6,14 @@ from contextlib import suppress
 from typing import cast
 from unittest import mock
 
-from bot.db import _MIGRATIONS, CURRENT_SCHEMA_VERSION, Database
-from bot.errors import ConflictError, RepositoryError
-from bot.features.ctfteam.models import (
+from ctfbot.db import _MIGRATIONS, CURRENT_SCHEMA_VERSION, Database
+from ctfbot.errors import ConflictError, RepositoryError
+from ctfbot.features.ctfteam.models import (
     ActiveCampaign,
     CampaignStatus,
     ClosedCampaign,
 )
-from bot.features.sudo.models import SudoGrant
+from ctfbot.features.sudo.models import SudoGrant
 
 
 class DatabaseTest(unittest.TestCase):
@@ -155,8 +155,10 @@ PRAGMA user_version = 3;
         migration = "ALTER TABLE alpacahack_user ADD COLUMN note TEXT"
         next_version = CURRENT_SCHEMA_VERSION + 1
         with (
-            mock.patch("bot.db.CURRENT_SCHEMA_VERSION", next_version),
-            mock.patch.dict("bot.db._MIGRATIONS", {CURRENT_SCHEMA_VERSION: migration}),
+            mock.patch("ctfbot.db.CURRENT_SCHEMA_VERSION", next_version),
+            mock.patch.dict(
+                "ctfbot.db._MIGRATIONS", {CURRENT_SCHEMA_VERSION: migration}
+            ),
         ):
             Database(self.path)
         with sqlite3.connect(self.path) as conn:
@@ -169,7 +171,7 @@ PRAGMA user_version = 3;
 
     def test_migration_missing_path_raises(self) -> None:
         with (
-            mock.patch("bot.db.CURRENT_SCHEMA_VERSION", CURRENT_SCHEMA_VERSION + 1),
+            mock.patch("ctfbot.db.CURRENT_SCHEMA_VERSION", CURRENT_SCHEMA_VERSION + 1),
             self.assertRaises(RepositoryError),
         ):
             Database(self.path)

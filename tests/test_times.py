@@ -5,8 +5,8 @@ from unittest import mock
 
 import discord
 
-from bot.features.times import TimesChannels
-from bot.runtime import BotRuntime
+from ctfbot.features.times import TimesChannels
+from ctfbot.runtime import BotRuntime
 
 
 class TimesChannelsTest(unittest.IsolatedAsyncioTestCase):
@@ -38,10 +38,10 @@ class TimesChannelsTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             mock.patch(
-                "bot.features.times.send_interaction", new_callable=mock.AsyncMock
+                "ctfbot.features.times.send_interaction", new_callable=mock.AsyncMock
             ) as send_interaction,
             mock.patch(
-                "bot.features.times.log_audit", new_callable=mock.AsyncMock
+                "ctfbot.features.times.log_audit", new_callable=mock.AsyncMock
             ) as log_audit,
         ):
             callback = cast(Any, self.cog.create_times.callback)
@@ -67,10 +67,10 @@ class TimesChannelsTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             mock.patch(
-                "bot.features.times.send_interaction", new_callable=mock.AsyncMock
+                "ctfbot.features.times.send_interaction", new_callable=mock.AsyncMock
             ) as send_interaction,
             mock.patch(
-                "bot.features.times.log_audit", new_callable=mock.AsyncMock
+                "ctfbot.features.times.log_audit", new_callable=mock.AsyncMock
             ) as log_audit,
         ):
             callback = cast(Any, self.cog.create_times.callback)
@@ -89,10 +89,10 @@ class TimesChannelsTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             mock.patch(
-                "bot.features.times.send_interaction", new_callable=mock.AsyncMock
+                "ctfbot.features.times.send_interaction", new_callable=mock.AsyncMock
             ) as send_interaction,
             mock.patch(
-                "bot.features.times.log_audit", new_callable=mock.AsyncMock
+                "ctfbot.features.times.log_audit", new_callable=mock.AsyncMock
             ) as log_audit,
         ):
             callback = cast(Any, self.cog.create_times.callback)
@@ -110,7 +110,7 @@ class TimesChannelsTest(unittest.IsolatedAsyncioTestCase):
         interaction = cast(discord.Interaction, SimpleNamespace(guild=guild))
 
         with mock.patch(
-            "bot.features.times.send_interaction", new_callable=mock.AsyncMock
+            "ctfbot.features.times.send_interaction", new_callable=mock.AsyncMock
         ) as send_interaction:
             callback = cast(Any, self.cog.create_times.callback)
             await callback(self.cog, interaction, "example")
@@ -126,7 +126,7 @@ class TimesChannelsTest(unittest.IsolatedAsyncioTestCase):
         interaction = cast(discord.Interaction, SimpleNamespace(guild=guild))
 
         with mock.patch(
-            "bot.features.times.send_interaction", new_callable=mock.AsyncMock
+            "ctfbot.features.times.send_interaction", new_callable=mock.AsyncMock
         ) as send_interaction:
             callback = cast(Any, self.cog.create_times.callback)
             await callback(self.cog, interaction, "example")

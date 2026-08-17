@@ -47,7 +47,7 @@
 
 ## 開発コマンド
 
-依存インストールは `uv sync`。lint・型チェック・テストの検証コマンドは `AGENTS.md`「検証」を正とする。bot の実行（`uv run --env-file .env src/main.py`）には Discord トークンが必要。
+依存インストールは `uv sync`。lint・型チェック・テストの検証コマンドは `AGENTS.md`「検証」を正とする。bot の実行（`uv run --locked --env-file .env -m ctfbot`）には Discord トークンが必要。
 
 ## コーディング規約
 

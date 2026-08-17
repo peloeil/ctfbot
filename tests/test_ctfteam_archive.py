@@ -9,9 +9,9 @@ from unittest import mock
 
 import discord
 
-from bot.db import Database
-from bot.features.ctfteam import discord_ops
-from bot.features.ctfteam.cog import CTFTeamCampaigns
+from ctfbot.db import Database
+from ctfbot.features.ctfteam import discord_ops
+from ctfbot.features.ctfteam.cog import CTFTeamCampaigns
 
 
 class ArchiveCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
@@ -126,7 +126,7 @@ class ArchiveCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             mock.patch.object(discord_ops, "delete_voice_channel", new=delete_voice),
-            mock.patch("bot.features.ctfteam.cog.send_safely", new=send),
+            mock.patch("ctfbot.features.ctfteam.cog.send_safely", new=send),
         ):
             result = await self.cog._archive_campaign_resources(guild, self.item)
 

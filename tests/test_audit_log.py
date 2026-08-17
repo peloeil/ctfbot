@@ -8,10 +8,10 @@ from unittest import mock
 import discord
 from discord.ext import commands
 
-from bot.config import Settings
-from bot.errors import RepositoryError
-from bot.features.audit_log import AuditLog
-from bot.runtime import BotRuntime
+from ctfbot.config import Settings
+from ctfbot.errors import RepositoryError
+from ctfbot.features.audit_log import AuditLog
+from ctfbot.runtime import BotRuntime
 
 
 class StringValue:
@@ -97,10 +97,10 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
         fetch_member = mock.AsyncMock(return_value=member)
         send_audit_message = mock.AsyncMock()
         with (
-            mock.patch("bot.features.audit_log.asyncio.to_thread", new=to_thread),
-            mock.patch("bot.features.audit_log.fetch_member", new=fetch_member),
+            mock.patch("ctfbot.features.audit_log.asyncio.to_thread", new=to_thread),
+            mock.patch("ctfbot.features.audit_log.fetch_member", new=fetch_member),
             mock.patch(
-                "bot.features.audit_log.send_audit_message",
+                "ctfbot.features.audit_log.send_audit_message",
                 new=send_audit_message,
             ),
         ):
@@ -269,7 +269,7 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
     async def test_repository_error_does_not_notify(self) -> None:
         entry = self.make_entry(user_id=400)
         error = RepositoryError("database unavailable")
-        with mock.patch("bot.features.audit_log.logger.error") as log_error:
+        with mock.patch("ctfbot.features.audit_log.logger.error") as log_error:
             _, _, send_audit_message = await self.run_entry(entry, insert_error=error)
 
         send_audit_message.assert_not_awaited()
@@ -290,7 +290,7 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
         self,
     ) -> None:
         entry = self.make_entry(UnserializableValue())
-        with mock.patch("bot.features.audit_log.logger.error") as log_error:
+        with mock.patch("ctfbot.features.audit_log.logger.error") as log_error:
             await self.cog.on_audit_log_entry_create(entry)
 
         error = log_error.call_args.args[2]

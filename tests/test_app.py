@@ -3,9 +3,9 @@ from types import SimpleNamespace
 from typing import Any, cast
 from unittest import mock
 
-from bot.app import CTFBot, create_bot
-from bot.cogs_loader import DEFAULT_EXTENSIONS
-from bot.runtime import BotRuntime
+from ctfbot.app import CTFBot, create_bot
+from ctfbot.cogs_loader import DEFAULT_EXTENSIONS
+from ctfbot.runtime import BotRuntime
 
 
 class AppTest(unittest.IsolatedAsyncioTestCase):
@@ -20,7 +20,9 @@ class AppTest(unittest.IsolatedAsyncioTestCase):
         tree.sync = mock.AsyncMock(return_value=[])
 
         with (
-            mock.patch("bot.app.load_cogs", new_callable=mock.AsyncMock) as load_cogs,
+            mock.patch(
+                "ctfbot.app.load_cogs", new_callable=mock.AsyncMock
+            ) as load_cogs,
             mock.patch.object(
                 CTFBot, "tree", new_callable=mock.PropertyMock
             ) as tree_prop,
@@ -44,7 +46,7 @@ class AppTest(unittest.IsolatedAsyncioTestCase):
             ),
         )
 
-        with mock.patch("bot.app.Database", return_value=mock.Mock()):
+        with mock.patch("ctfbot.app.Database", return_value=mock.Mock()):
             bot = create_bot(
                 settings,
                 extra_extensions=("private_bot.feature",),

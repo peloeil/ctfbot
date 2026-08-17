@@ -4,9 +4,9 @@ from unittest import mock
 
 import discord
 
-from bot.errors import ServiceError
-from bot.features.ctfteam import discord_ops
-from bot.features.ctfteam.models import CampaignDraft
+from ctfbot.errors import ServiceError
+from ctfbot.features.ctfteam import discord_ops
+from ctfbot.features.ctfteam.models import CampaignDraft
 
 
 class RequireCategoryTest(unittest.TestCase):

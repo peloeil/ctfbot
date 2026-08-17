@@ -4,9 +4,9 @@ import unittest
 from contextlib import suppress
 from zoneinfo import ZoneInfo
 
-from bot.db import Database
-from bot.errors import ServiceError
-from bot.features.ctfteam import campaign
+from ctfbot.db import Database
+from ctfbot.errors import ServiceError
+from ctfbot.features.ctfteam import campaign
 
 
 class CampaignLogicTest(unittest.TestCase):

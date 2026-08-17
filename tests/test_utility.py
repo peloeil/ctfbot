@@ -5,7 +5,7 @@ from unittest import mock
 import discord
 from discord import app_commands
 
-from bot.features.utility import UtilityCommands
+from ctfbot.features.utility import UtilityCommands
 
 
 async def _noop(interaction: discord.Interaction) -> None:
@@ -34,7 +34,7 @@ class UtilityCommandsTest(unittest.IsolatedAsyncioTestCase):
         callback = cast(Any, self.cog.roll.callback)
         await callback(self.cog, self.interaction, notation)
 
-    @mock.patch("bot.features.utility.random.randint", side_effect=[2, 5, 1])
+    @mock.patch("ctfbot.features.utility.random.randint", side_effect=[2, 5, 1])
     async def test_roll_rolls_ndm_and_reports_total(self, randint: mock.Mock) -> None:
         await self.invoke_roll("3d6")
 

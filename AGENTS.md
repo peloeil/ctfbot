@@ -35,9 +35,9 @@
 2. **`db.py` は discord を import しない** — feature からの import は `models.py` のみ許可
 3. **feature の `models.py` は discord を import しない** — `db.py` が import するため純粋なデータモデルに限定
 4. **`campaign.py` は discord を import しない**
-5. **`discord_ops.py` は `bot.db` を import しない**
-6. **feature 間の相互 import 禁止** — `src/bot/features/` 直下のすべての feature が対象。互いを import しない
-7. **BotRuntime は Settings + Database のみ** — `bot/runtime.py` に定義。API クライアントは各 cog の `__init__` でローカル生成する
+5. **`discord_ops.py` は `ctfbot.db` を import しない**
+6. **feature 間の相互 import 禁止** — `src/ctfbot/features/` 直下のすべての feature が対象。互いを import しない
+7. **BotRuntime は Settings + Database のみ** — `ctfbot/runtime.py` に定義。API クライアントは各 cog の `__init__` でローカル生成する
 8. **バリデーションは例外ベース** — 複数ステップの検証は `ServiceError` を raise し cog で `try/except ServiceError` で統一。単純な Discord 入力チェック（空文字・guild 存在確認など）は cog 内で直接応答してよい
 9. **Database は 1 クラスに集約** — 全テーブル・全 SQL が `db.py` に収まる
 10. **async context の blocking I/O は `asyncio.to_thread`** — イベントループ上で実行される同期 I/O（DB アクセス、HTTP リクエスト）は必ずスレッド委譲。イベントループ外（起動時の初期化、同期テスト）は対象外
@@ -65,7 +65,7 @@
 
 新しい cog を追加するときの典型的な手順。既存の `features/times.py` が最小の参考例（settings のみ使用）、`features/alpacahack/cog.py` が runtime・DB・定期タスクを使う例。
 
-1. `src/bot/features/` にファイルを作成する
+1. `src/ctfbot/features/` にファイルを作成する
 2. `commands.Cog`（単発コマンド）または `commands.GroupCog`（サブコマンド群）を継承したクラスを定義する
 3. settings / db が必要なら `__init__` で `get_runtime(bot)` を呼び、`self.settings` / `self.db` を保持する（不要なら `self.bot` のみでよい）
 4. 外部 API クライアントが必要なら `__init__` でインスタンスを作る（BotRuntime には追加しない）
@@ -80,8 +80,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from bot.helpers import send_interaction
-from bot.runtime import get_runtime
+from ctfbot.helpers import send_interaction
+from ctfbot.runtime import get_runtime
 
 
 class MyCog(commands.Cog):
@@ -112,4 +112,4 @@ uv run ty check
 uv run -m unittest discover -s tests -v
 ```
 
-**bot の実行（`uv run --env-file .env src/main.py`）は行わないこと。** Discord トークンが必要であり、実際の Discord 動作確認は人間が行う。
+**bot の実行（`uv run --locked --env-file .env -m ctfbot`）は行わないこと。** Discord トークンが必要であり、実際の Discord 動作確認は人間が行う。

@@ -3,14 +3,14 @@ import re
 import discord
 from discord.ext import commands
 
-from bot.errors import ServiceError
-from bot.features.ctfteam.models import CampaignDraft
-from bot.helpers import (
+from ctfbot.errors import ServiceError
+from ctfbot.features.ctfteam.models import CampaignDraft
+from ctfbot.helpers import (
     MAX_CHANNEL_NAME_LENGTH,
     format_timestamp_with_relative,
     send_safely,
 )
-from bot.log import logger
+from ctfbot.log import logger
 
 CLOSED_HEADER = "🔒 **この募集は終了しました。**"
 MENTION_CHUNK_SIZE = 1700  # Margin under Discord's 2000-char message limit

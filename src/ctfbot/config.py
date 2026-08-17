@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from bot.errors import ConfigurationError
+from ctfbot.errors import ConfigurationError
 
 
 @dataclass(frozen=True, slots=True)

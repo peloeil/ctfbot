@@ -4,9 +4,9 @@ import json
 import discord
 from discord.ext import commands
 
-from bot.helpers import fetch_member, sanitize_audit_text, send_audit_message
-from bot.log import logger
-from bot.runtime import get_runtime
+from ctfbot.helpers import fetch_member, sanitize_audit_text, send_audit_message
+from ctfbot.log import logger
+from ctfbot.runtime import get_runtime
 
 # 対象表記の決定 (docs/features/audit-log.md「Embed / メッセージ形式」)
 

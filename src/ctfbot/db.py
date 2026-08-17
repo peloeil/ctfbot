@@ -3,14 +3,14 @@ from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path
 
-from bot.errors import ConflictError, RepositoryError
-from bot.features.ctfteam.models import (
+from ctfbot.errors import ConflictError, RepositoryError
+from ctfbot.features.ctfteam.models import (
     ActiveCampaign,
     Campaign,
     CampaignStatus,
     ClosedCampaign,
 )
-from bot.features.sudo.models import SudoGrant
+from ctfbot.features.sudo.models import SudoGrant
 
 CURRENT_SCHEMA_VERSION = 6
 _MIGRATIONS: dict[int, str] = {

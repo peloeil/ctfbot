@@ -8,8 +8,8 @@ from unittest import mock
 import discord
 from discord.ext import commands
 
-from bot.features.sudo.cog import ROLE_ADD_ERROR, ROLE_REMOVE_ERROR, Sudo
-from bot.features.sudo.models import SudoGrant
+from ctfbot.features.sudo.cog import ROLE_ADD_ERROR, ROLE_REMOVE_ERROR, Sudo
+from ctfbot.features.sudo.models import SudoGrant
 
 
 class SudoTest(unittest.IsolatedAsyncioTestCase):
@@ -51,7 +51,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
     async def test_sudo_rejects_member_without_sudoer_role(self) -> None:
         interaction, _, _, _ = self.make_interaction(member_roles=[])
         with mock.patch(
-            "bot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
+            "ctfbot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
         ) as send_interaction:
             callback = self.cog.sudo.callback
             await callback(self.cog, interaction)
@@ -69,7 +69,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
         )
         self.db.get_sudo_grant.return_value = None
         with mock.patch(
-            "bot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
+            "ctfbot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
         ) as send_interaction:
             callback = self.cog.sudo.callback
             await callback(self.cog, interaction)
@@ -90,15 +90,15 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
             return function(*args)
 
         with (
-            mock.patch("bot.features.sudo.cog.time.time", return_value=100),
+            mock.patch("ctfbot.features.sudo.cog.time.time", return_value=100),
             mock.patch(
-                "bot.features.sudo.cog.asyncio.to_thread", side_effect=run_in_thread
+                "ctfbot.features.sudo.cog.asyncio.to_thread", side_effect=run_in_thread
             ),
             mock.patch(
-                "bot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
+                "ctfbot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
             ) as send_interaction,
             mock.patch(
-                "bot.features.sudo.cog.log_audit", new_callable=mock.AsyncMock
+                "ctfbot.features.sudo.cog.log_audit", new_callable=mock.AsyncMock
             ) as log_audit,
         ):
             callback = self.cog.sudo.callback
@@ -120,7 +120,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
         member.add_roles.side_effect = discord.Forbidden(response, "denied")
 
         with mock.patch(
-            "bot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
+            "ctfbot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
         ) as send_interaction:
             callback = self.cog.sudo.callback
             await callback(self.cog, interaction)
@@ -143,11 +143,13 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
         self.db.get_sudo_grant.return_value = SudoGrant(2, 9, 50, 200)
 
         with (
-            mock.patch("bot.features.sudo.cog.time.time", return_value=100),
+            mock.patch("ctfbot.features.sudo.cog.time.time", return_value=100),
             mock.patch(
-                "bot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
+                "ctfbot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
             ) as send_interaction,
-            mock.patch("bot.features.sudo.cog.log_audit", new_callable=mock.AsyncMock),
+            mock.patch(
+                "ctfbot.features.sudo.cog.log_audit", new_callable=mock.AsyncMock
+            ),
         ):
             callback = self.cog.sudo.callback
             await callback(self.cog, interaction)
@@ -170,11 +172,13 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
         self.db.get_sudo_grant.return_value = SudoGrant(2, 9, 50, 200)
 
         with (
-            mock.patch("bot.features.sudo.cog.time.time", return_value=100),
+            mock.patch("ctfbot.features.sudo.cog.time.time", return_value=100),
             mock.patch(
-                "bot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
+                "ctfbot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
             ) as send_interaction,
-            mock.patch("bot.features.sudo.cog.log_audit", new_callable=mock.AsyncMock),
+            mock.patch(
+                "ctfbot.features.sudo.cog.log_audit", new_callable=mock.AsyncMock
+            ),
         ):
             callback = self.cog.sudo.callback
             await callback(self.cog, interaction)
@@ -192,7 +196,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
         self.db.get_sudo_grant.return_value = None
 
         with mock.patch(
-            "bot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
+            "ctfbot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
         ) as send_interaction:
             callback = self.cog.sudo.callback
             await callback(self.cog, interaction)
@@ -213,12 +217,12 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
             return function(*args)
 
         with (
-            mock.patch("bot.features.sudo.cog.time.time", return_value=100),
+            mock.patch("ctfbot.features.sudo.cog.time.time", return_value=100),
             mock.patch(
-                "bot.features.sudo.cog.asyncio.to_thread", side_effect=run_in_thread
+                "ctfbot.features.sudo.cog.asyncio.to_thread", side_effect=run_in_thread
             ),
             mock.patch(
-                "bot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
+                "ctfbot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
             ) as send_interaction,
         ):
             callback = self.cog.sudo.callback
@@ -241,7 +245,7 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
         member.remove_roles.side_effect = discord.Forbidden(response, "denied")
 
         with mock.patch(
-            "bot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
+            "ctfbot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
         ) as send_interaction:
             callback = self.cog.unsudo.callback
             await callback(self.cog, interaction)
@@ -265,15 +269,15 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
 
         with (
             mock.patch(
-                "bot.features.sudo.cog.asyncio.to_thread", side_effect=run_in_thread
+                "ctfbot.features.sudo.cog.asyncio.to_thread", side_effect=run_in_thread
             ),
             mock.patch(
-                "bot.features.sudo.cog.resolve_messageable",
+                "ctfbot.features.sudo.cog.resolve_messageable",
                 new_callable=mock.AsyncMock,
                 return_value=channel,
             ),
             mock.patch(
-                "bot.features.sudo.cog.send_safely", new_callable=mock.AsyncMock
+                "ctfbot.features.sudo.cog.send_safely", new_callable=mock.AsyncMock
             ) as send_safely,
         ):
             await self.cog._revoke_expired_grant(grant)
@@ -353,14 +357,16 @@ class SudoTest(unittest.IsolatedAsyncioTestCase):
         member.remove_roles.side_effect = remove_role
 
         with (
-            mock.patch("bot.features.sudo.cog.time.time", return_value=100),
+            mock.patch("ctfbot.features.sudo.cog.time.time", return_value=100),
             mock.patch(
-                "bot.features.sudo.cog.asyncio.to_thread", side_effect=run_in_thread
+                "ctfbot.features.sudo.cog.asyncio.to_thread", side_effect=run_in_thread
             ),
             mock.patch(
-                "bot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
+                "ctfbot.features.sudo.cog.send_interaction", new_callable=mock.AsyncMock
             ),
-            mock.patch("bot.features.sudo.cog.log_audit", new_callable=mock.AsyncMock),
+            mock.patch(
+                "ctfbot.features.sudo.cog.log_audit", new_callable=mock.AsyncMock
+            ),
         ):
             sudo_callback = self.cog.sudo.callback
             unsudo_callback = self.cog.unsudo.callback

@@ -4,8 +4,8 @@ import unittest
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from bot.config import _read_clock_time, load_settings
-from bot.errors import ConfigurationError
+from ctfbot.config import _read_clock_time, load_settings
+from ctfbot.errors import ConfigurationError
 
 
 class ConfigTest(unittest.TestCase):

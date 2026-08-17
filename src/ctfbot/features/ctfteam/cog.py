@@ -5,15 +5,15 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from bot.errors import ConflictError, ServiceError
-from bot.features.ctfteam import campaign, discord_ops
-from bot.features.ctfteam.models import (
+from ctfbot.errors import ConflictError, ServiceError
+from ctfbot.features.ctfteam import campaign, discord_ops
+from ctfbot.features.ctfteam.models import (
     ActiveCampaign,
     Campaign,
     CampaignStatus,
     ClosedCampaign,
 )
-from bot.helpers import (
+from ctfbot.helpers import (
     fetch_member,
     format_timestamp_with_relative,
     log_audit,
@@ -21,8 +21,8 @@ from bot.helpers import (
     send_interaction,
     send_safely,
 )
-from bot.log import logger
-from bot.runtime import get_runtime
+from ctfbot.log import logger
+from ctfbot.runtime import get_runtime
 
 REACTION_EMOJI = "✅"
 _OMISSION_RESERVE = 30  # Room for the omission line under the 4096-char limit

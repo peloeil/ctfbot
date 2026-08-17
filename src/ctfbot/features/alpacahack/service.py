@@ -8,8 +8,8 @@ from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup, Tag
 
-from bot.db import Database
-from bot.errors import ExternalAPIError
+from ctfbot.db import Database
+from ctfbot.errors import ExternalAPIError
 
 _MAX_PAGES = 20
 _PAGE_SIZE = 10

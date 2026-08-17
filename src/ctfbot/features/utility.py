@@ -5,7 +5,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from bot.helpers import send_interaction
+from ctfbot.helpers import send_interaction
 
 
 class UtilityCommands(commands.Cog):

@@ -8,22 +8,22 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from bot.errors import ConflictError, ExternalAPIError
-from bot.features.alpacahack.service import (
+from ctfbot.errors import ConflictError, ExternalAPIError
+from ctfbot.features.alpacahack.service import (
     AlpacaHackClient,
     DailyChallenge,
     WeeklySolveSummary,
     collect_weekly_summary,
 )
-from bot.helpers import (
+from ctfbot.helpers import (
     is_markdown_link_safe,
     log_audit,
     resolve_messageable,
     send_interaction,
     send_safely,
 )
-from bot.log import logger
-from bot.runtime import get_runtime
+from ctfbot.log import logger
+from ctfbot.runtime import get_runtime
 
 MAX_EMBED_FIELDS = 25
 ALPACAHACK_EMBED_COLOR = 0xFD8028

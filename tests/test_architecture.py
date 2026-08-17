@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src" / "bot"
+SRC = ROOT / "src" / "ctfbot"
 
 
 def imports_for(path: Path) -> set[str]:
@@ -38,7 +38,7 @@ class ArchitectureTest(unittest.TestCase):
 
     def test_discord_ops_does_not_import_db(self) -> None:
         imports = imports_for(SRC / "features" / "ctfteam" / "discord_ops.py")
-        self.assertNotIn("bot.db", imports)
+        self.assertNotIn("ctfbot.db", imports)
 
     def test_feature_models_do_not_import_discord(self) -> None:
         for path in (SRC / "features").rglob("models.py"):
@@ -52,24 +52,26 @@ class ArchitectureTest(unittest.TestCase):
 
     def test_db_feature_imports_are_models_only(self) -> None:
         imports = imports_for(SRC / "db.py")
-        feature_imports = {name for name in imports if name.startswith("bot.features.")}
+        feature_imports = {
+            name for name in imports if name.startswith("ctfbot.features.")
+        }
         for name in feature_imports:
             self.assertTrue(name.endswith(".models"), f"db.py imports {name}")
 
     def test_features_do_not_import_each_other(self) -> None:
         feature_modules = {
-            "bot.features.alpacahack",
-            "bot.features.ctftime",
-            "bot.features.times",
-            "bot.features.utility",
-            "bot.features.audit_log",
-            "bot.features.ctfteam",
-            "bot.features.sudo",
+            "ctfbot.features.alpacahack",
+            "ctfbot.features.ctftime",
+            "ctfbot.features.times",
+            "ctfbot.features.utility",
+            "ctfbot.features.audit_log",
+            "ctfbot.features.ctfteam",
+            "ctfbot.features.sudo",
         }
         for path in (SRC / "features").rglob("*.py"):
             if path.name == "__init__.py":
                 continue
-            module = "bot.features." + ".".join(
+            module = "ctfbot.features." + ".".join(
                 path.relative_to(SRC / "features").with_suffix("").parts
             )
             imports = imports_for(path)

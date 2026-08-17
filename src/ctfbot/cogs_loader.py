@@ -1,13 +1,13 @@
 from discord.ext import commands
 
 DEFAULT_EXTENSIONS = (
-    "bot.features.utility",
-    "bot.features.times",
-    "bot.features.alpacahack.cog",
-    "bot.features.ctfteam.cog",
-    "bot.features.ctftime",
-    "bot.features.audit_log",
-    "bot.features.sudo.cog",
+    "ctfbot.features.utility",
+    "ctfbot.features.times",
+    "ctfbot.features.alpacahack.cog",
+    "ctfbot.features.ctfteam.cog",
+    "ctfbot.features.ctftime",
+    "ctfbot.features.audit_log",
+    "ctfbot.features.sudo.cog",
 )
 
 

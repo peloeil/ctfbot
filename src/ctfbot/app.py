@@ -7,12 +7,12 @@ from typing import cast
 import discord
 from discord.ext import commands
 
-from bot.cogs_loader import DEFAULT_EXTENSIONS, load_cogs
-from bot.config import Settings, load_settings
-from bot.db import Database
-from bot.helpers import resolve_messageable, send_interaction, send_safely
-from bot.log import configure_logging, logger
-from bot.runtime import BotRuntime
+from ctfbot.cogs_loader import DEFAULT_EXTENSIONS, load_cogs
+from ctfbot.config import Settings, load_settings
+from ctfbot.db import Database
+from ctfbot.helpers import resolve_messageable, send_interaction, send_safely
+from ctfbot.log import configure_logging, logger
+from ctfbot.runtime import BotRuntime
 
 
 class CTFBot(commands.Bot):

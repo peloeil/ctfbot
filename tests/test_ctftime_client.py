@@ -5,8 +5,8 @@ from zoneinfo import ZoneInfo
 
 import requests
 
-from bot.errors import ExternalAPIError
-from bot.features.ctftime import CTFEvent, CTFTimeClient, _build_events_embed
+from ctfbot.errors import ExternalAPIError
+from ctfbot.features.ctftime import CTFEvent, CTFTimeClient, _build_events_embed
 
 
 class CTFTimeClientTest(unittest.TestCase):
@@ -26,7 +26,7 @@ class CTFTimeClientTest(unittest.TestCase):
         response.json.return_value = payload
         return response
 
-    @patch("bot.features.ctftime.requests.get")
+    @patch("ctfbot.features.ctftime.requests.get")
     def test_fetch_events_converts_json(self, get: Mock) -> None:
         get.return_value = self.response(
             [
@@ -47,7 +47,7 @@ class CTFTimeClientTest(unittest.TestCase):
         get.assert_called_once()
         self.assertEqual(get.call_args.kwargs["headers"]["User-Agent"], "ctfbot-test")
 
-    @patch("bot.features.ctftime.requests.get")
+    @patch("ctfbot.features.ctftime.requests.get")
     def test_fetch_events_parses_offset_datetime(self, get: Mock) -> None:
         get.return_value = self.response(
             [
@@ -81,8 +81,8 @@ class CTFTimeClientTest(unittest.TestCase):
         self.assertNotIn("[CTFtime]()", description)
         self.assertNotIn("https://example.test/event))", description)
 
-    @patch("bot.features.ctftime.time.sleep")
-    @patch("bot.features.ctftime.requests.get")
+    @patch("ctfbot.features.ctftime.time.sleep")
+    @patch("ctfbot.features.ctftime.requests.get")
     def test_fetch_events_retries_once(self, get: Mock, sleep: Mock) -> None:
         get.side_effect = [
             requests.Timeout("timeout"),
@@ -93,8 +93,8 @@ class CTFTimeClientTest(unittest.TestCase):
         self.assertEqual(get.call_count, 2)
         sleep.assert_called_once_with(0.1)
 
-    @patch("bot.features.ctftime.time.sleep")
-    @patch("bot.features.ctftime.requests.get")
+    @patch("ctfbot.features.ctftime.time.sleep")
+    @patch("ctfbot.features.ctftime.requests.get")
     def test_fetch_events_all_failures_raise(self, get: Mock, sleep: Mock) -> None:
         get.side_effect = requests.ConnectionError("failed")
         with self.assertRaises(ExternalAPIError):

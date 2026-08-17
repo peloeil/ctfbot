@@ -9,15 +9,15 @@ import requests
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from bot.errors import ExternalAPIError
-from bot.helpers import (
+from ctfbot.errors import ExternalAPIError
+from ctfbot.helpers import (
     is_markdown_link_safe,
     resolve_messageable,
     send_interaction,
     send_safely,
 )
-from bot.log import logger
-from bot.runtime import get_runtime
+from ctfbot.log import logger
+from ctfbot.runtime import get_runtime
 
 
 @dataclass(frozen=True, slots=True)
