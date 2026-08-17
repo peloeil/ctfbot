@@ -42,7 +42,7 @@ AlpacaHack のユーザーを登録して毎週日曜に solve 状況を集計�
 
 - 毎日 `ALPACAHACK_DAILY_TIME` に `https://alpacahack.com/daily` を確認する
 - `ALPACAHACK_CHANNEL_ID` が未設定・解決不能なら取得せずスキップする
-- 「Today's Challenge」が公開中なら問題ページからタイトル、作問者、カテゴリ、難易度、概要、添付ファイル URL を取得する
+- 「Today's Challenge」が公開中なら問題ページからタイトル、作問者、カテゴリ、難易度、概要、添付ファイル URL、出題期間を取得する
 - challenge URL を `alpacahack_daily_notification` に挿入できた場合だけ Embed を送る。DB 更新は送信より先に確定し、同じ公開期間や bot 再起動で再送しない
 - 公開中の問題がなければ何も送らない。取得・パース・送信の失敗はログに記録し、次回以降のループを継続する
 - 添付ファイルはダウンロード・再アップロードせず、AlpacaHack が公開する S3 URL へのリンクとして表示する
@@ -54,11 +54,13 @@ AlpacaHack のユーザーを登録して毎週日曜に solve 状況を集計�
 3. 問題ページの最初の `<h1>` をタイトルとする
 4. markdown 描画要素の親要素から概要をプレーンテキスト化する。`details` は summary を表示し、本文を Discord の spoiler (`||...||`) にする。取得不能なら `meta[name=description]` にフォールバックする
 5. `https://alpacahack-prod.s3.ap-northeast-1.amazonaws.com/` で始まるリンクを添付ファイルとする
+6. challenge ページの `releaseAt` を開始、`/daily` の `activeEndsAt` を終了として取得し、`settings.tzinfo` に変換する
 
 ### Daily Embed
 
 - title: `🦙 {title}`、title URL: challenge URL、color: `#FD8028`
 - description: 問題概要。3500 文字を超える場合は省略する。空なら「問題ページを確認してください。」
+- field: 「出題期間」。開始・終了を Discord timestamp で表示し、終了の相対時刻を併記する
 - field: 「カテゴリ / 難易度」「作問者」
 - 添付がある場合は「添付ファイル」field にファイル名付きリンクを表示し、1024 文字を超える場合は省略する
 

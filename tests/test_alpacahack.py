@@ -69,7 +69,7 @@ class AlpacaHackTest(unittest.TestCase):
     ) -> None:
         index_response = Mock()
         index_response.raise_for_status.return_value = None
-        index_response.text = """
+        index_response.text = r"""
         <div>
           <span>Today's Challenge</span>
           <a href="/daily/challenges/example">
@@ -77,10 +77,11 @@ class AlpacaHackTest(unittest.TestCase):
             <span>Crypto</span><span>Easy</span><span>10 solves</span>
           </a>
         </div>
+        <script>enqueue("[\"activeEndsAt\",\"2026-06-16T15:00:00.000Z\"]")</script>
         """
         challenge_response = Mock()
         challenge_response.raise_for_status.return_value = None
-        challenge_response.text = """
+        challenge_response.text = r"""
         <html><head><meta name="description" content="fallback"></head><body>
           <h1>Example Challenge</h1>
           <div>
@@ -89,6 +90,7 @@ class AlpacaHackTest(unittest.TestCase):
             <details><summary>Beginner Hint</summary>Read the source.</details>
           </div>
           <a href="https://alpacahack-prod.s3.ap-northeast-1.amazonaws.com/id/example.tar.gz">example.tar.gz</a>
+          <script>enqueue("[\"releaseAt\",[\"D\",1781449200000]]")</script>
         </body></html>
         """
         get.side_effect = [index_response, challenge_response]
@@ -108,6 +110,8 @@ class AlpacaHackTest(unittest.TestCase):
                     "https://alpacahack-prod.s3.ap-northeast-1.amazonaws.com/"
                     "id/example.tar.gz",
                 ),
+                starts_at=datetime.datetime(2026, 6, 15, tzinfo=self.tz),
+                ends_at=datetime.datetime(2026, 6, 17, tzinfo=self.tz),
             ),
         )
 
@@ -314,14 +318,20 @@ class AlpacaHackTest(unittest.TestCase):
                 "https://alpacahack-prod.s3.ap-northeast-1.amazonaws.com/"
                 "id/example%20file.tar.gz",
             ),
+            starts_at=datetime.datetime(2026, 6, 15, tzinfo=self.tz),
+            ends_at=datetime.datetime(2026, 6, 17, tzinfo=self.tz),
         )
 
         embed = _build_daily_embed(challenge)
 
         self.assertEqual(len(embed.description or ""), 3500)
-        self.assertEqual(embed.fields[0].value, "Pwn / Medium")
         self.assertEqual(
-            embed.fields[2].value,
+            embed.fields[0].value,
+            "<t:1781449200:f> 〜 <t:1781622000:f>\n終了 <t:1781622000:R>",
+        )
+        self.assertEqual(embed.fields[1].value, "Pwn / Medium")
+        self.assertEqual(
+            embed.fields[3].value,
             "- [example file.tar.gz](https://alpacahack-prod.s3.ap-northeast-1."
             "amazonaws.com/id/example%20file.tar.gz)",
         )
@@ -335,6 +345,8 @@ class AlpacaHackTest(unittest.TestCase):
             difficulty="Medium",
             description="Beginner Hint\n||" + "x" * 4000 + "||",
             attachment_urls=(),
+            starts_at=datetime.datetime(2026, 6, 15, tzinfo=self.tz),
+            ends_at=datetime.datetime(2026, 6, 17, tzinfo=self.tz),
         )
 
         embed = _build_daily_embed(challenge)
@@ -378,6 +390,8 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
             difficulty="Easy",
             description="Recover the flag.",
             attachment_urls=(),
+            starts_at=datetime.datetime(2026, 6, 15, tzinfo=datetime.UTC),
+            ends_at=datetime.datetime(2026, 6, 17, tzinfo=datetime.UTC),
         )
         self.cog.client.fetch_daily_challenge.return_value = challenge
         self.cog.db.reserve_alpacahack_daily_notification.side_effect = [True, False]
@@ -412,6 +426,8 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
             difficulty="Easy",
             description="Recover the flag.",
             attachment_urls=(),
+            starts_at=datetime.datetime(2026, 6, 15, tzinfo=datetime.UTC),
+            ends_at=datetime.datetime(2026, 6, 17, tzinfo=datetime.UTC),
         )
         self.cog.client.fetch_daily_challenge.return_value = challenge
 

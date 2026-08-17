@@ -15,6 +15,8 @@ _MAX_PAGES = 20
 _PAGE_SIZE = 10
 _DAILY_URL = "https://alpacahack.com/daily"
 _DAILY_CHALLENGE_PATH = re.compile(r"^/daily/challenges/[^/]+$")
+_DAILY_RELEASE_AT = re.compile(r'\\"releaseAt\\",\[\\"D\\",(\d+)\]')
+_DAILY_ACTIVE_ENDS_AT = re.compile(r'\\"activeEndsAt\\",\\"([^"\\]+)\\"')
 _ATTACHMENT_URL_PREFIX = "https://alpacahack-prod.s3.ap-northeast-1.amazonaws.com/"
 
 
@@ -43,6 +45,8 @@ class DailyChallenge:
     difficulty: str
     description: str
     attachment_urls: tuple[str, ...]
+    starts_at: datetime.datetime
+    ends_at: datetime.datetime
 
 
 def get_week_range(
@@ -74,7 +78,8 @@ class AlpacaHackClient:
         self._timeout = request_timeout
 
     def fetch_daily_challenge(self) -> DailyChallenge | None:
-        index = BeautifulSoup(self._get_html(_DAILY_URL), "html.parser")
+        index_html = self._get_html(_DAILY_URL)
+        index = BeautifulSoup(index_html, "html.parser")
         label = index.find(
             string=lambda value: bool(
                 value and value.strip().lower() == "today's challenge"
@@ -100,7 +105,8 @@ class AlpacaHackClient:
         if len(parts) < 5:
             raise ExternalAPIError("Unexpected Daily AlpacaHack challenge card.")
         challenge_url = urljoin(_DAILY_URL, str(card["href"]))
-        page = BeautifulSoup(self._get_html(challenge_url), "html.parser")
+        challenge_html = self._get_html(challenge_url)
+        page = BeautifulSoup(challenge_html, "html.parser")
         heading = page.find("h1")
         if not isinstance(heading, Tag):
             raise ExternalAPIError("Unexpected Daily AlpacaHack challenge page.")
@@ -113,6 +119,11 @@ class AlpacaHackClient:
                 if str(link["href"]).startswith(_ATTACHMENT_URL_PREFIX)
             )
         )
+        starts_at, ends_at = _parse_daily_period(
+            index_html,
+            challenge_html,
+            timezone=self._timezone,
+        )
         return DailyChallenge(
             title=title,
             url=challenge_url,
@@ -121,6 +132,8 @@ class AlpacaHackClient:
             difficulty=parts[-2],
             description=description,
             attachment_urls=attachment_urls,
+            starts_at=starts_at,
+            ends_at=ends_at,
         )
 
     def _get_html(self, url: str, *, params: dict[str, int] | None = None) -> str:
@@ -195,6 +208,31 @@ class AlpacaHackClient:
                 )
             )
         return records
+
+
+def _parse_daily_period(
+    index_html: str,
+    challenge_html: str,
+    *,
+    timezone: datetime.tzinfo,
+) -> tuple[datetime.datetime, datetime.datetime]:
+    release = _DAILY_RELEASE_AT.search(challenge_html)
+    end = _DAILY_ACTIVE_ENDS_AT.search(index_html)
+    if release is None or end is None:
+        raise ExternalAPIError("Unexpected Daily AlpacaHack period data.")
+    try:
+        starts_at = datetime.datetime.fromtimestamp(
+            int(release.group(1)) / 1000,
+            datetime.UTC,
+        ).astimezone(timezone)
+        ends_at = datetime.datetime.fromisoformat(
+            end.group(1).replace("Z", "+00:00")
+        ).astimezone(timezone)
+    except (OverflowError, ValueError) as exc:
+        raise ExternalAPIError("Unexpected Daily AlpacaHack period data.") from exc
+    if starts_at >= ends_at:
+        raise ExternalAPIError("Unexpected Daily AlpacaHack period data.")
+    return starts_at, ends_at
 
 
 def _parse_daily_description(heading: Tag, page: BeautifulSoup) -> str:

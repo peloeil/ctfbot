@@ -110,6 +110,13 @@ def _build_daily_embed(challenge: DailyChallenge) -> discord.Embed:
         description=description or "問題ページを確認してください。",
         color=ALPACAHACK_EMBED_COLOR,
     )
+    starts_at = int(challenge.starts_at.timestamp())
+    ends_at = int(challenge.ends_at.timestamp())
+    embed.add_field(
+        name="出題期間",
+        value=f"<t:{starts_at}:f> 〜 <t:{ends_at}:f>\n終了 <t:{ends_at}:R>",
+        inline=False,
+    )
     categories = " / ".join(challenge.categories) or "-"
     embed.add_field(
         name="カテゴリ / 難易度",

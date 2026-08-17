@@ -74,7 +74,7 @@ invariant（DB decoder が実行時に検証し、違反行は `RepositoryError`
 
 ### alpacahack（`features/alpacahack/service.py`）
 
-`SolveRecord` と、その週次集計である `WeeklySolveSummary`、Daily 問題を表す `DailyChallenge` を定義する。`DailyChallenge` は title・url・author・categories・difficulty・description・attachment_urls を保持する。`solved_at` は `Settings.tzinfo` へ変換済みの aware datetime。`weekly_solves` のキーは username。取得に失敗したユーザーは `weekly_solves` に含めず `failed_users` にのみ入れる。
+`SolveRecord` と、その週次集計である `WeeklySolveSummary`、Daily 問題を表す `DailyChallenge` を定義する。`DailyChallenge` は title・url・author・categories・difficulty・description・attachment_urls・starts_at・ends_at を保持する。`solved_at`・`starts_at`・`ends_at` は `Settings.tzinfo` へ変換済みの aware datetime。`weekly_solves` のキーは username。取得に失敗したユーザーは `weekly_solves` に含めず `failed_users` にのみ入れる。
 
 ## DB スキーマ
 
