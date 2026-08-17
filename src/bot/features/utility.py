@@ -1,3 +1,6 @@
+import random
+import re
+
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -8,6 +11,28 @@ from bot.helpers import send_interaction
 class UtilityCommands(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
+
+    @app_commands.command(name="roll", description="NdM形式でダイスを振ります。")
+    @app_commands.describe(notation="ダイス表記 (例: 3d6)")
+    async def roll(self, interaction: discord.Interaction, notation: str) -> None:
+        match = re.fullmatch(r"([0-9]+)[dD]([0-9]+)", notation)
+        if match is None:
+            await send_interaction(
+                interaction, "NdM 形式で指定してください (例: 3d6)。"
+            )
+            return
+        count, sides = map(int, match.groups())
+        if not 1 <= count <= 100 or not 1 <= sides <= 100:
+            await send_interaction(
+                interaction, "ダイスの個数と面数は 1〜100 で指定してください。"
+            )
+            return
+        rolls = [random.randint(1, sides) for _ in range(count)]
+        await send_interaction(
+            interaction,
+            f"🎲 {count}d{sides}: {', '.join(map(str, rolls))}\n合計: {sum(rolls)}",
+            ephemeral=False,
+        )
 
     @app_commands.command(
         name="help", description="利用可能なコマンド一覧を表示します。"

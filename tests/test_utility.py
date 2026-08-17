@@ -16,7 +16,7 @@ def make_command(name: str, description: str) -> app_commands.Command:
     return app_commands.Command(name=name, description=description, callback=_noop)
 
 
-class HelpCommandTest(unittest.IsolatedAsyncioTestCase):
+class UtilityCommandsTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.bot = mock.Mock()
         self.cog = UtilityCommands(self.bot)
@@ -29,6 +29,33 @@ class HelpCommandTest(unittest.IsolatedAsyncioTestCase):
     async def invoke_help(self) -> None:
         callback = cast(Any, self.cog.help_command.callback)
         await callback(self.cog, self.interaction)
+
+    async def invoke_roll(self, notation: str) -> None:
+        callback = cast(Any, self.cog.roll.callback)
+        await callback(self.cog, self.interaction, notation)
+
+    @mock.patch("bot.features.utility.random.randint", side_effect=[2, 5, 1])
+    async def test_roll_rolls_ndm_and_reports_total(self, randint: mock.Mock) -> None:
+        await self.invoke_roll("3d6")
+
+        self.assertEqual(randint.call_args_list, [mock.call(1, 6)] * 3)
+        args, kwargs = self.interaction.response.send_message.await_args
+        self.assertEqual(args[0], "🎲 3d6: 2, 5, 1\n合計: 8")
+        self.assertFalse(kwargs["ephemeral"])
+
+    async def test_roll_rejects_invalid_notation(self) -> None:
+        await self.invoke_roll("3x6")
+
+        args, kwargs = self.interaction.response.send_message.await_args
+        self.assertEqual(args[0], "NdM 形式で指定してください (例: 3d6)。")
+        self.assertTrue(kwargs["ephemeral"])
+
+    async def test_roll_rejects_values_over_100(self) -> None:
+        await self.invoke_roll("101d6")
+
+        args, kwargs = self.interaction.response.send_message.await_args
+        self.assertEqual(args[0], "ダイスの個数と面数は 1〜100 で指定してください。")
+        self.assertTrue(kwargs["ephemeral"])
 
     async def test_help_lists_guild_commands_sorted(self) -> None:
         group = app_commands.Group(name="alpaca", description="AlpacaHack コマンド")
