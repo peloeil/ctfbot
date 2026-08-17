@@ -229,7 +229,7 @@ discussion チャンネルは normalize 結果を、voice チャンネルは `{n
 
 ## DB スキーマ
 
-テーブル `ctf_team_campaign` の DDL・query 契約は `docs/data-contracts.md` を正本とする。
+テーブル `ctfteam_campaign` の DDL・query 契約は `docs/data-contracts.md` を正本とする。
 
 ## 定数
 

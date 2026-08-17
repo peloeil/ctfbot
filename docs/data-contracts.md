@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS alpacahack_user (
     name TEXT NOT NULL UNIQUE
 );
 
-CREATE TABLE IF NOT EXISTS ctf_team_campaign (
+CREATE TABLE IF NOT EXISTS ctfteam_campaign (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     channel_id INTEGER NOT NULL,
     message_id INTEGER NOT NULL,
@@ -106,11 +106,11 @@ CREATE TABLE IF NOT EXISTS ctf_team_campaign (
 );
 
 CREATE INDEX IF NOT EXISTS idx_campaign_status_end
-    ON ctf_team_campaign (status, end_at_unix);
+    ON ctfteam_campaign (status, end_at_unix);
 CREATE INDEX IF NOT EXISTS idx_campaign_status_created
-    ON ctf_team_campaign (status, created_at_unix);
+    ON ctfteam_campaign (status, created_at_unix);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_campaign_active_name_unique
-    ON ctf_team_campaign (ctf_name)
+    ON ctfteam_campaign (ctf_name)
     WHERE status = 'active';
 
 CREATE TABLE IF NOT EXISTS audit_log_entry (
@@ -211,11 +211,63 @@ SELECT user_id, role_id, granted_at_unix, expires_at_unix FROM sudo_grant;
 DROP TABLE sudo_grant;
 ALTER TABLE sudo_grant_v4 RENAME TO sudo_grant;
 COMMIT;
+
+-- 4 → 5
+BEGIN;
+CREATE TABLE IF NOT EXISTS ctfteam_campaign
+AS SELECT * FROM ctf_team_campaign WHERE 0;
+CREATE TABLE IF NOT EXISTS ctf_team_campaign
+AS SELECT * FROM ctfteam_campaign WHERE 0;
+CREATE TABLE ctfteam_campaign_v5 (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel_id INTEGER NOT NULL,
+    message_id INTEGER NOT NULL,
+    role_id INTEGER NOT NULL,
+    ctf_name TEXT NOT NULL COLLATE NOCASE,
+    start_at_unix INTEGER NOT NULL,
+    end_at_unix INTEGER,
+    status TEXT NOT NULL CHECK (status IN ('active', 'closed')),
+    created_by INTEGER NOT NULL,
+    created_at_unix INTEGER NOT NULL,
+    closed_at_unix INTEGER,
+    discussion_channel_id INTEGER,
+    archive_at_unix INTEGER,
+    archived_at_unix INTEGER,
+    start_notified_at_unix INTEGER,
+    voice_channel_id INTEGER,
+    UNIQUE (message_id)
+);
+INSERT INTO ctfteam_campaign_v5 (
+    id, channel_id, message_id, role_id, ctf_name, start_at_unix, end_at_unix,
+    status, created_by, created_at_unix, closed_at_unix, discussion_channel_id,
+    archive_at_unix, archived_at_unix, start_notified_at_unix, voice_channel_id
+)
+SELECT
+    id, channel_id, message_id, role_id, ctf_name, start_at_unix, end_at_unix,
+    status, created_by, created_at_unix, closed_at_unix, discussion_channel_id,
+    archive_at_unix, archived_at_unix, start_notified_at_unix, voice_channel_id
+FROM ctf_team_campaign;
+INSERT INTO ctfteam_campaign_v5 (
+    id, channel_id, message_id, role_id, ctf_name, start_at_unix, end_at_unix,
+    status, created_by, created_at_unix, closed_at_unix, discussion_channel_id,
+    archive_at_unix, archived_at_unix, start_notified_at_unix, voice_channel_id
+)
+SELECT
+    id, channel_id, message_id, role_id, ctf_name, start_at_unix, end_at_unix,
+    status, created_by, created_at_unix, closed_at_unix, discussion_channel_id,
+    archive_at_unix, archived_at_unix, start_notified_at_unix, voice_channel_id
+FROM ctfteam_campaign;
+DROP TABLE ctf_team_campaign;
+DROP TABLE ctfteam_campaign;
+ALTER TABLE ctfteam_campaign_v5 RENAME TO ctfteam_campaign;
+COMMIT;
 ```
 
-テーブル再構築（列削除・PK 変更）を伴う移行は、`BEGIN`〜`COMMIT` で原子化した「新テーブル作成 → 残存列の射影コピー → DROP → RENAME」で書く。射影コピーは適用済み DB への再実行でもそのまま成立するため no-op になり、再実行耐性を満たす。新 index は手続き最後の `_SCHEMA_DDL` 冪等適用が作成する。
+テーブル再構築（列削除・PK 変更）を伴う移行は、`BEGIN`〜`COMMIT` で原子化した「新テーブル作成 → 残存列の射影コピー → DROP → RENAME」で書く。新 index は手続き最後の `_SCHEMA_DDL` 冪等適用が作成する。
 
 3 → 4 の移行では、複数 guild の行が混在して `UNIQUE (message_id)`・active CTF 名の unique index・`PRIMARY KEY (user_id)` に違反する場合、移行に失敗して bot は起動しない。これは単一 guild 運用の前提違反を fail-fast で拒否するためである。campaign の `id` を明示コピーするため、AUTOINCREMENT の続番は維持される。
+
+4 → 5 の移行は `ctf_team_campaign` を `ctfteam_campaign` へ改名する。旧名・新名のうち存在しない側を `CREATE TABLE IF NOT EXISTS ... AS SELECT ... WHERE 0` で空テーブルとして補い、両方から v5 テーブルへ射影コピーする。これにより、適用前・適用後のどちらの DB に再実行しても同じ状態に収束する。
 
 ### 起動時のスキーマ検証・移行手続き
 
@@ -265,7 +317,7 @@ COMMIT;
 | `delete_sudo_grant(user_id) -> None` | 不在でも成功（冪等） |
 | `list_expired_sudo_grants(now_unix) -> list[SudoGrant]` | `expires_at_unix <= now` を `expires_at_unix` 昇順で全件 |
 
-### ctf_team_campaign
+### ctfteam_campaign
 
 状態と query の述語（「closed」の二義性を解消する正本）:
 

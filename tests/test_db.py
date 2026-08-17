@@ -49,7 +49,7 @@ class DatabaseTest(unittest.TestCase):
         with sqlite3.connect(self.path) as conn:
             conn.executescript(
                 """
-DROP TABLE ctf_team_campaign;
+DROP TABLE ctfteam_campaign;
 DROP TABLE sudo_grant;
 CREATE TABLE ctf_team_campaign (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -113,7 +113,7 @@ PRAGMA user_version = 3;
             }
             version = conn.execute("PRAGMA user_version").fetchone()[0]
         self.assertIn("alpacahack_user", tables)
-        self.assertIn("ctf_team_campaign", tables)
+        self.assertIn("ctfteam_campaign", tables)
         self.assertIn("audit_log_entry", tables)
         self.assertIn("sudo_grant", tables)
         self.assertIn("idx_campaign_status_end", indexes)
@@ -176,6 +176,7 @@ PRAGMA user_version = 3;
     def test_migration_from_version_one_adds_audit_log_schema(self) -> None:
         with sqlite3.connect(self.path) as conn:
             conn.execute("DROP TABLE audit_log_entry")
+            conn.execute("ALTER TABLE ctfteam_campaign RENAME TO ctf_team_campaign")
             conn.execute("PRAGMA user_version = 1")
         Database(self.path)
         with sqlite3.connect(self.path) as conn:
@@ -199,6 +200,7 @@ PRAGMA user_version = 3;
     def test_migration_from_version_two_adds_sudo_schema(self) -> None:
         with sqlite3.connect(self.path) as conn:
             conn.execute("DROP TABLE sudo_grant")
+            conn.execute("ALTER TABLE ctfteam_campaign RENAME TO ctf_team_campaign")
             conn.execute("PRAGMA user_version = 2")
         Database(self.path)
         with sqlite3.connect(self.path) as conn:
@@ -227,7 +229,7 @@ PRAGMA user_version = 3;
         with sqlite3.connect(self.path) as conn:
             version = conn.execute("PRAGMA user_version").fetchone()[0]
             campaign_columns = [
-                row[1] for row in conn.execute("PRAGMA table_info(ctf_team_campaign)")
+                row[1] for row in conn.execute("PRAGMA table_info(ctfteam_campaign)")
             ]
             sudo_columns = [
                 row[1] for row in conn.execute("PRAGMA table_info(sudo_grant)")
@@ -237,14 +239,14 @@ PRAGMA user_version = 3;
                 "start_at_unix, end_at_unix, status, created_by, created_at_unix, "
                 "closed_at_unix, discussion_channel_id, archive_at_unix, "
                 "archived_at_unix, start_notified_at_unix, voice_channel_id "
-                "FROM ctf_team_campaign"
+                "FROM ctfteam_campaign"
             ).fetchone()
             sudo_row = conn.execute(
                 "SELECT user_id, role_id, granted_at_unix, expires_at_unix "
                 "FROM sudo_grant"
             ).fetchone()
 
-        self.assertEqual(version, 4)
+        self.assertEqual(version, CURRENT_SCHEMA_VERSION)
         self.assertNotIn("guild_id", campaign_columns)
         self.assertNotIn("guild_id", sudo_columns)
         self.assertEqual(
@@ -284,6 +286,45 @@ PRAGMA user_version = 3;
 
         self.assertEqual(second_campaign, first_campaign)
         self.assertEqual(second_sudo, first_sudo)
+
+    def test_migration_from_version_four_renames_table_and_preserves_state(
+        self,
+    ) -> None:
+        created = self.create_campaign()
+        with sqlite3.connect(self.path) as conn:
+            conn.execute("ALTER TABLE ctfteam_campaign RENAME TO ctf_team_campaign")
+            conn.execute("PRAGMA user_version = 4")
+
+        migrated = Database(self.path)
+
+        with sqlite3.connect(self.path) as conn:
+            tables = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )
+            }
+            version = conn.execute("PRAGMA user_version").fetchone()[0]
+        self.assertNotIn("ctf_team_campaign", tables)
+        self.assertIn("ctfteam_campaign", tables)
+        self.assertEqual(version, CURRENT_SCHEMA_VERSION)
+        self.assertEqual(
+            migrated.find_active_campaign_by_name(ctf_name="Example"), created
+        )
+
+    def test_version_four_migration_can_be_applied_twice_without_state_change(
+        self,
+    ) -> None:
+        self.create_campaign()
+        with sqlite3.connect(self.path) as conn:
+            conn.execute("ALTER TABLE ctfteam_campaign RENAME TO ctf_team_campaign")
+            conn.executescript(_MIGRATIONS[4])
+            first_campaign = conn.execute("SELECT * FROM ctfteam_campaign").fetchall()
+            conn.executescript(_MIGRATIONS[4])
+            second_campaign = conn.execute("SELECT * FROM ctfteam_campaign").fetchall()
+
+        self.assertEqual(len(first_campaign), 1)
+        self.assertEqual(second_campaign, first_campaign)
 
     def test_alpacahack_users(self) -> None:
         self.assertTrue(self.db.add_alpacahack_user(" zeta ", max_users=2))
@@ -374,7 +415,7 @@ PRAGMA user_version = 3;
         c = self.create_campaign()
         with sqlite3.connect(self.path) as conn:
             conn.execute(
-                "UPDATE ctf_team_campaign SET closed_at_unix=1 WHERE id=?",
+                "UPDATE ctfteam_campaign SET closed_at_unix=1 WHERE id=?",
                 (c.id,),
             )
             conn.commit()
@@ -386,7 +427,7 @@ PRAGMA user_version = 3;
         self.db.close_campaign(c.id, 21, 30)
         with sqlite3.connect(self.path) as conn:
             conn.execute(
-                "UPDATE ctf_team_campaign SET closed_at_unix=NULL WHERE id=?",
+                "UPDATE ctfteam_campaign SET closed_at_unix=NULL WHERE id=?",
                 (c.id,),
             )
             conn.commit()
@@ -502,7 +543,7 @@ PRAGMA user_version = 3;
         c = self.create_campaign()
         with sqlite3.connect(self.path) as conn:
             conn.execute(
-                "UPDATE ctf_team_campaign SET discussion_channel_id=0, "
+                "UPDATE ctfteam_campaign SET discussion_channel_id=0, "
                 "voice_channel_id=0 WHERE id=?",
                 (c.id,),
             )

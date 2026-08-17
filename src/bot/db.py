@@ -12,7 +12,7 @@ from bot.features.ctfteam.models import (
 )
 from bot.features.sudo.models import SudoGrant
 
-CURRENT_SCHEMA_VERSION = 4
+CURRENT_SCHEMA_VERSION = 5
 _MIGRATIONS: dict[int, str] = {
     1: """\
 CREATE TABLE IF NOT EXISTS audit_log_entry (
@@ -90,6 +90,57 @@ DROP TABLE sudo_grant;
 ALTER TABLE sudo_grant_v4 RENAME TO sudo_grant;
 COMMIT;
 """,
+    # Both table names must exist so this rename migration remains replayable.
+    4: """\
+BEGIN;
+CREATE TABLE IF NOT EXISTS ctfteam_campaign
+AS SELECT * FROM ctf_team_campaign WHERE 0;
+CREATE TABLE IF NOT EXISTS ctf_team_campaign
+AS SELECT * FROM ctfteam_campaign WHERE 0;
+CREATE TABLE ctfteam_campaign_v5 (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel_id INTEGER NOT NULL,
+    message_id INTEGER NOT NULL,
+    role_id INTEGER NOT NULL,
+    ctf_name TEXT NOT NULL COLLATE NOCASE,
+    start_at_unix INTEGER NOT NULL,
+    end_at_unix INTEGER,
+    status TEXT NOT NULL CHECK (status IN ('active', 'closed')),
+    created_by INTEGER NOT NULL,
+    created_at_unix INTEGER NOT NULL,
+    closed_at_unix INTEGER,
+    discussion_channel_id INTEGER,
+    archive_at_unix INTEGER,
+    archived_at_unix INTEGER,
+    start_notified_at_unix INTEGER,
+    voice_channel_id INTEGER,
+    UNIQUE (message_id)
+);
+INSERT INTO ctfteam_campaign_v5 (
+    id, channel_id, message_id, role_id, ctf_name, start_at_unix, end_at_unix,
+    status, created_by, created_at_unix, closed_at_unix, discussion_channel_id,
+    archive_at_unix, archived_at_unix, start_notified_at_unix, voice_channel_id
+)
+SELECT
+    id, channel_id, message_id, role_id, ctf_name, start_at_unix, end_at_unix,
+    status, created_by, created_at_unix, closed_at_unix, discussion_channel_id,
+    archive_at_unix, archived_at_unix, start_notified_at_unix, voice_channel_id
+FROM ctf_team_campaign;
+INSERT INTO ctfteam_campaign_v5 (
+    id, channel_id, message_id, role_id, ctf_name, start_at_unix, end_at_unix,
+    status, created_by, created_at_unix, closed_at_unix, discussion_channel_id,
+    archive_at_unix, archived_at_unix, start_notified_at_unix, voice_channel_id
+)
+SELECT
+    id, channel_id, message_id, role_id, ctf_name, start_at_unix, end_at_unix,
+    status, created_by, created_at_unix, closed_at_unix, discussion_channel_id,
+    archive_at_unix, archived_at_unix, start_notified_at_unix, voice_channel_id
+FROM ctfteam_campaign;
+DROP TABLE ctf_team_campaign;
+DROP TABLE ctfteam_campaign;
+ALTER TABLE ctfteam_campaign_v5 RENAME TO ctfteam_campaign;
+COMMIT;
+""",
 }
 
 _SCHEMA_DDL = """\
@@ -98,7 +149,7 @@ CREATE TABLE IF NOT EXISTS alpacahack_user (
     name TEXT NOT NULL UNIQUE
 );
 
-CREATE TABLE IF NOT EXISTS ctf_team_campaign (
+CREATE TABLE IF NOT EXISTS ctfteam_campaign (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     channel_id INTEGER NOT NULL,
     message_id INTEGER NOT NULL,
@@ -119,11 +170,11 @@ CREATE TABLE IF NOT EXISTS ctf_team_campaign (
 );
 
 CREATE INDEX IF NOT EXISTS idx_campaign_status_end
-    ON ctf_team_campaign (status, end_at_unix);
+    ON ctfteam_campaign (status, end_at_unix);
 CREATE INDEX IF NOT EXISTS idx_campaign_status_created
-    ON ctf_team_campaign (status, created_at_unix);
+    ON ctfteam_campaign (status, created_at_unix);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_campaign_active_name_unique
-    ON ctf_team_campaign (ctf_name)
+    ON ctfteam_campaign (ctf_name)
     WHERE status = 'active';
 
 CREATE TABLE IF NOT EXISTS audit_log_entry (
@@ -429,7 +480,7 @@ class Database:
     def count_active_campaigns_by_creator(self, created_by: int) -> int:
         with self._connection() as conn:
             return conn.execute(
-                "SELECT COUNT(*) FROM ctf_team_campaign "
+                "SELECT COUNT(*) FROM ctfteam_campaign "
                 "WHERE created_by=? AND status='active'",
                 (created_by,),
             ).fetchone()[0]
@@ -437,7 +488,7 @@ class Database:
     def has_active_campaign_with_name(self, ctf_name: str) -> bool:
         with self._connection() as conn:
             row = conn.execute(
-                "SELECT 1 FROM ctf_team_campaign "
+                "SELECT 1 FROM ctfteam_campaign "
                 "WHERE ctf_name=? AND status='active' LIMIT 1",
                 (ctf_name,),
             ).fetchone()
@@ -461,7 +512,7 @@ class Database:
         with self._connection() as conn:
             conn.execute("BEGIN IMMEDIATE")
             active_count = conn.execute(
-                "SELECT COUNT(*) FROM ctf_team_campaign "
+                "SELECT COUNT(*) FROM ctfteam_campaign "
                 "WHERE created_by=? AND status='active'",
                 (created_by,),
             ).fetchone()[0]
@@ -469,7 +520,7 @@ class Database:
                 raise ConflictError("Active campaign limit reached.")
             try:
                 cur = conn.execute(
-                    "INSERT INTO ctf_team_campaign ("
+                    "INSERT INTO ctfteam_campaign ("
                     "channel_id, message_id, role_id, "
                     "discussion_channel_id, voice_channel_id, ctf_name, "
                     "start_at_unix, end_at_unix, status, created_by, created_at_unix"
@@ -490,12 +541,12 @@ class Database:
             except sqlite3.IntegrityError as exc:
                 # 同名 active の unique index 違反のみ ConflictError。
                 # それ以外の制約違反は _connection が RepositoryError に変換する
-                if "ctf_team_campaign.ctf_name" not in str(exc):
+                if "ctfteam_campaign.ctf_name" not in str(exc):
                     raise
                 raise ConflictError("Active campaign already exists.") from exc
             conn.commit()
             row = conn.execute(
-                f"SELECT {_CAMPAIGN_COLUMNS} FROM ctf_team_campaign WHERE id=?",
+                f"SELECT {_CAMPAIGN_COLUMNS} FROM ctfteam_campaign WHERE id=?",
                 (cur.lastrowid,),
             ).fetchone()
         return self._to_active_campaign(row)
@@ -505,7 +556,7 @@ class Database:
     ) -> ActiveCampaign | None:
         with self._connection() as conn:
             row = conn.execute(
-                f"SELECT {_CAMPAIGN_COLUMNS} FROM ctf_team_campaign "
+                f"SELECT {_CAMPAIGN_COLUMNS} FROM ctfteam_campaign "
                 "WHERE channel_id=? AND message_id=? AND status='active'",
                 (channel_id, message_id),
             ).fetchone()
@@ -543,7 +594,7 @@ class Database:
         archived: bool | None = None,
     ) -> _CampaignRow | None:
         sql = (
-            f"SELECT {_CAMPAIGN_COLUMNS} FROM ctf_team_campaign "
+            f"SELECT {_CAMPAIGN_COLUMNS} FROM ctfteam_campaign "
             "WHERE ctf_name=? AND status=?"
         )
         params: list[object] = [ctf_name, status.value]
@@ -575,7 +626,7 @@ class Database:
 
     def mark_started(self, campaign_id: int, started_at_unix: int) -> bool:
         return self._update(
-            "UPDATE ctf_team_campaign SET start_notified_at_unix=? "
+            "UPDATE ctfteam_campaign SET start_notified_at_unix=? "
             "WHERE id=? AND start_notified_at_unix IS NULL AND status='active'",
             (started_at_unix, campaign_id),
         )
@@ -584,7 +635,7 @@ class Database:
         self, campaign_id: int, closed_at_unix: int, archive_at_unix: int
     ) -> bool:
         return self._update(
-            "UPDATE ctf_team_campaign SET status='closed', closed_at_unix=?, "
+            "UPDATE ctfteam_campaign SET status='closed', closed_at_unix=?, "
             "archive_at_unix=? WHERE id=? AND status='active'",
             (closed_at_unix, archive_at_unix, campaign_id),
         )
@@ -600,7 +651,7 @@ class Database:
 
     def mark_archived(self, campaign_id: int, archived_at_unix: int) -> bool:
         return self._update(
-            "UPDATE ctf_team_campaign SET archived_at_unix=? "
+            "UPDATE ctfteam_campaign SET archived_at_unix=? "
             "WHERE id=? AND archived_at_unix IS NULL",
             (archived_at_unix, campaign_id),
         )
@@ -628,7 +679,7 @@ class Database:
     ) -> list[T]:
         with self._connection() as conn:
             rows = conn.execute(
-                f"SELECT {_CAMPAIGN_COLUMNS} FROM ctf_team_campaign {suffix}", params
+                f"SELECT {_CAMPAIGN_COLUMNS} FROM ctfteam_campaign {suffix}", params
             ).fetchall()
         return [decode(row) for row in rows]
 
