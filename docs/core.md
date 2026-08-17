@@ -17,7 +17,8 @@
 
 - `resolve_messageable(bot, channel_id) -> Messageable | None`: 設定されたチャンネル ID を cache → fetch の順で解決する。ID が未設定（None）・解決失敗（`NotFound`・`Forbidden`・`HTTPException`）・送信可能でない場合は None を返し、呼び出し側は通知をスキップする。解決失敗（未設定を除く）は warning ログを 1 行残す（設定不良の検知手段）
 - `send_safely(channel, content=None, embed=None, allowed_mentions=None) -> Message | None`: チャンネルへ送信し、失敗（`HTTPException`）時は例外ログを残して None を返す（raise しない）。通知の失敗で主処理を壊さないための境界。`allowed_mentions` は呼び出し側が明示する（省略時はライブラリ既定）
-- `send_audit_message(bot, lines: Sequence[str]) -> None`: `BOT_CHANNEL_ID` への記録メッセージの共通経路。行を改行で結合し、1900 文字（`MAX_AUDIT_CONTENT_LENGTH`）を超える場合は 1897 文字 + `...` に切り詰め、`AllowedMentions.none()` で送信する。`BOT_CHANNEL_ID` 未設定・チャンネル解決失敗時は何もしない。sanitize は行わない（表示したいメンション `<@{id}>` を壊さないため、ユーザー入力由来の値は呼び出し側が `sanitize_audit_text` を適用してから渡す）。利用者: `log_audit`（下記）と管理者操作の通知（`docs/features/audit-log.md`）
+- `paginate_lines(lines: Sequence[str], *, separator="\n") -> list[str]`: 各行を順序と内容を保って 1900 文字（`MAX_MESSAGE_CONTENT_LENGTH`）以下のページへ分割し、切り捨てないこと。ページ境界には区切りを挿入せず、単独で上限を超える行もページ境界に落ちる空行もなければ `separator.join(pages) == separator.join(lines)` を満たすこと。単独で上限を超える行だけは上限以下の断片へ分割し、断片の連結で元の行を復元できること。空の入力または全行が空文字なら空リストを返すこと。空文字のページは返さず、ページ境界に落ちた空行は改ページが区切りを兼ねるため保持しないこと
+- `send_audit_message(bot, lines: Sequence[str]) -> None`: `BOT_CHANNEL_ID` への記録メッセージの共通経路。行を改行で結合し、1900 文字（`MAX_MESSAGE_CONTENT_LENGTH`）を超える場合は 1897 文字 + `...` に切り詰め、`AllowedMentions.none()` で送信する。`BOT_CHANNEL_ID` 未設定・チャンネル解決失敗時は何もしない。sanitize は行わない（表示したいメンション `<@{id}>` を壊さないため、ユーザー入力由来の値は呼び出し側が `sanitize_audit_text` を適用してから渡す）。利用者: `log_audit`（下記）と管理者操作の通知（`docs/features/audit-log.md`）
 
 メンション方針: 実際に ping してよいのはメンバーメンションと、CTF 募集メッセージの募集ロール ping（`docs/features/ctf-team.md`「募集メッセージ形式」で明示的に許可する唯一のロール ping）のみ。ユーザー入力（CTF 名等）を含む文面は `AllowedMentions.none()` で、メンバー列挙チャンクは users のみ許可（everyone・roles 拒否）で送る。
 

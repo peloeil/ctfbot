@@ -8,7 +8,7 @@ from ctfbot.errors import ServiceError
 from ctfbot.log import logger
 from ctfbot.runtime import get_runtime
 
-MAX_AUDIT_CONTENT_LENGTH = 1900  # Margin under Discord's 2000-char message limit
+MAX_MESSAGE_CONTENT_LENGTH = 1900  # Margin under Discord's 2000-char message limit
 MAX_CHANNEL_NAME_LENGTH = 100
 
 
@@ -89,14 +89,31 @@ def sanitize_audit_text(value: object) -> str:
     return normalized.replace("<@", "<@\u200b")
 
 
+def paginate_lines(lines: Sequence[str], *, separator: str = "\n") -> list[str]:
+    pages: list[str] = []
+    current = ""
+    for line in lines:
+        # Empty lines must be visited so separators between lines are preserved.
+        for start in range(0, len(line) or 1, MAX_MESSAGE_CONTENT_LENGTH):
+            fragment = line[start : start + MAX_MESSAGE_CONTENT_LENGTH]
+            candidate = current + separator + fragment if current else fragment
+            if current and len(candidate) > MAX_MESSAGE_CONTENT_LENGTH:
+                pages.append(current)
+                current = fragment
+            else:
+                current = candidate
+
+    return [*pages, current] if current else pages
+
+
 async def send_audit_message(bot: commands.Bot, lines: Sequence[str]) -> None:
     runtime = get_runtime(bot)
     channel = await resolve_messageable(bot, runtime.settings.bot_channel_id)
     if channel is None:
         return
     content = "\n".join(lines)
-    if len(content) > MAX_AUDIT_CONTENT_LENGTH:
-        content = content[: MAX_AUDIT_CONTENT_LENGTH - 3] + "..."
+    if len(content) > MAX_MESSAGE_CONTENT_LENGTH:
+        content = content[: MAX_MESSAGE_CONTENT_LENGTH - 3] + "..."
     await send_safely(channel, content, allowed_mentions=discord.AllowedMentions.none())
 
 
