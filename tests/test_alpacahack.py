@@ -414,6 +414,11 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
             self.cog.db.reserve_alpacahack_daily_notification.call_count, 2
         )
         send_safely.assert_awaited_once()
+        call = send_safely.await_args
+        if call is None:
+            self.fail("send_safely was not awaited")
+        self.assertEqual(call.args, (channel,))
+        self.assertEqual(call.kwargs["content"], "🦙 Daily AlpacaHack")
 
     async def test_weekly_report_logs_partial_failure_as_warning(self) -> None:
         summary = WeeklySolveSummary(

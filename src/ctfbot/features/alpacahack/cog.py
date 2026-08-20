@@ -181,6 +181,7 @@ class Alpacahack(commands.GroupCog, group_name="alpaca"):
             if reserved:
                 sent = await send_safely(
                     channel,
+                    content="🦙 Daily AlpacaHack",
                     embed=_build_daily_embed(challenge),
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
