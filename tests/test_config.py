@@ -73,6 +73,7 @@ class ConfigTest(unittest.TestCase):
             self.assertIsNone(settings.ctfteam_role_channel_id)
             self.assertIsNone(settings.ctftime_channel_id)
             self.assertIsNone(settings.alpacahack_channel_id)
+            self.assertIsNone(settings.alpacahack_mention_id)
             self.assertIsNone(settings.times_category_id)
 
     def test_optional_channel_ids_accept_positive_values(self) -> None:
@@ -81,12 +82,14 @@ class ConfigTest(unittest.TestCase):
                 BOT_CHANNEL_ID="42",
                 CTFTIME_CHANNEL_ID="44",
                 ALPACAHACK_CHANNEL_ID="45",
+                ALPACAHACK_MENTION_ID="47",
                 TIMES_CATEGORY_ID="46",
             )
         )
         self.assertEqual(settings.bot_channel_id, 42)
         self.assertEqual(settings.ctftime_channel_id, 44)
         self.assertEqual(settings.alpacahack_channel_id, 45)
+        self.assertEqual(settings.alpacahack_mention_id, 47)
         self.assertEqual(settings.times_category_id, 46)
 
     def test_missing_token_raises(self) -> None:

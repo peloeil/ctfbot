@@ -362,7 +362,10 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
         self.cog.db = Mock()
         self.cog.client = Mock()
         self.cog.settings = SimpleNamespace(
-            tzinfo=ZoneInfo("Asia/Tokyo"), alpacahack_channel_id=10
+            tzinfo=ZoneInfo("Asia/Tokyo"),
+            alpacahack_channel_id=10,
+            alpacahack_mention_id=None,
+            guild_id=1,
         )
         self.defer = mock.AsyncMock()
         self.followup_send = mock.AsyncMock()
@@ -395,8 +398,17 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
         )
         self.cog.client.fetch_daily_challenge.return_value = challenge
         self.cog.db.reserve_alpacahack_daily_notification.side_effect = [True, False]
+        member = Mock(spec=discord.Member)
+        member.mention = "<@30>"
+        allowed_mentions = discord.AllowedMentions(
+            everyone=False, users=[member], roles=False
+        )
+        resolve_mention = mock.AsyncMock(
+            return_value=(member.mention, allowed_mentions)
+        )
         channel = Mock()
         with (
+            patch.object(self.cog, "_resolve_daily_mention", new=resolve_mention),
             patch(
                 "ctfbot.features.alpacahack.cog.resolve_messageable",
                 new_callable=mock.AsyncMock,
@@ -418,7 +430,42 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
         if call is None:
             self.fail("send_safely was not awaited")
         self.assertEqual(call.args, (channel,))
-        self.assertEqual(call.kwargs["content"], "🦙 Daily AlpacaHack")
+        self.assertEqual(call.kwargs["content"], "<@30> 🦙 Daily AlpacaHack")
+        self.assertIs(call.kwargs["allowed_mentions"], allowed_mentions)
+
+    async def test_resolve_daily_mention_handles_roles_members_and_disabled(
+        self,
+    ) -> None:
+        role = Mock(spec=discord.Role)
+        role.mention = "<@&20>"
+        member = Mock(spec=discord.Member)
+        member.mention = "<@30>"
+        cases = (
+            ("role", 20, role, None, role.mention, False, [role]),
+            ("member", 30, None, member, member.mention, [member], False),
+            ("disabled", None, None, None, "", False, False),
+        )
+        for (
+            name,
+            mention_id,
+            role_result,
+            member_result,
+            expected,
+            users,
+            roles,
+        ) in cases:
+            with self.subTest(name=name):
+                self.cog.settings.alpacahack_mention_id = mention_id
+                guild = Mock(spec=discord.Guild)
+                guild.get_role.return_value = role_result
+                guild.get_member.return_value = member_result
+                self.cog.bot.get_guild.return_value = guild
+
+                mention, allowed_mentions = await self.cog._resolve_daily_mention()
+
+                self.assertEqual(mention, expected)
+                self.assertEqual(allowed_mentions.users, users)
+                self.assertEqual(allowed_mentions.roles, roles)
 
     async def test_weekly_report_logs_partial_failure_as_warning(self) -> None:
         summary = WeeklySolveSummary(

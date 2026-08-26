@@ -18,6 +18,7 @@ class Settings:
     ctfteam_role_channel_id: int | None
     ctftime_channel_id: int | None
     alpacahack_channel_id: int | None
+    alpacahack_mention_id: int | None
     times_category_id: int | None
     admin_role_id: int | None
     sudoer_role_id: int | None
@@ -132,6 +133,7 @@ def load_settings(
         ctfteam_role_channel_id=ctfteam_role_channel_id,
         ctftime_channel_id=_read_int(env, "CTFTIME_CHANNEL_ID", 0) or None,
         alpacahack_channel_id=_read_int(env, "ALPACAHACK_CHANNEL_ID", 0) or None,
+        alpacahack_mention_id=_read_int(env, "ALPACAHACK_MENTION_ID", 0) or None,
         times_category_id=_read_int(env, "TIMES_CATEGORY_ID", 0) or None,
         admin_role_id=admin_role_id,
         sudoer_role_id=sudoer_role_id,

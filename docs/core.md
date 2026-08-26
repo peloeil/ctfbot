@@ -20,7 +20,7 @@
 - `paginate_lines(lines: Sequence[str], *, separator="\n") -> list[str]`: 各行を順序と内容を保って 1900 文字（`MAX_MESSAGE_CONTENT_LENGTH`）以下のページへ分割し、切り捨てないこと。ページ境界には区切りを挿入せず、単独で上限を超える行もページ境界に落ちる空行もなければ `separator.join(pages) == separator.join(lines)` を満たすこと。単独で上限を超える行だけは上限以下の断片へ分割し、断片の連結で元の行を復元できること。空の入力または全行が空文字なら空リストを返すこと。空文字のページは返さず、ページ境界に落ちた空行は改ページが区切りを兼ねるため保持しないこと
 - `send_audit_message(bot, lines: Sequence[str]) -> None`: `BOT_CHANNEL_ID` への記録メッセージの共通経路。行を改行で結合し、1900 文字（`MAX_MESSAGE_CONTENT_LENGTH`）を超える場合は 1897 文字 + `...` に切り詰め、`AllowedMentions.none()` で送信する。`BOT_CHANNEL_ID` 未設定・チャンネル解決失敗時は何もしない。sanitize は行わない（表示したいメンション `<@{id}>` を壊さないため、ユーザー入力由来の値は呼び出し側が `sanitize_audit_text` を適用してから渡す）。利用者: `log_audit`（下記）と管理者操作の通知（`docs/features/audit-log.md`）
 
-メンション方針: 実際に ping してよいのはメンバーメンションと、CTF 募集メッセージの募集ロール ping（`docs/features/ctf-team.md`「募集メッセージ形式」で明示的に許可する唯一のロール ping）のみ。ユーザー入力（CTF 名等）を含む文面は `AllowedMentions.none()` で、メンバー列挙チャンクは users のみ許可（everyone・roles 拒否）で送る。
+メンション方針: 実際に ping してよいのはメンバーメンション、`ALPACAHACK_MENTION_ID` の Daily 通知対象、CTF 募集メッセージの募集ロール ping（`docs/features/ctf-team.md`「募集メッセージ形式」で明示的に許可するロール ping）のみ。ユーザー入力（CTF 名等）を含む文面は `AllowedMentions.none()` で、メンバー列挙チャンクは users のみ許可（everyone・roles 拒否）で送る。
 
 ## メンバー解決
 

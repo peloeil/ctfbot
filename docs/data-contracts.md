@@ -32,6 +32,7 @@
 | `BOT_CHANNEL_ID` | コマンド実行ログ・sudo 自動剥奪通知・接続状態通知の送信先（`None` で無効） | `int \| None` | — | `0` | optional ID |
 | `CTFTIME_CHANNEL_ID` | CTFtime 週次通知の送信先（`None` で無効） | `int \| None` | — | `0` | optional ID |
 | `ALPACAHACK_CHANNEL_ID` | AlpacaHack Daily・週次通知の送信先（`None` で無効） | `int \| None` | — | `0` | optional ID |
+| `ALPACAHACK_MENTION_ID` | AlpacaHack Daily 通知でメンションする guild 内ユーザーまたはロール（`None` で無効） | `int \| None` | — | `0` | optional ID。ロールを優先して解決し、見つからなければメンバーを解決 |
 | `TIMES_CATEGORY_ID` | `/times create` の作成先カテゴリ（`None` で times 機能無効） | `int \| None` | — | `0` | optional ID |
 | `ADMIN_ROLE_ID` | `/sudo` で一時付与する管理者ロール | `int \| None` | — | `0` | optional ID。`SUDOER_ROLE_ID` と**両方設定または両方未設定**（片方だけは起動拒否）。**同一のロール ID は起動拒否**（理由は `docs/features/sudo.md`） |
 | `SUDOER_ROLE_ID` | `/sudo` の実行を許可するロール | `int \| None` | — | `0` | optional ID。同上のペア制約・同一値拒否 |

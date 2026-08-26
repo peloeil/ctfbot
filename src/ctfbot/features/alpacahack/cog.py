@@ -16,6 +16,7 @@ from ctfbot.features.alpacahack.service import (
     collect_weekly_summary,
 )
 from ctfbot.helpers import (
+    fetch_member,
     is_markdown_link_safe,
     log_audit,
     resolve_messageable,
@@ -163,6 +164,31 @@ class Alpacahack(commands.GroupCog, group_name="alpaca"):
         self.weekly_solve_report.cancel()
         self.daily_challenge_report.cancel()
 
+    async def _resolve_daily_mention(
+        self,
+    ) -> tuple[str, discord.AllowedMentions]:
+        mention_id = self.settings.alpacahack_mention_id
+        if mention_id is None:
+            return "", discord.AllowedMentions.none()
+        guild = self.bot.get_guild(self.settings.guild_id)
+        if guild is None:
+            logger.warning("Failed to resolve AlpacaHack daily mention guild")
+            return "", discord.AllowedMentions.none()
+        role = guild.get_role(mention_id)
+        if role is not None:
+            return role.mention, discord.AllowedMentions(
+                everyone=False, users=False, roles=[role]
+            )
+        member = await fetch_member(guild, mention_id)
+        if member is not None:
+            return member.mention, discord.AllowedMentions(
+                everyone=False, users=[member], roles=False
+            )
+        logger.warning(
+            "Failed to resolve AlpacaHack daily mention target %s", mention_id
+        )
+        return "", discord.AllowedMentions.none()
+
     @tasks.loop(hours=24)
     async def daily_challenge_report(self) -> None:
         try:
@@ -179,11 +205,12 @@ class Alpacahack(commands.GroupCog, group_name="alpaca"):
                 challenge.url,
             )
             if reserved:
+                mention, allowed_mentions = await self._resolve_daily_mention()
                 sent = await send_safely(
                     channel,
-                    content="🦙 Daily AlpacaHack",
+                    content=f"{mention} 🦙 Daily AlpacaHack".lstrip(),
                     embed=_build_daily_embed(challenge),
-                    allowed_mentions=discord.AllowedMentions.none(),
+                    allowed_mentions=allowed_mentions,
                 )
                 if sent is not None:
                     logger.info("Daily AlpacaHack challenge notification sent")

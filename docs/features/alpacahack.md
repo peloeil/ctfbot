@@ -43,7 +43,7 @@ AlpacaHack のユーザーを登録して毎週日曜に solve 状況を集計�
 - 毎日 `ALPACAHACK_DAILY_TIME` に `https://alpacahack.com/daily` を確認する
 - `ALPACAHACK_CHANNEL_ID` が未設定・解決不能なら取得せずスキップする
 - 「Today's Challenge」が公開中なら問題ページからタイトル、作問者、カテゴリ、難易度、概要、添付ファイル URL、出題期間を取得する
-- challenge URL を `alpacahack_daily_notification` に挿入できた場合だけ本文 `🦙 Daily AlpacaHack` と Embed を送る。DB 更新は送信より先に確定し、同じ公開期間や bot 再起動で再送しない
+- challenge URL を `alpacahack_daily_notification` に挿入できた場合だけ本文 `🦙 Daily AlpacaHack` と Embed を送る。`ALPACAHACK_MENTION_ID` が設定されていれば、同じ本文で guild 内の対象ユーザーまたはロールをメンションする。対象を解決できない場合も Daily 通知自体は送る。DB 更新は送信より先に確定し、同じ公開期間や bot 再起動で再送しない
 - 公開中の問題がなければ何も送らない。取得・パース・送信の失敗はログに記録し、次回以降のループを継続する
 - 添付ファイルはダウンロード・再アップロードせず、AlpacaHack が公開する S3 URL へのリンクとして表示する
 
