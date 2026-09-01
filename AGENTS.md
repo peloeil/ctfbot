@@ -109,7 +109,10 @@ Codex が検証できるのは以下の 3 つ。すべてパスさせてから�
 ```bash
 uv run ruff check src/ tests/ && uv run ruff format --check src/ tests/
 uv run ty check
-uv run -m unittest discover -s tests -v
+output=$(uv run -m unittest discover -s tests -q 2>&1) || {
+  printf '%s\n' "$output"
+  exit 1
+}
 ```
 
 **bot の実行（`uv run --no-dev --locked --env-file .env -m ctfbot`）は行わないこと。** Discord トークンが必要であり、実際の Discord 動作確認は人間が行う。

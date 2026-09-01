@@ -7,7 +7,7 @@ PR と main ブランチへの push で lint・型チェック・テストを自
 ## ワークフローの要件
 
 - トリガーは `main` への push と `main` 宛の pull_request
-- `lint`（`ruff check` と `ruff format --check`）・`type-check`（`ty check`）・`test`（`unittest discover -s tests -v`）の 3 ジョブを並列実行する。対象は `src/` と `tests/`
+- `lint`（`ruff check` と `ruff format --check`）・`type-check`（`ty check`）・`test`（`unittest discover -s tests -q`）の 3 ジョブを並列実行する。対象は `src/` と `tests/`。テスト出力は失敗時のみ表示する
 - 各ジョブは checkout → setup-uv → `uv sync --frozen` の順で環境を用意する
 - Python バージョンはワークフローで指定しない。`setup-uv` がリポジトリの `.python-version` を読んで自動インストールする。バージョン変更は `.python-version` と `pyproject.toml` の `requires-python` を更新する（ワークフローに重複指定を持ち込まない）
 - 実行環境は `ubuntu-latest` のみ（`strategy.matrix` は使わない）
