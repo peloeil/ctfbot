@@ -63,7 +63,7 @@ class AlpacaHackTest(unittest.TestCase):
         )
         self.assertEqual([record.challenge_name for record in selected], ["one", "two"])
 
-    @patch("ctfbot.features.alpacahack.service.requests.get")
+    @patch("ctfbot.features.alpacahack.service.requests.Session.get")
     def test_fetch_daily_challenge_parses_description_and_attachments(
         self, get: Mock
     ) -> None:
@@ -115,7 +115,7 @@ class AlpacaHackTest(unittest.TestCase):
             ),
         )
 
-    @patch("ctfbot.features.alpacahack.service.requests.get")
+    @patch("ctfbot.features.alpacahack.service.requests.Session.get")
     def test_fetch_daily_challenge_returns_none_without_active_challenge(
         self, get: Mock
     ) -> None:
@@ -129,7 +129,7 @@ class AlpacaHackTest(unittest.TestCase):
         self.assertIsNone(challenge)
         get.assert_called_once()
 
-    @patch("ctfbot.features.alpacahack.service.requests.get")
+    @patch("ctfbot.features.alpacahack.service.requests.Session.get")
     def test_fetch_solve_records_parses_html(self, get: Mock) -> None:
         response = Mock()
         response.raise_for_status.return_value = None
@@ -154,7 +154,7 @@ class AlpacaHackTest(unittest.TestCase):
         )
         self.assertEqual(records[0].solved_at.hour, 21)
 
-    @patch("ctfbot.features.alpacahack.service.requests.get")
+    @patch("ctfbot.features.alpacahack.service.requests.Session.get")
     def test_fetch_solve_records_skips_rows_with_invalid_datetime(
         self, get: Mock
     ) -> None:
@@ -183,7 +183,7 @@ class AlpacaHackTest(unittest.TestCase):
         records = client.fetch_solve_records("alice", page_interval=0)
         self.assertEqual([record.challenge_name for record in records], ["Good"])
 
-    @patch("ctfbot.features.alpacahack.service.requests.get")
+    @patch("ctfbot.features.alpacahack.service.requests.Session.get")
     def test_fetch_solve_records_paginates(self, get: Mock) -> None:
         def make_page(names: list[str]) -> Mock:
             rows = "\n".join(

@@ -3,6 +3,7 @@ import re
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
+from threading import Lock
 from urllib.parse import urljoin
 
 import requests
@@ -76,6 +77,8 @@ class AlpacaHackClient:
     def __init__(self, *, timezone: datetime.tzinfo, request_timeout: int = 10) -> None:
         self._timezone = timezone
         self._timeout = request_timeout
+        self._session = requests.Session()
+        self._session_lock = Lock()
 
     def fetch_daily_challenge(self) -> DailyChallenge | None:
         index_html = self._get_html(_DAILY_URL)
@@ -138,7 +141,8 @@ class AlpacaHackClient:
 
     def _get_html(self, url: str, *, params: dict[str, int] | None = None) -> str:
         try:
-            response = requests.get(url, params=params, timeout=self._timeout)
+            with self._session_lock:
+                response = self._session.get(url, params=params, timeout=self._timeout)
             response.raise_for_status()
         except requests.RequestException as exc:
             raise ExternalAPIError("AlpacaHack からの取得に失敗しました。") from exc
