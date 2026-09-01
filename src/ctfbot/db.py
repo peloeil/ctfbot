@@ -12,7 +12,7 @@ from ctfbot.features.ctfteam.models import (
 )
 from ctfbot.features.sudo.models import SudoGrant
 
-CURRENT_SCHEMA_VERSION = 6
+CURRENT_SCHEMA_VERSION = 7
 _MIGRATIONS: dict[int, str] = {
     1: """\
 CREATE TABLE IF NOT EXISTS audit_log_entry (
@@ -146,6 +146,14 @@ CREATE TABLE IF NOT EXISTS alpacahack_daily_notification (
     challenge_url TEXT PRIMARY KEY
 );
 """,
+    6: """\
+CREATE INDEX IF NOT EXISTS idx_campaign_due_start
+    ON ctfteam_campaign (status, start_notified_at_unix, start_at_unix);
+CREATE INDEX IF NOT EXISTS idx_campaign_due_archive
+    ON ctfteam_campaign (status, archived_at_unix, archive_at_unix);
+CREATE INDEX IF NOT EXISTS idx_campaign_active_creator
+    ON ctfteam_campaign (created_by) WHERE status = 'active';
+""",
 }
 
 _SCHEMA_DDL = """\
@@ -182,6 +190,12 @@ CREATE INDEX IF NOT EXISTS idx_campaign_status_end
     ON ctfteam_campaign (status, end_at_unix);
 CREATE INDEX IF NOT EXISTS idx_campaign_status_created
     ON ctfteam_campaign (status, created_at_unix);
+CREATE INDEX IF NOT EXISTS idx_campaign_due_start
+    ON ctfteam_campaign (status, start_notified_at_unix, start_at_unix);
+CREATE INDEX IF NOT EXISTS idx_campaign_due_archive
+    ON ctfteam_campaign (status, archived_at_unix, archive_at_unix);
+CREATE INDEX IF NOT EXISTS idx_campaign_active_creator
+    ON ctfteam_campaign (created_by) WHERE status = 'active';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_campaign_active_name_unique
     ON ctfteam_campaign (ctf_name)
     WHERE status = 'active';

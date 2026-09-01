@@ -114,6 +114,12 @@ CREATE INDEX IF NOT EXISTS idx_campaign_status_end
     ON ctfteam_campaign (status, end_at_unix);
 CREATE INDEX IF NOT EXISTS idx_campaign_status_created
     ON ctfteam_campaign (status, created_at_unix);
+CREATE INDEX IF NOT EXISTS idx_campaign_due_start
+    ON ctfteam_campaign (status, start_notified_at_unix, start_at_unix);
+CREATE INDEX IF NOT EXISTS idx_campaign_due_archive
+    ON ctfteam_campaign (status, archived_at_unix, archive_at_unix);
+CREATE INDEX IF NOT EXISTS idx_campaign_active_creator
+    ON ctfteam_campaign (created_by) WHERE status = 'active';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_campaign_active_name_unique
     ON ctfteam_campaign (ctf_name)
     WHERE status = 'active';
@@ -266,6 +272,19 @@ DROP TABLE ctf_team_campaign;
 DROP TABLE ctfteam_campaign;
 ALTER TABLE ctfteam_campaign_v5 RENAME TO ctfteam_campaign;
 COMMIT;
+
+-- 5 → 6
+CREATE TABLE IF NOT EXISTS alpacahack_daily_notification (
+    challenge_url TEXT PRIMARY KEY
+);
+
+-- 6 → 7
+CREATE INDEX IF NOT EXISTS idx_campaign_due_start
+    ON ctfteam_campaign (status, start_notified_at_unix, start_at_unix);
+CREATE INDEX IF NOT EXISTS idx_campaign_due_archive
+    ON ctfteam_campaign (status, archived_at_unix, archive_at_unix);
+CREATE INDEX IF NOT EXISTS idx_campaign_active_creator
+    ON ctfteam_campaign (created_by) WHERE status = 'active';
 ```
 
 テーブル再構築（列削除・PK 変更）を伴う移行は、`BEGIN`〜`COMMIT` で原子化した「新テーブル作成 → 残存列の射影コピー → DROP → RENAME」で書く。新 index は手続き最後の `_SCHEMA_DDL` 冪等適用が作成する。

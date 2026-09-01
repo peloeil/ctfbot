@@ -119,6 +119,9 @@ PRAGMA user_version = 3;
         self.assertIn("sudo_grant", tables)
         self.assertIn("idx_campaign_status_end", indexes)
         self.assertIn("idx_campaign_status_created", indexes)
+        self.assertIn("idx_campaign_due_start", indexes)
+        self.assertIn("idx_campaign_due_archive", indexes)
+        self.assertIn("idx_campaign_active_creator", indexes)
         self.assertIn("idx_campaign_active_name_unique", indexes)
         self.assertIn("idx_audit_log_guild_created", indexes)
         self.assertIn("idx_sudo_grant_expires", indexes)
@@ -361,6 +364,26 @@ PRAGMA user_version = 3;
             rows,
             [("https://alpacahack.com/daily/challenges/example",)],
         )
+
+    def test_version_six_migration_adds_due_campaign_indexes(self) -> None:
+        with sqlite3.connect(self.path) as conn:
+            conn.execute("DROP INDEX idx_campaign_due_start")
+            conn.execute("DROP INDEX idx_campaign_due_archive")
+            conn.execute("DROP INDEX idx_campaign_active_creator")
+            conn.execute("PRAGMA user_version = 6")
+
+        Database(self.path)
+
+        with sqlite3.connect(self.path) as conn:
+            indexes = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='index'"
+                )
+            }
+        self.assertIn("idx_campaign_due_start", indexes)
+        self.assertIn("idx_campaign_due_archive", indexes)
+        self.assertIn("idx_campaign_active_creator", indexes)
 
     def test_alpacahack_users(self) -> None:
         self.assertTrue(self.db.add_alpacahack_user(" zeta ", max_users=2))
