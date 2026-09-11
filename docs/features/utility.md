@@ -20,15 +20,17 @@ ephemeral。
 
 応答の分割・切り詰めは非目標とする。
 
-### `/perms [channel]`
+### `/perms [channel] [role]`
 
-bot が持つ権限を `{✅|❌} {スコープ} {権限名}` の行区切りで表示する（例: `✅ Guild manage_roles`）。`channel`（`discord.TextChannel` のみ指定可）省略時は実行チャンネルを対象とする。
+Discord が扱う全権限について、Guild での実効権限を `Guild ✅ name、...` / `Guild ❌ name、...` 形式で表示する。Channel は Guild での実効権限と比較し、異なる権限だけを `Channel 追加 ✅ name、...` / `Channel 削除 ❌ name、...` 形式で表示する。差分がなければ `Channel 差分なし` と表示する。対象とチャンネルの mention・IDも表示し、ロール指定時はロール順位も表示する。
+
+`channel`（`discord.TextChannel` のみ指定可）省略時は実行チャンネルを対象とする。`role`（`discord.Role` のみ指定可）省略時は bot 自身を対象とし、指定時は `@everyone` の権限も合成したそのロールの権限を対象とする。Channel 権限には `@everyone` と指定ロールの channel overwrite も反映する。応答が Discord の文字数上限を超える場合は Guild と Channel に分割する。
 
 エラーケース:
 - guild 外で実行 → 「サーバー内で実行してください。」
 - 対象が GuildChannel でない → 「チャンネル権限を確認できません。」
 
-チェックする権限（表示順）。この表が bot に必要な権限一覧の正本である:
+bot に必要な権限の一覧:
 
 | スコープ | 権限 |
 |---|---|

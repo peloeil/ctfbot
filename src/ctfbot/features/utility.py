@@ -5,7 +5,65 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from ctfbot.helpers import send_interaction
+from ctfbot.helpers import MAX_MESSAGE_CONTENT_LENGTH, send_interaction
+
+_PERMISSION_NAMES = {
+    "read_messages": "view_channel",
+    "external_emojis": "use_external_emojis",
+    "external_stickers": "use_external_stickers",
+}
+
+
+def _format_permissions(scope: str, permissions: discord.Permissions) -> list[str]:
+    enabled: list[str] = []
+    disabled: list[str] = []
+    for name, value in permissions:
+        (enabled if value else disabled).append(_PERMISSION_NAMES.get(name, name))
+    return [
+        f"{scope} ✅ {'、'.join(enabled) or 'なし'}",
+        f"{scope} ❌ {'、'.join(disabled) or 'なし'}",
+    ]
+
+
+def _format_permission_diff(
+    guild_permissions: discord.Permissions,
+    channel_permissions: discord.Permissions,
+) -> list[str]:
+    added: list[str] = []
+    removed: list[str] = []
+    for name, guild_value in guild_permissions:
+        channel_value = getattr(channel_permissions, name)
+        if guild_value != channel_value:
+            target = added if channel_value else removed
+            target.append(_PERMISSION_NAMES.get(name, name))
+    if not added and not removed:
+        return ["Channel 差分なし"]
+    return [
+        f"Channel 追加 ✅ {'、'.join(added) or 'なし'}",
+        f"Channel 削除 ❌ {'、'.join(removed) or 'なし'}",
+    ]
+
+
+def _guild_permissions_for(
+    guild: discord.Guild, subject: discord.Member | discord.Role
+) -> discord.Permissions:
+    if isinstance(subject, discord.Member):
+        return subject.guild_permissions
+    permissions = guild.default_role.permissions | subject.permissions
+    return discord.Permissions.all() if permissions.administrator else permissions
+
+
+def _permission_pages(
+    header: list[str],
+    guild_permissions: discord.Permissions,
+    channel_permissions: discord.Permissions,
+) -> list[str]:
+    guild_lines = _format_permissions("Guild", guild_permissions)
+    channel_lines = _format_permission_diff(guild_permissions, channel_permissions)
+    content = "\n".join([*header, *guild_lines, *channel_lines])
+    if len(content) <= MAX_MESSAGE_CONTENT_LENGTH:
+        return [content]
+    return ["\n".join([*header, *guild_lines]), "\n".join(channel_lines)]
 
 
 class UtilityCommands(commands.Cog):
@@ -53,13 +111,18 @@ class UtilityCommands(commands.Cog):
         await send_interaction(interaction, "\n".join(sorted(lines)))
 
     @app_commands.command(
-        name="perms", description="このサーバー/チャンネルでのbot権限を表示します。"
+        name="perms",
+        description="botまたはロールのサーバー/チャンネル権限を表示します。",
     )
-    @app_commands.describe(channel="確認対象チャンネル (省略時は実行チャンネル)")
+    @app_commands.describe(
+        channel="確認対象チャンネル (省略時は実行チャンネル)",
+        role="確認対象ロール (省略時はbot)",
+    )
     async def perms_check(
         self,
         interaction: discord.Interaction,
         channel: discord.TextChannel | None = None,
+        role: discord.Role | None = None,
     ) -> None:
         guild = interaction.guild
         if guild is None or guild.me is None:
@@ -70,24 +133,20 @@ class UtilityCommands(commands.Cog):
             await send_interaction(interaction, "チャンネル権限を確認できません。")
             return
 
-        guild_permissions = guild.me.guild_permissions
-        channel_permissions = target.permissions_for(guild.me)
-        checks = [
-            ("Guild view_audit_log", guild_permissions.view_audit_log),
-            ("Guild manage_roles", guild_permissions.manage_roles),
-            ("Channel view_channel", channel_permissions.view_channel),
-            ("Channel send_messages", channel_permissions.send_messages),
-            (
-                "Channel send_messages_in_threads",
-                channel_permissions.send_messages_in_threads,
-            ),
-            ("Channel read_message_history", channel_permissions.read_message_history),
-            ("Channel add_reactions", channel_permissions.add_reactions),
-            ("Channel manage_channels", channel_permissions.manage_channels),
-            ("Channel embed_links", channel_permissions.embed_links),
+        subject = role or guild.me
+        header = [
+            f"対象: {subject.mention} (ID: {subject.id})",
+            f"チャンネル: {target.mention} (ID: {target.id})",
         ]
-        content = "\n".join(f"{'✅' if ok else '❌'} {name}" for name, ok in checks)
-        await send_interaction(interaction, content)
+        if role is not None:
+            header.append(f"ロール順位: {role.position}")
+        pages = _permission_pages(
+            header,
+            _guild_permissions_for(guild, subject),
+            target.permissions_for(subject),
+        )
+        for page in pages:
+            await send_interaction(interaction, page)
 
 
 async def setup(bot: commands.Bot) -> None:

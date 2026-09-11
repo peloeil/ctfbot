@@ -36,7 +36,7 @@ uv run --no-dev --locked --env-file .env -m ctfbot
 
 ### Bot に必要な権限
 
-必要な権限の一覧は `docs/features/utility.md` の `/perms` チェック項目表を参照してください。付与状態は招待後に `/perms` で確認できます。
+必要な権限の一覧は `docs/features/utility.md` の権限一覧を参照してください。付与状態は招待後に `/perms` で確認できます。
 
 `Manage Roles` を使うため、Bot のロールは操作対象のロールより上位に配置してください。
 
