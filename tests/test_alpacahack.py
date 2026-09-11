@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 from zoneinfo import ZoneInfo
 
 import discord
+import requests
 
 from ctfbot.db import Database
 from ctfbot.errors import ConflictError, ExternalAPIError
@@ -153,6 +154,28 @@ class AlpacaHackTest(unittest.TestCase):
             records[0].challenge_url, "https://alpacahack.com/challenges/example"
         )
         self.assertEqual(records[0].solved_at.hour, 21)
+
+    @patch("ctfbot.features.alpacahack.service.requests.Session.get")
+    def test_fetch_solve_records_decodes_utf8_without_charset(self, get: Mock) -> None:
+        response = requests.Response()
+        response.status_code = 200
+        response.headers["Content-Type"] = "text/html"
+        response._content = """
+        <table>
+          <tr>
+            <td><a href="/challenges/example">括弧は禁止</a></td>
+            <td>1 solve</td>
+            <td><span aria-label="2026-06-15 12:00 GMT+0"></span></td>
+          </tr>
+        </table>
+        """.encode()
+        get.return_value = response
+
+        records = AlpacaHackClient(timezone=self.tz).fetch_solve_records(
+            "alice", page_interval=0
+        )
+
+        self.assertEqual(records[0].challenge_name, "括弧は禁止")
 
     @patch("ctfbot.features.alpacahack.service.requests.Session.get")
     def test_fetch_solve_records_skips_rows_with_invalid_datetime(

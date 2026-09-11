@@ -146,6 +146,7 @@ class AlpacaHackClient:
             response.raise_for_status()
         except requests.RequestException as exc:
             raise ExternalAPIError("AlpacaHack からの取得に失敗しました。") from exc
+        response.encoding = "utf-8"
         return response.text
 
     def fetch_solve_records(
