@@ -1,28 +1,9 @@
 # GitHub CI
 
-## 概要
+実行内容は [.github/workflows/ci.yml](../.github/workflows/ci.yml) を参照する。`main` への push と `main` 宛の pull request で lint・型チェック・テストを実行する。ローカルの検証コマンドは [AGENTS.md](../AGENTS.md#検証)。
 
-PR と main ブランチへの push で lint・型チェック・テストを自動実行する。実行される定義の正本は `.github/workflows/ci.yml`。本書はそこに書けない保証・非目標・設計理由を記録する。
+3 ジョブに分けることで検査を並列実行し、失敗箇所を判別しやすくする。各ジョブで環境構築を繰り返すコストより、フィードバック速度を優先する。テストの詳細出力は失敗時に表示する。
 
-## ワークフローの要件
+`setup-uv` で uv・Python・キャッシュを用意する。Python の指定は [.python-version](../.python-version) に集約し、変更時は [pyproject.toml](../pyproject.toml) の `requires-python` と整合させる。
 
-- トリガーは `main` への push と `main` 宛の pull_request
-- `lint`（`ruff check` と `ruff format --check`）・`type-check`（`ty check`）・`test`（`unittest discover -s tests -q`）の 3 ジョブを並列実行する。対象は `src/` と `tests/`。テスト出力は失敗時のみ表示する
-- 各ジョブは checkout → setup-uv → `uv sync --frozen` の順で環境を用意する
-- Python バージョンはワークフローで指定しない。`setup-uv` がリポジトリの `.python-version` を読んで自動インストールする。バージョン変更は `.python-version` と `pyproject.toml` の `requires-python` を更新する（ワークフローに重複指定を持ち込まない）
-- 実行環境は `ubuntu-latest` のみ（`strategy.matrix` は使わない）
-- `--frozen` で lockfile を固定する（`uv.lock` と `pyproject.toml` の不整合を CI 失敗として検出し、再現性を保証する）
-- `permissions`・同時実行の cancel（`concurrency`）・`timeout-minutes` は非目標とし、設定しない
-
-## 設計判断
-
-### 3 ジョブに分離する理由
-
-- ジョブは並列実行されるため、全体の所要時間は最も遅いジョブの時間で済み、lint のような数秒で終わる検査は先にフィードバックを返せる
-- 失敗原因が一目で分かる（lint 失敗 vs 型エラー vs テスト失敗）
-- 代償として checkout・環境構築・依存同期を 3 回行う。setup-uv のキャッシュにより増分コストは小さく、フィードバック速度を優先する
-
-### `astral-sh/setup-uv` を使う理由
-
-- uv のインストール・キャッシュ・`.python-version` に基づく Python のセットアップを 1 アクションで処理できる
-- `setup-uv` は uv のキャッシュディレクトリを自動的にキャッシュする（`enable-cache` のデフォルトが true）。追加のキャッシュ設定は不要
+依存同期は `uv sync --frozen` で既存の lockfile を使用する。lockfile の更新は行わず、`pyproject.toml` との整合性検査もこのオプションでは保証しない。

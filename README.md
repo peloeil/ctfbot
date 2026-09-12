@@ -1,46 +1,53 @@
 # CTFBot
 
-CTF サーバー向けの Discord bot です。
+単一の CTF コミュニティ向け Discord bot。参加者募集、CTF 情報通知、チャンネル作成、期限付き管理者ロールを扱う。
 
-## 主な機能
+## セットアップ
 
-- **CTFtime 通知** — 近日開催の CTF イベントを定期通知 / `/ctftime` で手動取得
-- **CTF 募集管理** — `/ctfteam open|list|close|archive` で参加者募集からアーカイブまで
-- **AlpacaHack 連携** — Daily 問題通知と `/alpaca add|del|list|daily|solve` による手動取得・週次 solve 集計
-- **times チャンネル** — `/times create` でカテゴリ配下にチャンネルを作成
-- **ユーティリティ** — `/help`, `/perms`
-- **一時的な管理者昇格** — `/sudo`, `/unsudo` で期限付きロールを管理
-- **Discord 監査ログ保存** — Discord の監査ログエントリを DB に保存
-- **接続状態通知** — Bot の接続・切断をステータスチャンネルへ通知
-
-## Quick Start
+Python のバージョンは [.python-version](.python-version)、依存条件は [pyproject.toml](pyproject.toml) を参照する。
 
 ```bash
-uv sync  # 開発ツール込み。本番運用は uv sync --no-dev
+uv sync
 cp .env.example .env
-# .env を編集（下記「環境変数」参照）
+```
+
+`.env` に `DISCORD_TOKEN` と `GUILD_ID` を設定し、使用する機能のチャンネル・カテゴリ・ロール ID を追加する。全変数の用途・デフォルト・検証規則は [設定契約](docs/data-contracts.md#設定契約環境変数) を参照する。
+
+Discord 側の準備が済んだら、運用者が起動する。本番用の依存同期には `uv sync --no-dev` を使う。
+
+```bash
 uv run --no-dev --locked --env-file .env -m ctfbot
 ```
 
-## 環境変数
+### Discord の準備
 
-必須項目を含む全項目の用途・型・必須性・デフォルト・検証規則は `docs/data-contracts.md`「設定契約」を参照してください（`.env.example` は同表と同期しています）。
+1. Developer Portal の Installation で `Guild Install` を有効にし、`Install Link` を `None` にする。
+2. OAuth2 の scope に `bot` と `applications.commands` を選択し、生成された URL から対象サーバーへ招待する。
+3. Bot の公開設定をオフにし、`Server Members Intent` を有効にする。
+4. [必要な権限](docs/features/utility.md#必要な-bot-権限) を付与し、Bot のロールを操作対象ロールより上に置く。招待後は `/perms` で付与状態を確認できる。
 
-## Discord の設定
+CTF 募集には投稿先チャンネル・CTF 用カテゴリ・archive 先カテゴリを用意し、CTFTEAM の 3 ID をすべて設定する。times には作成先カテゴリの `TIMES_CATEGORY_ID` を設定する。sudo のロール準備は [sudo の前提](docs/features/sudo.md#discord-側の前提) を参照する。
 
-### Developer Portal
+## 機能
 
-1. **Installation** — `Guild Install` を有効にし、`Install Link` を `None` に設定
-2. **OAuth2** — scope に `bot` と `applications.commands` を選択し、生成された URL から Bot を招待
-3. **Bot** — 公開 Bot をオフにし、`Server Members Intent` を有効化
+| 機能・仕様 | コマンド / 動作 |
+|---|---|
+| [CTF 募集管理](docs/features/ctf-team.md) | `/ctfteam open・list・close・archive`、リアクション参加、自動終了・archive |
+| [CTFtime](docs/features/ctftime.md) | `/ctftime`、月曜のイベント通知 |
+| [AlpacaHack](docs/features/alpacahack.md) | `/alpaca add・del・list・daily・solve`、Daily 問題通知、日曜の solve 集計 |
+| [times](docs/features/times.md) | `/times create` |
+| [ユーティリティ](docs/features/utility.md) | `/help`、`/perms`、`/roll` |
+| [一時昇格](docs/features/sudo.md) | `/sudo`、`/unsudo`、期限切れロールの自動剥奪 |
+| [Discord 監査ログ](docs/features/audit-log.md) | イベントを DB に保存し、管理者操作を通知 |
+| [共通挙動](docs/core.md) | コマンド実行ログ、接続・停止通知、応答とメンション制御 |
 
-### Bot に必要な権限
+## 開発資料
 
-必要な権限の一覧は `docs/features/utility.md` の権限一覧を参照してください。付与状態は招待後に `/perms` で確認できます。
+| 調べたいこと | 参照先 |
+|---|---|
+| 開発時の制約・検証コマンド | [AGENTS.md](AGENTS.md) |
+| 分割方針・設計理由 | [設計判断](docs/design.md) |
+| 環境変数・モデルの不変条件・DB の保証と移行 | [データ・設定契約](docs/data-contracts.md) |
+| 自動検証 | [CI](docs/ci.md) |
 
-`Manage Roles` を使うため、Bot のロールは操作対象のロールより上位に配置してください。
-
-### サーバー側の準備
-
-- CTF 募集管理を使う場合は、募集メッセージの投稿先チャンネルと CTF 用・archive 先カテゴリを作成し、`CTFTEAM_ROLE_CHANNEL_ID`・`CTFTEAM_CATEGORY_ID`・`CTFTEAM_ARCHIVE_CATEGORY_ID` をすべて設定してください
-- `/times create` を使う場合は、作成先カテゴリを作成し、その ID を `TIMES_CATEGORY_ID` に設定してください
+実装・テストは `src/ctfbot/`・`tests/` に置く。文書は変更対象に応じて参照する。

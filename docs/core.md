@@ -1,64 +1,52 @@
 # bot 共通挙動
 
-## 概要
-
-全 feature が共有する応答・通知の挙動を定義する。この文書が正本である。
-
-## 実行コンテキスト
-
-**全コマンドは guild 限定とする。** `require_guild` は通常到達しない防御的境界として維持し、guild 外での実行には「サーバー内で実行してください。」を ephemeral で応答する（`ServiceError`）。DM でのコマンド対応は非目標。
+コマンド応答、通知、メンション制御を変更するときに参照する。実装は [helpers.py](../src/ctfbot/helpers.py)・[app.py](../src/ctfbot/app.py)、検証は [test_helpers.py](../tests/test_helpers.py)・[test_app.py](../tests/test_app.py)。機能固有の応答は [各機能仕様](../README.md#機能) を参照する。
 
 ## コマンド応答
 
-- `send_interaction(interaction, content, ephemeral=True) -> None`: 全 cog に共通のコマンド応答経路。デフォルト ephemeral（public にする場合のみ呼び出し側が明示）。初回応答済み（defer 含む）なら followup へ自動で切り替える。メンションは常に `AllowedMentions.none()`。送信失敗（`InteractionResponded`・`NotFound`・`HTTPException`）は例外ログのみで raise しない
-- `require_guild(interaction) -> Guild`: guild 外での実行に `ServiceError("サーバー内で実行してください。")` を raise する
+全コマンドは guild 限定。`require_guild` は guild 外で `ServiceError` とし、「サーバー内で実行してください。」を ephemeral で返す。
 
-## チャンネルへの通知
+`send_interaction` はデフォルト ephemeral。public 応答は呼び出し側で指定する。初回応答済み（defer 含む）なら followup を使い、メンションを抑止する。`InteractionResponded`・`NotFound`・`HTTPException` はログに残して送出しない。
 
-- `resolve_messageable(bot, channel_id) -> Messageable | None`: 設定されたチャンネル ID を cache → fetch の順で解決する。ID が未設定（None）・解決失敗（`NotFound`・`Forbidden`・`HTTPException`）・送信可能でない場合は None を返し、呼び出し側は通知をスキップする。解決失敗（未設定を除く）は warning ログを 1 行残す（設定不良の検知手段）
-- `send_safely(channel, content=None, embed=None, allowed_mentions=None) -> Message | None`: チャンネルへ送信し、失敗（`HTTPException`）時は例外ログを残して None を返す（raise しない）。通知の失敗で主処理を壊さないための境界。`allowed_mentions` は呼び出し側が明示する（省略時はライブラリ既定）
-- `paginate_lines(lines: Sequence[str], *, separator="\n") -> list[str]`: 各行を順序と内容を保って 1900 文字（`MAX_MESSAGE_CONTENT_LENGTH`）以下のページへ分割し、切り捨てないこと。ページ境界には区切りを挿入せず、単独で上限を超える行もページ境界に落ちる空行もなければ `separator.join(pages) == separator.join(lines)` を満たすこと。単独で上限を超える行だけは上限以下の断片へ分割し、断片の連結で元の行を復元できること。空の入力または全行が空文字なら空リストを返すこと。空文字のページは返さず、ページ境界に落ちた空行は改ページが区切りを兼ねるため保持しないこと
-- `send_audit_message(bot, lines: Sequence[str]) -> None`: `BOT_CHANNEL_ID` への記録メッセージの共通経路。行を改行で結合し、1900 文字（`MAX_MESSAGE_CONTENT_LENGTH`）を超える場合は 1897 文字 + `...` に切り詰め、`AllowedMentions.none()` で送信する。`BOT_CHANNEL_ID` 未設定・チャンネル解決失敗時は何もしない。sanitize は行わない（表示したいメンション `<@{id}>` を壊さないため、ユーザー入力由来の値は呼び出し側が `sanitize_audit_text` を適用してから渡す）。利用者: `log_audit`（下記）と管理者操作の通知（`docs/features/audit-log.md`）
-
-メンション方針: 実際に ping してよいのはメンバーメンション、`ALPACAHACK_MENTION_ID` の Daily 通知対象、CTF 募集メッセージの募集ロール ping（`docs/features/ctf-team.md`「募集メッセージ形式」で明示的に許可するロール ping）のみ。ユーザー入力（CTF 名等）を含む文面は `AllowedMentions.none()` で、メンバー列挙チャンクは users のみ許可（everyone・roles 拒否）で送る。
-
-## メンバー解決
-
-- `fetch_member(guild, user_id) -> Member | None`: guild メンバーを cache → fetch の順で解決する。解決失敗（`NotFound`・`Forbidden`・`HTTPException`）は None を返し、呼び出し側は該当処理をスキップする
-
-## 共通エラーハンドラ
-
-cog が処理しなかったコマンドの例外は `app.py` の `bot.tree.error` ハンドラに届く。応答はいずれも ephemeral:
+cog が処理しなかった例外は `bot.tree.error` に届く。応答はすべて ephemeral。
 
 | 例外 | 応答 |
 |---|---|
-| `CommandOnCooldown` | `コマンドはクールダウン中です。` |
-| `MissingPermissions` | `このコマンドを実行する権限がありません。` |
-| その他 | error ログ + `コマンド実行中にエラーが発生しました。` |
+| `CommandOnCooldown` | コマンドはクールダウン中です。 |
+| `MissingPermissions` | このコマンドを実行する権限がありません。 |
+| その他 | error ログ + コマンド実行中にエラーが発生しました。 |
 
-## コマンド実行ログ (log_audit)
+## チャンネルへの通知
 
-コマンド実行の記録を `BOT_CHANNEL_ID` のチャンネルへ送信する（未設定・チャンネル解決失敗時は何もしない）。Discord AuditLog を DB へ保存する「Discord 監査ログ保存」（`docs/features/audit-log.md`）とは別機能。
+| 関数 | 保証 |
+|---|---|
+| `resolve_messageable` | ID を cache → fetch で解決する。未設定・解決失敗・送信不可なら `None`。未設定以外の失敗は warning ログ |
+| `send_safely` | HTTP 送信失敗をログに残して `None` を返す。メンション制御は呼び出し側が指定し、省略時はライブラリ既定 |
+| `fetch_member` | cache → fetch で解決する。`NotFound`・`Forbidden`・`HTTPException` は `None` |
+| `send_audit_message` | `BOT_CHANNEL_ID` へ行を改行結合して送り、メンションを抑止する。未設定・解決失敗ならスキップ |
 
-```
-📝 <@{user_id}> が <#{channel_id}> で `/{command_name}` を実行しました。
-- {details の各行}
-```
+`send_audit_message` は 1900 文字超過時に 1897 文字 + `...` へ切り詰める。表示用メンションを壊さないため、sanitize は呼び出し側がユーザー入力に対して行う。
 
-- 送信は `send_audit_message`（上記「チャンネルへの通知」）経由。メンション抑止（`AllowedMentions.none()`。実行者・チャンネルのメンションは表示のみで通知は飛ばない）と超過時の切り詰めはその契約に従う
-- command_name・details を sanitize する: 空白を 1 つに正規化し、`<@` にゼロ幅スペースを挿入（ユーザー入力による ping を無効化）
-- `channel_id` を持たないコンテキストでは `unknown` と表示する（全コマンド guild 限定のため通常は発生しない）
+`paginate_lines` は Embed description 用に、行を改行で結合して 4096 文字以下のページへ分割する。超過する行は断片に分けて内容を残す。ページ先頭の空行は省き、ページ内の空行は保つ。空の入力・全行空文字は空リストとし、空ページを返さない。通常メッセージ用の 1900 文字制限とは用途が異なる。
 
-## 表示テキストの escape 方針
+## メンションと表示
 
-- ping 抑止はメンション制御（`AllowedMentions`）と sanitize（`sanitize_audit_text`）で行う（上記）
-- log_audit 以外では Markdown escape を行わない。平文・Embed 本文に含まれる外部由来文字列（CTF 名・challenge 名等）による表示崩れは許容する
-- 例外: Embed 内のリンク `[名前](URL)` に埋め込む外部由来の値がリンク構文を壊す文字（`]`・`(`・`)`）を含む場合は、リンク化せず名前のみを表示する（URL 側が壊れている場合はリンク行自体を省略する）
+ping を許可するのは、メンバーメンション、AlpacaHack Daily の `ALPACAHACK_MENTION_ID`、募集メッセージの募集ロール。ユーザー入力を含むヘッダー等は `AllowedMentions.none()`、メンバー列挙は users のみ許可する。
+
+`sanitize_audit_text` は空白を 1 つに正規化し、`<@` にゼロ幅スペースを挿入する。コマンド実行ログの command_name・details、管理者操作通知の名前・理由に適用する。
+
+外部由来の平文・Embed 本文は Markdown escape せず、表示崩れを許容する。ただしリンクの名前や URL に `]`・`(`・`)` が含まれる場合はリンク化せず名前のみ表示する。CTFtime のリンク行は URL が空または不正なら行ごと省略する。
+
+## コマンド実行ログ
+
+`log_audit` は `send_audit_message` を使い、実行者・チャンネル・コマンド名・details を記録する。メンションは表示のみで通知しない。チャンネル ID がない場合は `unknown` と表示する。
+
+[Discord 監査ログ保存](features/audit-log.md) は Discord の操作イベントを DB に保存する機能で、このコマンド実行記録とは独立している。正確な文面は `helpers.py` を参照する。
 
 ## 接続状態通知
 
-`BOT_CHANNEL_ID` のチャンネルへ送信する（未設定なら何もしない）:
+`BOT_CHANNEL_ID` へ接続・停止時刻を付けて通知する。
 
-- 初回の ready 時のみ: `🟢 ctfbot が接続しました ({YYYY-MM-DD HH:MM:SS TZ})`（再接続では送らない）
-- SIGINT による終了時のみ: `🔴 ctfbot が停止します ({同書式})`
-- SIGTERM 等それ以外の終了経路では切断通知を送らない（非目標）
+- 初回 ready 時に接続通知を送り、再接続では送らない。
+- SIGINT による終了時に停止通知を送る。
+- SIGTERM 等の終了経路では停止通知を送らない。

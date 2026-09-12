@@ -1,8 +1,8 @@
 # CTFtime 通知 (ctftime)
 
-## 概要
-
 CTFtime API から近日開催の CTF イベントを取得し、週次で通知する。`/ctftime` コマンドで手動取得も可能。
+
+実装: [ctftime.py](../../src/ctfbot/features/ctftime.py)。検証: [test_ctftime_client.py](../../tests/test_ctftime_client.py)。設定は [データ・設定契約](../data-contracts.md) を参照する。
 
 ## コマンド
 
@@ -16,7 +16,6 @@ CTFtime API から近日開催の CTF イベントを取得し、週次で通知
 - 毎日 `CTFTIME_NOTIFICATION_TIME` に起動し、月曜（`weekday() == 0`）のみ実行
 - `CTFTIME_CHANNEL_ID` のチャンネルへ Embed を送信する。チャンネルが未設定・解決不能ならこの回は API 取得自体を行わずスキップする
 - 取得失敗（`ExternalAPIError`）時は例外をログに記録し、通知チャンネルに「CTFtime からの取得に失敗しました。」を送信する
-- 実行時刻の設定順序は `docs/design.md`「週次通知の実行時刻は start 前に設定する」に従う
 
 ## API クライアント (CTFTimeClient)
 
@@ -33,6 +32,7 @@ Headers: User-Agent={ctftime_user_agent}
 ### レスポンスパース
 
 JSON 配列の各要素から:
+
 - `title`: str（なければ `"Untitled"`）
 - `start` / `finish`: ISO 8601 文字列 → `datetime.fromisoformat` → `settings.tzinfo` へ変換
 - `ctftime_url`: str（なければ `url` フィールド。両方なければ `""`）
@@ -40,6 +40,7 @@ JSON 配列の各要素から:
 "Z" 付き・オフセット付き両方の ISO datetime をサポート。tzinfo なしは UTC とみなす。
 
 異常系（いずれもリトライ対象）:
+
 - payload が配列でない → `ExternalAPIError("Unexpected CTFtime response.")`
 - 要素が dict でない、または `start` / `finish` が欠落 → `ExternalAPIError("Unexpected CTFtime event.")`
 
@@ -57,10 +58,6 @@ JSON 配列の各要素から:
 ```
 
 - イベントは API の返却順のまま表示する（並べ替えない）
-- `ctftime_url` が空、またはリンク構文を壊す文字を含む場合は 🔗 行を出力しない（対象文字の正本は `docs/core.md` の escape 方針）
+- `ctftime_url` が空、またはリンク構文を壊す文字を含む場合は 🔗 行を出力しない（対象文字は [docs/core.md](../core.md) の「メンションと表示」）
 - 0 件: 「予定されているイベントはありません。」
 - description はイベントブロック単位で構築し、4096 文字を超えるブロック以降は載せない（省略通知は出さない）
-
-## データモデル
-
-`CTFEvent` の定義は `docs/data-contracts.md`「ctftime」を正本とする。

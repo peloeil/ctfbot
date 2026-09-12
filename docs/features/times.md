@@ -1,16 +1,15 @@
 # times チャンネル (times)
 
-## 概要
-
 `/times create` コマンドで `TIMES_CATEGORY_ID` のカテゴリ配下にテキストチャンネルを作成する。
 
-## コマンド
+実装: [times.py](../../src/ctfbot/features/times.py)。検証: [test_times.py](../../tests/test_times.py)。
 
-### `/times create name`
+## `/times create name`
 
 `name` に指定した 1 つの名前でチャンネルを作成する。応答はすべて ephemeral。
 
-処理（この順でチェックする）:
+入力と結果:
+
 1. guild 外で実行 → 「サーバー内で実行してください。」
 2. `TIMES_CATEGORY_ID` が未設定 → 「times 機能が設定されていません。」
 3. `TIMES_CATEGORY_ID` がカテゴリとして解決できない（不在・カテゴリ以外） → 「times カテゴリが見つかりません。」

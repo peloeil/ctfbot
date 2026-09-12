@@ -1,19 +1,10 @@
 # CTF 募集管理 (ctfteam)
 
-## 概要
-
 `/ctfteam` コマンドグループで CTF 参加者の募集を管理する。募集の作成・一覧・終了・アーカイブのライフサイクルを持つ。コマンド応答はすべて ephemeral。
 
-CTFTEAM の 3 ID がすべて未設定の場合は機能を無効として起動を許可する。`/ctfteam open` は「ctfteam 機能が設定されていません。」と応答する。3 ID の一部だけが設定された状態は起動時の設定検証で拒否する。
+実装: [cog.py](../../src/ctfbot/features/ctfteam/cog.py)・[campaign.py](../../src/ctfbot/features/ctfteam/campaign.py)・[discord_ops.py](../../src/ctfbot/features/ctfteam/discord_ops.py)。入力・競合の検証は [test_campaign.py](../../tests/test_campaign.py)、各操作は `tests/test_ctfteam_*.py` を参照する。応答の正確な文面は各実装を参照し、本書では条件と結果を記す。
 
-## ファイル構成
-
-| ファイル | 責務 |
-|---|---|
-| `models.py` | `ActiveCampaign`, `ClosedCampaign`, `Campaign`（union alias）, `CampaignDraft`, `CampaignStatus` データモデル |
-| `campaign.py` | 入力パース（`parse_campaign_draft`）・事前条件確認（`ensure_campaign_can_be_created`）・ビジネスロジック（Discord 非依存） |
-| `discord_ops.py` | Discord リソース操作（チャンネル・ロール・メッセージ）、boundary 関数（`require_category`, `require_role_channel`） |
-| `cog.py` | スラッシュコマンド定義・イベントリスナー・バックグラウンドタスク |
+CTFTEAM の 3 ID がすべて未設定の場合は機能を無効として起動を許可する。`/ctfteam open` は設定不足を案内して中断する。3 ID の一部だけが設定された状態は起動時の設定検証で拒否する。
 
 ## ライフサイクル
 
@@ -34,7 +25,7 @@ DB の `status` は `'active'` / `'closed'` の 2 値のみ。archived は独立
 - 募集メッセージに `🔒 **この募集は終了しました。**` ヘッダーが追加される
 - voice チャンネルは削除される
 - discussion チャンネルに参加メンバースナップショットが投稿される
-- `archive_at_unix` = `closed_at_unix` + `ARCHIVE_DELAY_DAYS` 日が設定される（定数表参照）
+- `archive_at_unix` = `closed_at_unix` + `ARCHIVE_DELAY_DAYS` 日が設定される（上限と時刻を参照）
 
 #### close 処理の順序（冪等性保証）
 
@@ -62,15 +53,15 @@ close と同じく「Discord リソース → DB → 通知」の順で行う。
 2. voice チャンネルが残っていれば削除（`NotFound` は成功扱い）
 3. ロールを削除（既に存在しなければ成功扱い）
 4. `mark_archived`（`archived_at_unix IS NULL` 条件付き UPDATE による atomic claim）で DB に記録
-5. **4 で claim に成功した場合のみ**、discussion チャンネルが TextChannel として解決できていれば「📦 このチャンネルは archive カテゴリに移動されました。」を `send_safely` で投稿。送信失敗は archive を巻き戻さない（DB が正）
+5. **4 で claim に成功した場合のみ**、discussion チャンネルが TextChannel として解決できていれば archive 完了を `send_safely` で通知する。送信失敗は archive を巻き戻さない（DB が正）
 
 ## コマンド
 
 ### `/ctfteam open ctf_name [role_color]`
 
-`role_color` はプリセット 9 色の Choice（省略時 `#3b82f6`）: 🟥 Red `#ef4444`・🟧 Orange `#f97316`・🟨 Yellow `#eab308`・🟩 Green `#22c55e`・🟦 Blue `#3b82f6`・🟪 Purple `#a855f7`・🟫 Brown `#92400e`・⬜ White `#f3f4f6`・⬛ Gray `#6b7280`（Choice 名は絵文字付き色名、value が hex 文字列）。値が `#RRGGBB` 形式（16 進 6 桁。先頭 `#` は省略可）でない場合は「ロール色は #RRGGBB 形式で指定してください。」と応答し Modal を開かない（Choice 定義により通常は到達しない防御的分岐）。
+`role_color` は 9 色のプリセットから選ぶ。省略時は青。選択肢と Modal のラベル・文面は cog の定義を参照する。不正な色は Modal を開く前に拒否する。
 
-1. Modal（title「CTF募集作成」）が開く。TextInput は 2 つ（いずれも `max_length=16`）: 開始日時（label「開始日時 (YYYY-MM-DD HH:MM)」・placeholder「2026-01-15 21:00」・必須）、終了日時（label「終了日時 (空欄で常設)」・placeholder「2026-01-17 21:00」・任意）
+1. Modal で開始日時（必須）と終了日時（任意）を受け取る。いずれも最大 16 文字
 2. 入力パース（`campaign.parse_campaign_draft`。日時は `settings.tzinfo` の naive 時刻として解釈する。DST を持つタイムゾーンで存在しない・二重に存在する時刻は ZoneInfo の既定（fold=0）で解決し、拒否しない）→ 作成可否確認（`campaign.ensure_campaign_can_be_created`）
 3. ロール作成（名前 = CTF 名、指定色、mentionable）→ discussion チャンネル作成 → voice チャンネル作成 → 募集メッセージ送信（`allowed_mentions` はロールのみ許可）→ ✅ リアクション追加
 4. DB に campaign レコード作成
@@ -80,68 +71,57 @@ close と同じく「Discord リソース → DB → 通知」の順で行う。
 手順 4 の DB insert 成功をもって募集作成は成功とする。
 
 **DB insert 成功前（手順 1〜4）の失敗**は作成済み Discord リソースをロールバック（`discord_ops.cleanup_resources`。DB は対象外）:
+
 - `ServiceError` → メッセージをそのまま表示
-- `ConflictError` → 「同名の募集が作成されたか、active 募集数の上限に達しました。」
-- その他の例外 → exception ログ + 「募集の作成中にエラーが発生しました。」
+- `ConflictError` → 同名募集または作成数上限による競合を案内
+- その他の例外 → exception ログ + 作成失敗を案内
 
 **DB insert 成功後（手順 5〜6）の失敗**は募集を巻き戻さない（`cleanup_resources` は実行しない）:
-- 手順 5 のロール付与失敗（`discord.Forbidden`・`discord.HTTPException`）→ warning ログを記録し、成功応答に「⚠️ 作成者へのロール付与に失敗しました。募集メッセージに ✅ リアクションすると参加できます。」を改行で追記
+
+- 手順 5 のロール付与失敗（`discord.Forbidden`・`discord.HTTPException`）→ warning ログを記録し、成功応答に付与失敗と ✅ リアクションで参加できることを追記
 - 手順 6 の即時開始通知の失敗 → ログのみ（送信失敗は warning、claim の例外は traceback 付き exception）。claim 未達なら毎分ループの `start_due_campaigns` が回収する
 
-成功時の応答は「**{ctf_name}** の募集を作成しました。」+ `log_audit(details=["CTF名: {ctf_name}"])`。
+成功時は作成した募集名を応答し、CTF 名をコマンド実行ログに記録する。
 
-DB insert（`create_campaign`）は DB レベルでも作成者の active 募集数と同名 active を再チェックし、違反は `ConflictError` を raise する（契約の正本は `docs/data-contracts.md`）。手順 2 の事前確認とこの再チェックの二段構えで、同時実行の競合を防ぐ。
+DB insert（`create_campaign`）は DB レベルでも作成者の active 募集数と同名 active を再チェックし、違反は `ConflictError` を raise する（契約は [docs/data-contracts.md](../data-contracts.md)）。手順 2 の事前確認とこの再チェックの二段構えで、同時実行の競合を防ぐ。
 
-バリデーションルール（`ServiceError` のメッセージ）:
-- CTF 名: 空白正規化。空なら「CTF名を入力してください。」、`MAX_CTF_NAME_LENGTH` 超なら「CTF名が長すぎます。60文字以内で入力してください。」
-- 日時: `YYYY-MM-DD HH:MM` 形式。不正なら「開始/終了日時の形式が不正です。YYYY-MM-DD HH:MM 形式で入力してください。」
-- 終了日時: 省略可（常設）。開始日時以前なら「終了日時は開始日時より後にしてください。常設CTFの場合は終了日時を空欄にしてください。」
-- 作成者の active 募集数上限: 「同時に作成できる active 募集数の上限に達しています。(上限: 5)」
-- 同名 active 重複（大文字小文字無視）: 「同名の active 募集が既に存在します。別名を使うか既存募集を close してください。」
+入力・作成条件に違反した場合は、理由を案内して拒否する。
+
+| 対象 | 受理条件 |
+|---|---|
+| CTF 名 | 空白正規化後に空でなく、最大文字数以内 |
+| 日時 | `YYYY-MM-DD HH:MM` 形式 |
+| 終了日時 | 省略可（常設）。指定する場合は開始日時より後 |
+| 作成者 | active 募集数が上限未満 |
+| 同名募集 | active に存在しない。大文字小文字の比較範囲は [DB の契約](../data-contracts.md#db-スキーマ) に従う |
+
+文字数・件数の上限は「上限と時刻」を参照する。
 
 ### `/ctfteam list [status]`
 
 status: `active`（デフォルト）, `closed`, `all`。Choice 表示名は「募集中」「終了」「すべて」。`closed`・`all` は archive 済みも含む（表示上は区別されない）。
 
-Embed（title「CTF募集一覧 ({status ラベル})」）で応答。0 件なら description は「該当する募集はありません。」。それ以外は先頭行「{n}件を表示しています。」（n は DB から取得した件数。最大件数は `list_campaigns` の limit（`docs/data-contracts.md`））に続けて、campaign ごとの以下のブロックを空行区切りで列挙する（`created_at_unix` 降順）:
+Embed で対象の状態と取得件数を表示する。0 件なら該当する募集がないことを案内する。取得上限は `list_campaigns` の limit（[DB の契約](../data-contracts.md#ctfteam_campaign)）。募集ごとのブロックを作成日時の降順・空行区切りで列挙する。
 
-```
-**{index}. {ctf_name}**
-状態: 募集中 or 終了
-開始: <t:{start}:f> (<t:{start}:R>)
-終了: <t:{end}:f> (<t:{end}:R>)   ← None なら "常設"
-募集: [メッセージへ移動]({メッセージ URL})
-議論: <#{discussion_id}>   ← 無ければ "-"
-VC: <#{voice_id}>   ← 無ければ "-"
-ロール: <@&{role_id}>
-作成者: <@{created_by}>
-archive予定: <t:{archive_at}:f> (<t:{archive_at}:R>)   ← closed 行のみ
-```
+各ブロックには募集名・状態・開始/終了日時・募集メッセージへのリンク・議論/VC/ロール・作成者を表示する。終了日時がなければ「常設」、チャンネルがなければ「-」。closed 行には archive 予定も表示する。
 
-description の 4096 文字上限を超えるブロック以降は載せず、「他 {m} 件は省略しています。」（m は未表示件数。このとき実表示は n − m 件）を追加して打ち切る。省略行を含めて 4096 文字に収まるよう、省略行の分の余白を確保する。
+description の 4096 文字上限を超えるブロック以降は載せず、未表示件数を追加して打ち切る。省略行を含めて 4096 文字に収まるよう、省略行の分の余白を確保する。
 
 ### `/ctfteam close ctf_name`
 
-権限: 作成者 または `manage_guild` 権限保持者。
+権限は作成者または `manage_guild` 保持者に限定する。active の募集がない場合、権限がない場合は、それぞれ理由を案内して中断する。
 
-- active に見つからない → 「active 募集 '{ctf_name}' が見つかりません。」
-- 権限なし → 「この募集を終了する権限がありません。」
-- リソース操作失敗 → 「Discord リソースの更新に失敗したため、募集を終了しませんでした。」（DB 未更新）
-- 成功 → 「**{ctf_name}** を終了しました。archive 予定: <t:{archive_at}:f> (<t:{archive_at}:R>)」+ `log_audit(details=["CTF名: {ctf_name}"])`
-- 自動 close と同時実行して DB claim に負けた場合（処理中に既に closed になっていた場合）も成功応答を返す（冪等・目的達成扱い。スナップショットは claim に勝った側だけが送る）
+リソース操作が失敗した場合は DB を更新せず、終了できなかったことを応答する。成功時は募集名と archive 予定日時を応答し、CTF 名をコマンド実行ログに記録する。
+
+自動 close と競合して DB claim に負けた場合も、既に終了していれば成功応答を返す。スナップショットは claim に成功した側だけが送る。
 
 ### `/ctfteam archive ctf_name`
 
-権限: close と同じ。権限なしは「この募集を archive する権限がありません。」。
+権限は close と同じ。権限不足、まだ active、既に archived、不在を区別して理由を案内する。active の場合は先に close するよう案内する。
 
-対象が見つからない場合のエラーメッセージ:
-- active で存在 → 「'{ctf_name}' は募集中です。先に `/ctfteam close` で終了してください。」
-- 既に archived → 「'{ctf_name}' は既に archive 済みです。」
-- 不在 → 「募集 '{ctf_name}' が見つかりません。」
+リソース操作が失敗した場合は DB を更新せず、その旨を応答する。成功時は募集名と archive 完了を応答し、CTF 名をコマンド実行ログに記録する。
 
-リソース操作失敗 → 「Discord リソースの archive に失敗したため、DB状態を更新しませんでした。」
-成功 → 「**{ctf_name}** を archive しました。」+ `log_audit(details=["CTF名: {ctf_name}"])`
-自動 archive と同時実行して DB claim に負けた場合も成功応答を返す（冪等・目的達成扱い。archive 通知は claim に勝った側だけが送る）。
+自動 archive と競合して DB claim に負けた場合も成功応答を返す。archive 通知は claim に成功した側だけが送る。
 
 ## リアクションハンドラ
 
@@ -163,7 +143,7 @@ description の 4096 文字上限を超えるブロック以降は載せず、�
 | `close_expired_campaigns` | `end_at_unix` が到達した active campaign を自動 close |
 | `archive_closed_campaigns` | `archive_at_unix` が到達した closed campaign を自動 archive |
 
-各タスクの対象取得は期日（`start_at_unix` / `end_at_unix` / `archive_at_unix`）の古い順に、1 分あたり `list_due_*` の limit 件（`docs/data-contracts.md`）ずつ。処理しきれなかった分は翌分に最古から再試行される。
+各タスクの対象取得は期日（`start_at_unix` / `end_at_unix` / `archive_at_unix`）の古い順に、1 分あたり `list_due_*` の limit 件（[docs/data-contracts.md](../data-contracts.md)）ずつ。処理しきれなかった分は翌分に最古から再試行される。
 
 リソース操作の失敗は warning ログを記録して翌分リトライし続ける（打ち切りなし）。`Forbidden` 等の恒久的失敗は毎分記録されるこの warning ログで検知し、権限を修正して解消する。
 
@@ -173,8 +153,8 @@ description の 4096 文字上限を超えるブロック以降は載せず、�
 
 ### boundary 関数
 
-- `require_category`: `settings.ctfteam_category_id` のカテゴリを解決。失敗時「CTF募集カテゴリが見つかりません。」
-- `require_role_channel`: `settings.ctfteam_role_channel_id` のチャンネルをテキストチャンネルとして解決する。失敗時（不在・テキストチャンネル以外）は「募集チャンネルが見つかりません。」。CTF募集カテゴリ内にある必要はない
+- `require_category`: `settings.ctfteam_category_id` をカテゴリとして解決し、不在・型違いは拒否する
+- `require_role_channel`: `settings.ctfteam_role_channel_id` のチャンネルをテキストチャンネルとして解決する。不在・テキストチャンネル以外は拒否する。CTF募集カテゴリ内にある必要はない
 
 ### チャンネル名の正規化
 
@@ -187,12 +167,14 @@ discussion チャンネルは normalize 結果を、voice チャンネルは `{n
 ### チャンネル権限
 
 **discussion チャンネル:**
+
 - `@everyone`: `view_channel=False`
 - ロール: `view_channel=True`, `send_messages=True`, `read_message_history=True`
 - 作成者: 同上
 - bot: 同上 + `manage_channels=True`
 
 **voice チャンネル:**
+
 - `@everyone`: `view_channel=False`
 - ロール: `view_channel=True`, `connect=True`, `speak=True`, `stream=True`
 - 作成者 / bot: 同上
@@ -202,40 +184,21 @@ discussion チャンネルは normalize 結果を、voice チャンネルは `{n
 - `@everyone`: `view_channel=True`, `send_messages=False`, `add_reactions=False`, `create_public_threads=False`, `create_private_threads=False`, `read_message_history=True`
 - ロールの overwrite は削除
 
-### 募集メッセージ形式
+### メッセージと通知
 
-```
-📣 **{ctf_name}** 参加者募集
+募集メッセージには CTF 名、開始・終了日時、discussion とロールへのメンション、✅ による参加案内を載せる。常設では終了日時を「常設」と表示する。募集ロールの ping を許可する。
 
-🕐 開始: <t:{start}:f> (<t:{start}:R>)
-🏁 終了: <t:{end}:f> (<t:{end}:R>)   ← None なら "常設"
-💬 CTFチャンネル: #discussion
-👥 ロール: @role
+discussion には開始通知・終了時の参加メンバースナップショット・ロール付与後の参加通知を送る。正確な文面は `discord_ops.py`、表示と権限の検証は [test_discord_ops.py](../../tests/test_discord_ops.py) を参照する。
 
-✅ リアクションを付けると @role ロールを付与します。
-```
-
-`#discussion`・`@role` は実メンション（`<#id>`・`<@&id>`）。`@role` の ping は `allowed_mentions` のロール許可により実際に飛ぶ。
-
-### 通知メッセージ形式
-
-- 開始通知（discussion）: 「🚀 **{ctf_name}** が開始しました!」+ 参加メンバーのメンション（下記チャンク分割）
-- スナップショット（discussion）: 「🔒 **{ctf_name}** の募集が終了しました。」+「参加メンバー ({N}人):」+ メンションチャンク
-- 参加通知（discussion）: 「🙋 {mention} が **{ctf_name}** に参加しました。」
-
-参加メンバーはロール保持者（member cache。`Intents.members` 前提）で、列挙順は保証しない。0 人の場合はヘッダー行のみ送る（スナップショットは「参加メンバー (0人):」まで）。ヘッダー行は `AllowedMentions.none()`、メンションチャンクは users のみ許可で送る（許可範囲の正本は `docs/core.md` のメンション方針）。
+参加メンバーはロール保持者（member cache。`Intents.members` 前提）で、列挙順は保証しない。0 人ならヘッダーのみ送る（スナップショットは人数表示まで）。ヘッダーはメンションを抑止し、メンバー列挙チャンクは users のみ許可する。共通の [メンション方針](../core.md#メンションと表示) に従う。
 
 ### メンション分割
 
-`MENTION_CHUNK_SIZE`（定数表）ごとに分割して複数メッセージで送信。Discord の 2000 文字制限にマージンを持たせている。
+`MENTION_CHUNK_SIZE`（上限と時刻を参照）ごとに分割して複数メッセージで送信。Discord の 2000 文字制限にマージンを持たせている。
 
-## DB スキーマ
+## 上限と時刻
 
-テーブル `ctfteam_campaign` の DDL・query 契約は `docs/data-contracts.md` を正本とする。
-
-## 定数
-
-| 定数 | 値 | 説明 |
+| 実装の定数 | 値 | 用途 |
 |---|---|---|
 | `MAX_ACTIVE_PER_USER` | 5 | 同一ユーザーの active 募集上限 |
 | `MAX_CTF_NAME_LENGTH` | 60 | CTF 名の最大文字数 |

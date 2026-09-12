@@ -1,9 +1,9 @@
 # ユーティリティ (utility)
 
-## 概要
-
 汎用コマンドを提供する。DB やランタイムへの依存なし。`/roll` 以外の応答は
 ephemeral。
+
+実装: [utility.py](../../src/ctfbot/features/utility.py)。検証: [test_utility.py](../../tests/test_utility.py)。
 
 ## コマンド
 
@@ -27,10 +27,11 @@ Discord が扱う全権限について、Guild での実効権限を `Guild ✅ 
 `channel`（`discord.TextChannel` のみ指定可）省略時は実行チャンネルを対象とする。`role`（`discord.Role` のみ指定可）省略時は bot 自身を対象とし、指定時は `@everyone` の権限も合成したそのロールの権限を対象とする。Channel 権限には `@everyone` と指定ロールの channel overwrite も反映する。応答が Discord の文字数上限を超える場合は Guild と Channel に分割する。
 
 エラーケース:
+
 - guild 外で実行 → 「サーバー内で実行してください。」
 - 対象が GuildChannel でない → 「チャンネル権限を確認できません。」
 
-bot に必要な権限の一覧:
+## 必要な Bot 権限
 
 | スコープ | 権限 |
 |---|---|
