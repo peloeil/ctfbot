@@ -170,7 +170,14 @@ class CTFTimeNotifications(commands.Cog):
         await self.bot.wait_until_ready()
 
     @app_commands.command(
-        name="ctftime", description="CTFtimeの予定を手動で取得します。"
+        name="ctftime",
+        description="CTFtimeの予定を手動で取得します。",
+        extras={
+            "help": "近日開催の CTF の名前、開始・終了日時、CTFtime へのリンクを"
+            "チャンネルに公開します。\n"
+            "対象期間と最大件数は bot の設定に従います。"
+            "週次通知を待たずに確認できます。"
+        },
     )
     async def manual_ctf_check(self, interaction: discord.Interaction) -> None:
         if interaction.guild is None:

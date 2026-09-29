@@ -14,9 +14,15 @@ ephemeral。
 
 形式または範囲が不正な場合は、理由を ephemeral で応答する。
 
-### `/help`
+### `/help [command]`
 
-`bot.tree.get_commands(guild=interaction.guild)` で guild 登録の全コマンドを取得する（起動時に `copy_global_to` で guild へコピーしたものが Discord に登録されるため、guild を指定して取得する）。Group コマンドは 1 段だけ展開して `/group subcommand — description` 形式で（ネストした subgroup の子は列挙しない）、単発コマンドは `/command — description` 形式で列挙し、行の文字列を辞書順にソートして応答。description は各コマンド定義の値をそのまま表示する。
+`command` を省略すると、guild 登録の全コマンドを一覧表示する。Group コマンドは 1 段だけ展開して `/group subcommand — description` 形式で（ネストした subgroup の子は列挙しない）、単発コマンドは `/command — description` 形式で列挙し、行の文字列を辞書順にソートする。description は各コマンド定義の値をそのまま表示する。
+
+`command` を指定すると、そのコマンドの説明・使い方・引数の必須/任意・既定値・選択肢を表示する。例: `/help command:roll`、`/help command:ctfteam open`。先頭の `/` は任意で、前後やコマンド名の間の余分な空白は無視する。グループを指定した場合は説明と直下のサブコマンド一覧を表示し、ネストしたサブコマンドも名前を空白区切りで指定できる。
+
+詳細文は各コマンド定義の `extras["help"]` に置き、利用条件や副作用など引数定義だけでは分からない内容を補う。使い方・引数情報は登録された定義から生成する。詳細文のない拡張コマンドも、通常の説明と引数情報を表示する。引数のないコマンドは「引数: なし」と表示する。空白だけの指定や存在しないコマンド名には、見つからない旨と `/help` の案内を返す。
+
+一覧・詳細とも `bot.tree.get_commands(guild=interaction.guild)` を参照する（起動時に `copy_global_to` で guild へコピーしたものが Discord に登録されるため）。ヘルプ対象のコマンドは実行せず、応答はすべて ephemeral。
 
 応答の分割・切り詰めは非目標とする。
 

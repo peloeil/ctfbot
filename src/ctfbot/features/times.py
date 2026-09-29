@@ -30,7 +30,11 @@ def _require_times_category(
     return category
 
 
-class TimesChannels(commands.GroupCog, group_name="times"):
+class TimesChannels(
+    commands.GroupCog,
+    group_name="times",
+    group_description="times カテゴリのチャンネルを作成します。",
+):
     def __init__(self, bot: commands.Bot) -> None:
         super().__init__()
         runtime = get_runtime(bot)
@@ -38,7 +42,14 @@ class TimesChannels(commands.GroupCog, group_name="times"):
         self.settings = runtime.settings
 
     @app_commands.command(
-        name="create", description="timesカテゴリにテキストチャンネルを作成します。"
+        name="create",
+        description="timesカテゴリにテキストチャンネルを作成します。",
+        extras={
+            "help": "指定した名前で times カテゴリにテキストチャンネルを作成します。\n"
+            "名前は英小文字・数字・ハイフンに整え、最大 100 文字にします。"
+            "同名のチャンネルがあれば、そのチャンネルを案内します。\n"
+            "閲覧・投稿の権限はカテゴリから引き継ぎます。"
+        },
     )
     @app_commands.describe(name="作成するチャンネル名")
     async def create_times(self, interaction: discord.Interaction, name: str) -> None:

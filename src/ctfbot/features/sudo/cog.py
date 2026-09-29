@@ -38,7 +38,17 @@ class Sudo(commands.Cog):
     async def cog_unload(self) -> None:
         self.revoke_expired_grants.cancel()
 
-    @app_commands.command(name="sudo", description="管理者ロールを一時的に取得します。")
+    @app_commands.command(
+        name="sudo",
+        description="管理者ロールを一時的に取得します。",
+        extras={
+            "help": "sudoer ロールを持つメンバーが、設定された期限付きで"
+            "管理者ロールを取得します。\n"
+            "昇格中に再実行すると、その時点から有効期限を延長します。"
+            "期限が切れると自動解除され、`/unsudo` で先に解除することもできます。\n"
+            "結果と有効期限は実行者だけに表示します。"
+        },
+    )
     async def sudo(self, interaction: discord.Interaction) -> None:
         try:
             guild = require_guild(interaction)
@@ -89,7 +99,14 @@ class Sudo(commands.Cog):
             details=[f"管理者ロール期限: <t:{expires_at_unix}:f>"],
         )
 
-    @app_commands.command(name="unsudo", description="管理者ロールを解除します。")
+    @app_commands.command(
+        name="unsudo",
+        description="管理者ロールを解除します。",
+        extras={
+            "help": "`/sudo` で自分に付与された管理者ロールを、期限前に解除します。\n"
+            "昇格中でなければその旨を案内します。結果は実行者だけに表示します。"
+        },
+    )
     async def unsudo(self, interaction: discord.Interaction) -> None:
         try:
             guild = require_guild(interaction)

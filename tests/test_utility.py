@@ -32,9 +32,9 @@ class UtilityCommandsTest(unittest.IsolatedAsyncioTestCase):
         self.interaction.response.is_done.return_value = False
         self.interaction.response.send_message = mock.AsyncMock()
 
-    async def invoke_help(self) -> None:
+    async def invoke_help(self, command: str | None = None) -> None:
         callback = cast(Any, self.cog.help_command.callback)
-        await callback(self.cog, self.interaction)
+        await callback(self.cog, self.interaction, command)
 
     async def invoke_roll(self, notation: str) -> None:
         callback = cast(Any, self.cog.roll.callback)
@@ -91,14 +91,108 @@ class UtilityCommandsTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(allowed.roles)
         self.assertFalse(allowed.replied_user)
 
+    async def test_help_details_include_usage_arguments_and_choices(self) -> None:
+        @app_commands.command(
+            name="open",
+            description="募集作成",
+            extras={"help": "開始日時を入力します。"},
+        )
+        @app_commands.describe(ctf_name="CTF名", status="募集状態", note="補足")
+        @app_commands.rename(ctf_name="name")
+        @app_commands.choices(
+            status=[
+                app_commands.Choice(name="募集中", value="active"),
+                app_commands.Choice(name="終了", value="closed"),
+            ]
+        )
+        async def open_campaign(
+            interaction: discord.Interaction,
+            ctf_name: str,
+            status: str = "active",
+            note: str | None = None,
+        ) -> None:
+            raise AssertionError("Help must not execute the command")
+
+        group = app_commands.Group(name="ctfteam", description="CTF募集")
+        group.add_command(open_campaign)
+        self.bot.tree.get_commands.return_value = [group]
+
+        await self.invoke_help("  /ctfteam   open  ")
+
+        self.bot.tree.get_commands.assert_called_once_with(guild=self.interaction.guild)
+        args, kwargs = self.interaction.response.send_message.await_args
+        self.assertEqual(
+            args[0],
+            "**/ctfteam open**\n募集作成\n\n開始日時を入力します。\n\n"
+            "使い方: `/ctfteam open <name> [status] [note]`\n引数:\n"
+            "- `name` (必須): CTF名\n"
+            "- `status` (任意、既定値: 募集中): 募集状態\n"
+            "  選択肢: 募集中、終了\n- `note` (任意): 補足",
+        )
+        self.assertTrue(kwargs["ephemeral"])
+
+    async def test_help_details_work_without_extra_help_or_arguments(self) -> None:
+        self.bot.tree.get_commands.return_value = [make_command("ping", "接続確認")]
+
+        await self.invoke_help("ping")
+
+        args, _ = self.interaction.response.send_message.await_args
+        self.assertEqual(args[0], "**/ping**\n接続確認\n\n使い方: `/ping`\n引数: なし")
+
+    async def test_help_group_lists_children_and_resolves_nested_command(self) -> None:
+        group = app_commands.Group(name="admin", description="管理")
+        subgroup = app_commands.Group(name="users", description="ユーザー管理")
+        subgroup.add_command(make_command("list", "一覧"))
+        subgroup.add_command(make_command("add", "登録"))
+        group.add_command(subgroup)
+        self.bot.tree.get_commands.return_value = [group]
+
+        await self.invoke_help("admin users")
+
+        args, _ = self.interaction.response.send_message.await_args
+        self.assertIn("**/admin users**\nユーザー管理", args[0])
+        self.assertIn("/admin users add — 登録\n/admin users list — 一覧", args[0])
+
+        await self.invoke_help("admin users add")
+
+        args, _ = self.interaction.response.send_message.await_args
+        self.assertIn("使い方: `/admin users add`", args[0])
+
+    async def test_help_rejects_empty_unknown_or_incomplete_paths(self) -> None:
+        group = app_commands.Group(name="alpaca", description="AlpacaHack")
+        group.add_command(make_command("add", "登録"))
+        self.bot.tree.get_commands.return_value = [group, self.cog.roll]
+        for command in ("", " / ", "missing", "add", "alpaca missing", "roll extra"):
+            with self.subTest(command=command):
+                await self.invoke_help(command)
+
+                args, kwargs = self.interaction.response.send_message.await_args
+                self.assertEqual(
+                    args[0],
+                    "コマンドが見つかりません。/help で一覧を確認してください。",
+                )
+                self.assertTrue(kwargs["ephemeral"])
+
+    async def test_help_roll_includes_limits_and_example(self) -> None:
+        self.bot.tree.get_commands.return_value = [self.cog.roll]
+
+        await self.invoke_help("roll")
+
+        args, _ = self.interaction.response.send_message.await_args
+        self.assertIn("使い方: `/roll <notation>`", args[0])
+        self.assertIn("1〜100", args[0])
+        self.assertIn("/roll notation:3d6", args[0])
+
     async def test_help_outside_guild_reports_error(self) -> None:
         self.interaction.guild = None
 
-        await self.invoke_help()
+        for command in (None, "roll"):
+            with self.subTest(command=command):
+                await self.invoke_help(command)
 
-        self.bot.tree.get_commands.assert_not_called()
-        args, _ = self.interaction.response.send_message.await_args
-        self.assertEqual(args[0], "サーバー内で実行してください。")
+                self.bot.tree.get_commands.assert_not_called()
+                args, _ = self.interaction.response.send_message.await_args
+                self.assertEqual(args[0], "サーバー内で実行してください。")
 
     async def test_help_send_failure_is_suppressed(self) -> None:
         self.bot.tree.get_commands.return_value = []

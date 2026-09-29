@@ -72,7 +72,11 @@ class CTFTeamCreateModal(discord.ui.Modal, title="CTF募集作成"):
         )
 
 
-class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
+class CTFTeamCampaigns(
+    commands.GroupCog,
+    group_name="ctfteam",
+    group_description="CTF 参加者の募集を作成・確認・終了・archive します。",
+):
     def __init__(self, bot: commands.Bot) -> None:
         super().__init__()
         runtime = get_runtime(bot)
@@ -88,7 +92,17 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         self.close_expired_campaigns.cancel()
         self.archive_closed_campaigns.cancel()
 
-    @app_commands.command(name="open", description="CTF参加者の募集を作成します。")
+    @app_commands.command(
+        name="open",
+        description="CTF参加者の募集を作成します。",
+        extras={
+            "help": "CTF 名を指定すると、開始・終了日時の入力フォームを開きます。\n"
+            "日時は bot の設定タイムゾーンで YYYY-MM-DD HH:MM 形式で入力します。"
+            "終了日時を省略すると常設になります。\n"
+            "募集メッセージ、参加者ロール、テキスト・ボイスチャンネルを作成し、"
+            "作成者も参加者に加わります。他のメンバーは ✅ リアクションで参加できます。"
+        },
+    )
     @app_commands.describe(
         ctf_name="CTF名",
         role_color="ロールの色 (例: #3b82f6)",
@@ -259,7 +273,15 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         )
         logger.info("Campaign created: campaign_id=%s", created.id)
 
-    @app_commands.command(name="list", description="CTF募集の一覧を表示します。")
+    @app_commands.command(
+        name="list",
+        description="CTF募集の一覧を表示します。",
+        extras={
+            "help": "募集の状態、開催日時、募集メッセージやチャンネルへのリンクを"
+            "実行者だけに表示します。\n"
+            "「終了」「すべて」には archive 済みの募集も含みます。"
+        },
+    )
     @app_commands.describe(status="表示するステータス")
     @app_commands.choices(
         status=[
@@ -285,7 +307,17 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         embed = _build_campaigns_embed(guild_id, campaigns, status)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="close", description="CTF募集を終了します。")
+    @app_commands.command(
+        name="close",
+        description="CTF募集を終了します。",
+        extras={
+            "help": "募集中の CTF を終了し、参加受付を停止して"
+            "ボイスチャンネルを削除します。\n"
+            "テキストチャンネルには参加者一覧を残し、設定された猶予期間後に"
+            "自動で archive します。\n"
+            "実行できるのは募集の作成者か「サーバー管理」権限を持つメンバーです。"
+        },
+    )
     @app_commands.describe(ctf_name="終了するCTF名")
     async def close_campaign_cmd(
         self, interaction: discord.Interaction, ctf_name: str
@@ -329,7 +361,15 @@ class CTFTeamCampaigns(commands.GroupCog, group_name="ctfteam"):
         )
 
     @app_commands.command(
-        name="archive", description="終了済み募集を手動でarchiveします。"
+        name="archive",
+        description="終了済み募集を手動でarchiveします。",
+        extras={
+            "help": "終了済みの募集を、自動 archive の予定を待たずに整理します。\n"
+            "テキストチャンネルを archive カテゴリへ移し、全員が閲覧できる"
+            "読み取り専用にして参加者ロールを削除します。\n"
+            "募集中なら先に `/ctfteam close` を実行してください。"
+            "実行できるのは募集の作成者か「サーバー管理」権限を持つメンバーです。"
+        },
     )
     @app_commands.describe(ctf_name="archiveするCTF名")
     async def archive_campaign_cmd(

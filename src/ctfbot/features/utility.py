@@ -14,6 +14,55 @@ _PERMISSION_NAMES = {
 }
 
 
+def _format_command_help(command: app_commands.Command | app_commands.Group) -> str:
+    lines = [f"**/{command.qualified_name}**", command.description]
+    if details := command.extras.get("help"):
+        lines.extend(["", details])
+    if isinstance(command, app_commands.Group):
+        lines.extend(["", "サブコマンド:"])
+        lines.extend(
+            sorted(
+                f"/{child.qualified_name} — {child.description}"
+                for child in command.commands
+            )
+        )
+        lines.append("詳細は `/help command:コマンド名` で確認できます。")
+    else:
+        parameters = command.parameters
+        usage = " ".join(
+            [f"/{command.qualified_name}"]
+            + [
+                f"<{param.display_name}>"
+                if param.required
+                else f"[{param.display_name}]"
+                for param in parameters
+            ]
+        )
+        lines.extend(
+            ["", f"使い方: `{usage}`", "引数:" if parameters else "引数: なし"]
+        )
+        for param in parameters:
+            requirement = "必須" if param.required else "任意"
+            if not param.required and param.default is not None:
+                default = next(
+                    (
+                        choice.name
+                        for choice in param.choices
+                        if choice.value == param.default
+                    ),
+                    param.default,
+                )
+                requirement += f"、既定値: {default}"
+            lines.append(
+                f"- `{param.display_name}` ({requirement}): {param.description}"
+            )
+            if param.choices:
+                lines.append(
+                    "  選択肢: " + "、".join(choice.name for choice in param.choices)
+                )
+    return "\n".join(lines)
+
+
 def _format_permissions(scope: str, permissions: discord.Permissions) -> list[str]:
     enabled: list[str] = []
     disabled: list[str] = []
@@ -70,7 +119,14 @@ class UtilityCommands(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    @app_commands.command(name="roll", description="NdM形式でダイスを振ります。")
+    @app_commands.command(
+        name="roll",
+        description="NdM形式でダイスを振ります。",
+        extras={
+            "help": "N 個の M 面ダイスを振り、各出目と合計をチャンネルに公開します。\n"
+            "個数・面数はいずれも 1〜100 です。例: `/roll notation:3d6`"
+        },
+    )
     @app_commands.describe(notation="ダイス表記 (例: 3d6)")
     async def roll(self, interaction: discord.Interaction, notation: str) -> None:
         match = re.fullmatch(r"([0-9]+)[dD]([0-9]+)", notation)
@@ -93,26 +149,61 @@ class UtilityCommands(commands.Cog):
         )
 
     @app_commands.command(
-        name="help", description="利用可能なコマンド一覧を表示します。"
+        name="help",
+        description="利用可能なコマンドの一覧・詳細を表示します。",
+        extras={
+            "help": "引数なしで一覧、コマンド名を指定すると使い方と引数を表示します。\n"
+            "例: `/help command:roll`、`/help command:ctfteam open`\n"
+            "先頭の / は省略できます。ヘルプは実行者だけに表示します。"
+        },
     )
-    async def help_command(self, interaction: discord.Interaction) -> None:
+    @app_commands.describe(command="詳細を表示するコマンド名 (例: roll、ctfteam open)")
+    async def help_command(
+        self, interaction: discord.Interaction, command: str | None = None
+    ) -> None:
         if interaction.guild is None:
             await send_interaction(interaction, "サーバー内で実行してください。")
             return
+        # Commands are copied to the guild at startup; use that registered set.
+        registered = self.bot.tree.get_commands(guild=interaction.guild)
+        if command is not None:
+            parts = command.strip().removeprefix("/").split()
+            target = next(
+                (item for item in registered if parts and item.name == parts[0]), None
+            )
+            for name in parts[1:]:
+                target = (
+                    target.get_command(name)
+                    if isinstance(target, app_commands.Group)
+                    else None
+                )
+            if not isinstance(target, app_commands.Command | app_commands.Group):
+                await send_interaction(
+                    interaction,
+                    "コマンドが見つかりません。/help で一覧を確認してください。",
+                )
+                return
+            await send_interaction(interaction, _format_command_help(target))
+            return
+
         lines: list[str] = []
-        # 起動時に copy_global_to で guild へコピーしたものが登録済みの一覧なので、
-        # guild を指定して取得する
-        for command in self.bot.tree.get_commands(guild=interaction.guild):
-            if isinstance(command, app_commands.Group):
-                for child in command.commands:
-                    lines.append(f"/{command.name} {child.name} — {child.description}")
-            elif isinstance(command, app_commands.Command):
-                lines.append(f"/{command.name} — {command.description}")
+        for item in registered:
+            if isinstance(item, app_commands.Group):
+                for child in item.commands:
+                    lines.append(f"/{child.qualified_name} — {child.description}")
+            elif isinstance(item, app_commands.Command):
+                lines.append(f"/{item.name} — {item.description}")
         await send_interaction(interaction, "\n".join(sorted(lines)))
 
     @app_commands.command(
         name="perms",
         description="botまたはロールのサーバー/チャンネル権限を表示します。",
+        extras={
+            "help": "サーバー全体の実効権限と、チャンネルでの権限の増減を表示します。\n"
+            "省略時は bot 自身と実行チャンネルが対象です。"
+            "ロールを指定すると @everyone の権限も合成して確認します。\n"
+            "結果は実行者だけに表示します。"
+        },
     )
     @app_commands.describe(
         channel="確認対象チャンネル (省略時は実行チャンネル)",

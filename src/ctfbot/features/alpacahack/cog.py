@@ -143,7 +143,11 @@ def _build_daily_embed(challenge: DailyChallenge) -> discord.Embed:
     return embed
 
 
-class Alpacahack(commands.GroupCog, group_name="alpaca"):
+class Alpacahack(
+    commands.GroupCog,
+    group_name="alpaca",
+    group_description="AlpacaHack のユーザー登録・問題表示・solve 集計を行います。",
+):
     def __init__(self, bot: commands.Bot) -> None:
         super().__init__()
         runtime = get_runtime(bot)
@@ -254,7 +258,15 @@ class Alpacahack(commands.GroupCog, group_name="alpaca"):
     async def before_weekly_solve(self) -> None:
         await self.bot.wait_until_ready()
 
-    @app_commands.command(name="add", description="AlpacaHackユーザーを登録します。")
+    @app_commands.command(
+        name="add",
+        description="AlpacaHackユーザーを登録します。",
+        extras={
+            "help": "週次の solve 集計対象に AlpacaHack のユーザー名を登録します。\n"
+            "名前は 32 文字以内の半角英数字・ハイフン・アンダースコアで指定します。"
+            "最大 50 人まで登録でき、重複登録はできません。"
+        },
+    )
     @app_commands.describe(username="AlpacaHackのユーザー名")
     async def add_user(self, interaction: discord.Interaction, username: str) -> None:
         if interaction.guild is None:
@@ -289,7 +301,13 @@ class Alpacahack(commands.GroupCog, group_name="alpaca"):
             await send_interaction(interaction, f"`{name}` は既に登録されています。")
 
     @app_commands.command(
-        name="del", description="AlpacaHackユーザーの登録を削除します。"
+        name="del",
+        description="AlpacaHackユーザーの登録を削除します。",
+        extras={
+            "help": "指定したユーザーを bot の solve 集計対象から外します。\n"
+            "AlpacaHack のアカウントや解答履歴は削除しません。"
+            "登録名は `/alpaca list` で確認できます。"
+        },
     )
     @app_commands.describe(username="AlpacaHackのユーザー名")
     async def del_user(self, interaction: discord.Interaction, username: str) -> None:
@@ -313,7 +331,12 @@ class Alpacahack(commands.GroupCog, group_name="alpaca"):
             await send_interaction(interaction, f"`{name}` は登録されていません。")
 
     @app_commands.command(
-        name="list", description="登録済みAlpacaHackユーザー一覧を表示します。"
+        name="list",
+        description="登録済みAlpacaHackユーザー一覧を表示します。",
+        extras={
+            "help": "solve 集計対象の登録人数とユーザー名を名前順に表示します。\n"
+            "登録一覧はサーバーで共有され、結果は実行者だけに表示します。"
+        },
     )
     async def list_users(self, interaction: discord.Interaction) -> None:
         if interaction.guild is None:
@@ -328,7 +351,16 @@ class Alpacahack(commands.GroupCog, group_name="alpaca"):
             interaction, f"登録ユーザー ({len(users)}人):\n" + "\n".join(lines)
         )
 
-    @app_commands.command(name="solve", description="今週のsolve状況を表示します。")
+    @app_commands.command(
+        name="solve",
+        description="今週のsolve状況を表示します。",
+        extras={
+            "help": "登録ユーザー全員の今週の solve 数と問題へのリンクを"
+            "チャンネルに公開します。\n"
+            "集計期間は bot の設定タイムゾーンで月曜〜日曜です。"
+            "サーバー全体で 60 秒に 1 回実行できます。"
+        },
+    )
     @app_commands.checks.cooldown(1, 60.0, key=lambda i: i.guild_id)
     async def show_solves(self, interaction: discord.Interaction) -> None:
         if interaction.guild is None:
@@ -343,7 +375,16 @@ class Alpacahack(commands.GroupCog, group_name="alpaca"):
         )
         await interaction.followup.send(embed=_build_summary_embed(summary))
 
-    @app_commands.command(name="daily", description="現在のDaily問題を表示します。")
+    @app_commands.command(
+        name="daily",
+        description="現在のDaily問題を表示します。",
+        extras={
+            "help": "公開中の Daily AlpacaHack の概要、出題期間、"
+            "添付ファイルへのリンクをチャンネルに公開します。\n"
+            "サーバー全体で 60 秒に 1 回実行できます。"
+            "定期通知の送信状況は変更しません。"
+        },
+    )
     @app_commands.checks.cooldown(1, 60.0, key=lambda i: i.guild_id)
     async def show_daily(self, interaction: discord.Interaction) -> None:
         if interaction.guild is None:
