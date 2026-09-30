@@ -39,7 +39,21 @@ Discord が扱う全権限について、Guild での実効権限を `Guild ✅ 
 
 ## 必要な Bot 権限
 
-| スコープ | 権限 |
-|---|---|
-| Guild | `view_audit_log`, `manage_roles` |
-| Channel | `view_channel`, `send_messages`, `send_messages_in_threads`, `read_message_history`, `add_reactions`, `manage_channels`, `embed_links` |
+全機能を使う場合、Bot に以下の実効権限が必要になる。`@everyone` から継承できる権限は重複付与する必要はない。
+
+| Discord の英語表示名 | 権限名 | 用途 |
+|---|---|---|
+| View Channels | `view_channel` | 対象チャンネルの閲覧 |
+| Read Message History | `read_message_history` | 募集メッセージの取得 |
+| Send Messages | `send_messages` | 募集・通知・応答の送信 |
+| Send Messages in Threads | `send_messages_in_threads` | スレッド内での応答 |
+| Embed Links | `embed_links` | CTFtime・AlpacaHack・募集一覧の Embed 送信 |
+| Add Reactions | `add_reactions` | 募集メッセージへの ✅ 追加 |
+| Manage Channels | `manage_channels` | チャンネルの作成・移動・削除 |
+| Manage Roles | `manage_roles` | ロールの作成・付与・剥奪・削除とチャンネル権限の設定 |
+| View Audit Log | `view_audit_log` | Discord 監査ログイベントの受信 |
+| Connect | `connect` | CTF 用 VC の接続許可の設定 |
+| Speak | `speak` | CTF 用 VC の発言許可の設定 |
+| Video | `stream` | CTF 用 VC の配信許可の設定 |
+
+チャンネル作成時に上書きする権限は、Bot 自身も Guild で保持している必要がある。そのため、VC の権限設定に使う `connect`・`speak`・`stream` も必要になる（[Discord API の制約](https://docs.discord.com/developers/resources/guild#create-guild-channel)）。
