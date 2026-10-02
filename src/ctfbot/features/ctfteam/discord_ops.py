@@ -162,15 +162,16 @@ async def archive_discussion_channel(
     archive_category: discord.CategoryChannel,
     role: discord.Role | None,
     bot_member: discord.Member | None,
+    *,
+    creator_id: int,
 ) -> bool:
     try:
-        if bot_member is not None:
-            overwrite = discussion.overwrites_for(bot_member)
-            overwrite.manage_channels = True
-            await discussion.set_permissions(bot_member, overwrite=overwrite)
-        await discussion.edit(category=archive_category)
-        await discussion.set_permissions(
-            discussion.guild.default_role,
+        overwrites = {
+            target: overwrite
+            for target, overwrite in discussion.overwrites.items()
+            if target.id != creator_id and (role is None or target.id != role.id)
+        }
+        overwrites[discussion.guild.default_role] = discord.PermissionOverwrite(
             view_channel=True,
             send_messages=False,
             add_reactions=False,
@@ -178,8 +179,11 @@ async def archive_discussion_channel(
             create_private_threads=False,
             read_message_history=True,
         )
-        if role is not None:
-            await discussion.set_permissions(role, overwrite=None)
+        if bot_member is not None:
+            overwrite = discussion.overwrites_for(bot_member)
+            overwrite.manage_channels = True
+            overwrites[bot_member] = overwrite
+        await discussion.edit(category=archive_category, overwrites=overwrites)
         return True
     except discord.NotFound:
         # Already gone: success, keeps the periodic loop idempotent (docs/design.md)

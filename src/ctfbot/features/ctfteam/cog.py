@@ -634,7 +634,7 @@ class CTFTeamCampaigns(
         role = guild.get_role(item.role_id)
         if isinstance(disc_ch, discord.TextChannel):
             ok = await discord_ops.archive_discussion_channel(
-                disc_ch, archive_category, role, guild.me
+                disc_ch, archive_category, role, guild.me, creator_id=item.created_by
             )
         ok = (
             await discord_ops.delete_voice_channel(

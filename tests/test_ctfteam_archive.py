@@ -54,6 +54,8 @@ class ArchiveCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
 
     def make_guild(
         self,
+        *,
+        creator_cached: bool = True,
     ) -> tuple[
         mock.Mock,
         mock.Mock,
@@ -63,18 +65,64 @@ class ArchiveCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
         archive_category = mock.Mock(spec=discord.CategoryChannel)
         discussion = mock.Mock(spec=discord.TextChannel)
         discussion.guild = guild
-        discussion.overwrites_for.return_value = discord.PermissionOverwrite()
-        discussion.set_permissions = mock.AsyncMock()
         discussion.edit = mock.AsyncMock()
         discussion.send = mock.AsyncMock()
-        role = mock.Mock(spec=discord.Role)
+        role = mock.Mock(spec=discord.Role, id=4)
         role.delete = mock.AsyncMock()
         channels = {5: discussion, 8: archive_category}
         guild.get_channel.side_effect = channels.get
         guild.get_role.return_value = role
-        guild.me = mock.Mock(spec=discord.Member)
-        guild.default_role = mock.Mock(spec=discord.Role)
+        guild.me = mock.Mock(spec=discord.Member, id=9)
+        guild.default_role = mock.Mock(spec=discord.Role, id=1)
+        creator = mock.Mock(spec=discord.Member, id=self.item.created_by)
+        discussion.overwrites = discord_ops._text_overwrites(
+            guild, role, creator, guild.me
+        )
+        if not creator_cached:
+            discussion.overwrites[discord.Object(id=creator.id, type=discord.User)] = (
+                discussion.overwrites.pop(creator)
+            )
+        discussion.overwrites_for.side_effect = discussion.overwrites.__getitem__
         return guild, discussion, role
+
+    async def test_archive_removes_creator_and_role_overwrites(self) -> None:
+        for creator_cached in (True, False):
+            with self.subTest(creator_cached=creator_cached):
+                guild, discussion, role = self.make_guild(creator_cached=creator_cached)
+                delete_voice = mock.AsyncMock(return_value=True)
+                with mock.patch.object(
+                    discord_ops, "delete_voice_channel", new=delete_voice
+                ):
+                    result = await self.cog._archive_campaign_resources(
+                        guild, self.item
+                    )
+
+                self.assertTrue(result)
+                discussion.edit.assert_awaited_once()
+                overwrites = discussion.edit.call_args.kwargs["overwrites"]
+                self.assertNotIn(
+                    self.item.created_by, {target.id for target in overwrites}
+                )
+                self.assertNotIn(role, overwrites)
+                self.assertTrue(overwrites[guild.default_role].view_channel)
+                self.assertFalse(overwrites[guild.default_role].send_messages)
+                self.assertTrue(overwrites[guild.me].send_messages)
+                self.assertTrue(overwrites[guild.me].manage_channels)
+
+    async def test_permission_update_failure_keeps_campaign_unarchived(self) -> None:
+        guild, discussion, _ = self.make_guild()
+        discussion.edit.side_effect = discord.Forbidden(
+            mock.Mock(status=403, reason="Forbidden"), "cannot edit channel"
+        )
+        delete_voice = mock.AsyncMock(return_value=True)
+        with mock.patch.object(discord_ops, "delete_voice_channel", new=delete_voice):
+            result = await self.cog._archive_campaign_resources(guild, self.item)
+
+        self.assertFalse(result)
+        discussion.send.assert_not_awaited()
+        self.assertIsNone(
+            self.db.find_closed_campaign_by_name(ctf_name="Example", archived=True)
+        )
 
     async def test_resource_failure_does_not_send_archive_notification(self) -> None:
         guild, discussion, _ = self.make_guild()

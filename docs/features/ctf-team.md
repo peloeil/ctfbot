@@ -49,7 +49,7 @@ close は毎分ループからリトライされるため、以下の順序で�
 
 close と同じく「Discord リソース → DB → 通知」の順で行う。archive カテゴリ（`settings.ctfteam_archive_category_id`）が解決できなければその時点で失敗（DB 未更新、リトライ対象）。それ以外のリソース操作は途中で失敗しても最後まで試行し、**すべて成功した場合のみ** DB を更新する:
 
-1. discussion チャンネルの archive（`NotFound` は成功扱い）: bot へ `manage_channels` overwrite を付与 → archive カテゴリへ移動 → `@everyone` を読み取り専用の権限に置き換え → ロールの overwrite を削除
+1. discussion チャンネルの archive（`NotFound` は成功扱い）: archive カテゴリへの移動と権限更新を一度の編集で行う。`@everyone` を読み取り専用にし、募集ロールと作成者の overwrite を削除する。bot の overwrite は維持し、`manage_channels` を付与する
 2. voice チャンネルが残っていれば削除（`NotFound` は成功扱い）
 3. ロールを削除（既に存在しなければ成功扱い）
 4. `mark_archived`（`archived_at_unix IS NULL` 条件付き UPDATE による atomic claim）で DB に記録
@@ -182,7 +182,8 @@ discussion チャンネルは normalize 結果を、voice チャンネルは `{n
 ### archive 後の権限
 
 - `@everyone`: `view_channel=True`, `send_messages=False`, `add_reactions=False`, `create_public_threads=False`, `create_private_threads=False`, `read_message_history=True`
-- ロールの overwrite は削除
+- 募集ロールと作成者個人の overwrite は削除する。個人への投稿許可は `@everyone` の投稿禁止より優先されるため、作成者も削除対象とする。作成者は保存済み ID で識別し、退出済み・メンバーキャッシュに不在でも削除する
+- bot の投稿権限は通知用に維持し、`manage_channels` を付与する
 
 ### メッセージと通知
 
