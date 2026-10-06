@@ -46,7 +46,11 @@ Discord が扱う全権限について、Guild での実効権限を `Guild ✅ 
 | View Channels | `view_channel` | 対象チャンネルの閲覧 |
 | Read Message History | `read_message_history` | 募集メッセージの取得 |
 | Send Messages | `send_messages` | 募集・通知・応答の送信 |
-| Send Messages in Threads | `send_messages_in_threads` | スレッド内での応答 |
+| Send Messages in Threads | `send_messages_in_threads` | スレッド内での応答と archive 時の投稿禁止設定 |
+| Create Public Threads | `create_public_threads` | archive 時に公開スレッドの作成を禁止する設定 |
+| Create Private Threads | `create_private_threads` | archive 時にプライベートスレッドの作成を禁止する設定 |
+| Send Voice Messages | `send_voice_messages` | archive 時にボイスメッセージの送信を禁止する設定 |
+| Create Polls | `send_polls` | archive 時に投票の作成を禁止する設定 |
 | Embed Links | `embed_links` | CTFtime・AlpacaHack・募集一覧の Embed 送信 |
 | Add Reactions | `add_reactions` | 募集メッセージへの ✅ 追加 |
 | Manage Channels | `manage_channels` | チャンネルの作成・移動・削除 |
@@ -56,4 +60,4 @@ Discord が扱う全権限について、Guild での実効権限を `Guild ✅ 
 | Speak | `speak` | CTF 用 VC の発言許可の設定 |
 | Video | `stream` | CTF 用 VC の配信許可の設定 |
 
-チャンネル作成時に上書きする権限は、Bot 自身も Guild で保持している必要がある。そのため、VC の権限設定に使う `connect`・`speak`・`stream` も必要になる（[Discord API の制約](https://docs.discord.com/developers/resources/guild#create-guild-channel)）。
+権限上書きに使う権限は、チャンネル作成時は Guild で、archive 時は Guild または親カテゴリで Bot 自身が保持する必要がある（[チャンネル作成](https://docs.discord.com/developers/resources/guild#create-guild-channel)、[チャンネル変更](https://docs.discord.com/developers/resources/channel#modify-channel)）。

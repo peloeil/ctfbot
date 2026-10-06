@@ -181,7 +181,7 @@ discussion チャンネルは normalize 結果を、voice チャンネルは `{n
 
 ### archive 後の権限
 
-- `@everyone`: `view_channel=True`, `send_messages=False`, `add_reactions=False`, `create_public_threads=False`, `create_private_threads=False`, `read_message_history=True`
+- `@everyone`: `view_channel=True`, `read_message_history=True`。メッセージ・スレッド内投稿・スレッド作成・ボイスメッセージ・投票・リアクションは禁止する
 - 募集ロールと作成者個人の overwrite は削除する。個人への投稿許可は `@everyone` の投稿禁止より優先されるため、作成者も削除対象とする。作成者は保存済み ID で識別し、退出済み・メンバーキャッシュに不在でも削除する
 - bot の投稿権限は通知用に維持し、`manage_channels` を付与する
 

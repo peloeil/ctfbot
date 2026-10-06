@@ -106,6 +106,13 @@ class ArchiveCampaignResourcesTest(unittest.IsolatedAsyncioTestCase):
                 self.assertNotIn(role, overwrites)
                 self.assertTrue(overwrites[guild.default_role].view_channel)
                 self.assertFalse(overwrites[guild.default_role].send_messages)
+                self.assertFalse(overwrites[guild.default_role].create_public_threads)
+                self.assertFalse(overwrites[guild.default_role].create_private_threads)
+                self.assertFalse(
+                    overwrites[guild.default_role].send_messages_in_threads
+                )
+                self.assertFalse(overwrites[guild.default_role].send_voice_messages)
+                self.assertFalse(overwrites[guild.default_role].send_polls)
                 self.assertTrue(overwrites[guild.me].send_messages)
                 self.assertTrue(overwrites[guild.me].manage_channels)
 

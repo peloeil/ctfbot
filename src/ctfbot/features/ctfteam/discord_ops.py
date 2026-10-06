@@ -177,6 +177,9 @@ async def archive_discussion_channel(
             add_reactions=False,
             create_public_threads=False,
             create_private_threads=False,
+            send_messages_in_threads=False,
+            send_voice_messages=False,
+            send_polls=False,
             read_message_history=True,
         )
         if bot_member is not None:
