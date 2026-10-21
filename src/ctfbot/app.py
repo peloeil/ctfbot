@@ -1,8 +1,6 @@
 import datetime
 import signal
-from collections.abc import Callable
 from types import FrameType
-from typing import cast
 
 import discord
 from discord.ext import commands
@@ -120,8 +118,8 @@ def run_bot(bot: CTFBot) -> None:
         bot.mark_shutdown_requested()
         if previous is signal.SIG_IGN:
             return
-        if previous is not signal.SIG_DFL:
-            cast(Callable, previous)(signum, frame)
+        if callable(previous):
+            previous(signum, frame)
             return
         signal.default_int_handler(signum, frame)
 
