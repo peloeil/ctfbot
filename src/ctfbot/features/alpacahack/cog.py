@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import re
 from pathlib import PurePosixPath
+from typing import cast
 from urllib.parse import unquote, urlparse
 
 import discord
@@ -186,7 +187,10 @@ class Alpacahack(
         member = await fetch_member(guild, mention_id)
         if member is not None:
             return member.mention, discord.AllowedMentions(
-                everyone=False, users=[member], roles=False
+                everyone=False,
+                # AllowedMentions only reads .id, but ty demands the Snowflake protocol.
+                users=cast("list[discord.abc.Snowflake]", [member]),
+                roles=False,
             )
         logger.warning(
             "Failed to resolve AlpacaHack daily mention target %s", mention_id

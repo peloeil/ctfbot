@@ -74,6 +74,7 @@ class CTFTimeClient:
     def _parse_event(self, item: object) -> CTFEvent:
         if not isinstance(item, dict):
             raise ExternalAPIError("Unexpected CTFtime event.")
+        # isinstance only narrows to dict[Any, Any]; API JSON is string-keyed.
         raw = cast(dict[str, object], item)
         title = str(raw.get("title", "Untitled"))
         start_raw = raw.get("start")

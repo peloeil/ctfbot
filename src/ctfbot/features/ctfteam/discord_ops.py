@@ -1,4 +1,5 @@
 import re
+from typing import cast
 
 import discord
 from discord.ext import commands
@@ -183,8 +184,9 @@ async def archive_discussion_channel(
             read_message_history=True,
         )
         if bot_member is not None:
-            overwrite = discussion.overwrites_for(bot_member)
-            overwrite.manage_channels = True
+            # Member subclasses User, but ty's protocol typing rejects it here.
+            overwrite = discussion.overwrites_for(cast(discord.User, bot_member))
+            overwrite.update(manage_channels=True)
             overwrites[bot_member] = overwrite
         await discussion.edit(category=archive_category, overwrites=overwrites)
         return True
@@ -341,7 +343,10 @@ async def send_join_announcement(
         channel,
         f"🙋 {member.mention} が **{campaign_name}** に参加しました。",
         allowed_mentions=discord.AllowedMentions(
-            everyone=False, users=[member], roles=False
+            everyone=False,
+            # AllowedMentions only reads .id, but ty demands the Snowflake protocol.
+            users=cast("list[discord.abc.Snowflake]", [member]),
+            roles=False,
         ),
     )
 
