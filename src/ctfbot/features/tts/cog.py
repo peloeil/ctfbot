@@ -479,6 +479,11 @@ class TTS(commands.Cog):
         pool = self._effective_pool()
         if saved is None:
             return assign_auto_voice(user_id, pool, usage), notes
+        if saved not in pool:
+            notes.append(
+                f"設定した声（ID {saved}）は現在の候補にないため、自動の声を使います。"
+            )
+            return assign_auto_voice(user_id, pool, usage), notes
         if self.catalog is not None and self._find_voice(saved) is None:
             notes.append(
                 f"設定した声（ID {saved}）が見つからないため、自動の声を使います。"
@@ -663,14 +668,23 @@ class TTS(commands.Cog):
         # No await from here on, so both values are read at one instant
         session = self.session
         current = session.voices.get(user_id) if session is not None else None
-        if saved is not None:
+        pool = self._effective_pool()
+        if saved is not None and saved in pool:
+            saved_in_pool = True
             lines = [f"声の設定: {self._describe(saved)}"]
         else:
-            auto = assign_auto_voice(user_id, self._effective_pool(), {})
-            lines = [f"声の設定: 自動（通常は {self._describe(auto)}）"]
+            saved_in_pool = False
+            auto = assign_auto_voice(user_id, pool, {})
+            if saved is None:
+                lines = [f"声の設定: 自動（通常は {self._describe(auto)}）"]
+            else:
+                lines = [
+                    f"声の設定: 自動（保存されている ID {saved} は現在の候補にないため"
+                    f"使いません。通常は {self._describe(auto)}）"
+                ]
         if current is not None:
             line = f"現在の読み上げ: {self._describe(current)}"
-            if saved is not None and current != saved:
+            if saved_in_pool and saved is not None and current != saved:
                 if self.catalog is not None and self._find_voice(saved) is None:
                     line += "（設定した声が見つからないため）"
                 else:
@@ -685,7 +699,7 @@ class TTS(commands.Cog):
             "help": "読み上げに使う声を選んで保存します。読み上げに参加して"
             "いなくても設定できます。読み上げ中は、他の人が使っていない声なら"
             "すぐに反映します。使用中の声は保存だけして、次に参加したときに"
-            "反映します。選べるのは VOICEVOX ENGINE が提供する声です。"
+            "反映します。選べるのは TTS_SPEAKER_IDS に設定した声だけです。"
         },
     )
     @app_commands.describe(voice="声の名前または ID (候補から選択)")
@@ -706,18 +720,21 @@ class TTS(commands.Cog):
             self._start_catalog_refresh()
         return [
             app_commands.Choice(name=voice.label[:100], value=str(voice.style_id))
-            for voice in filter_voices(current, self.catalog or ())
+            for voice in filter_voices(
+                current, self.catalog or (), self._effective_pool()
+            )
         ]
 
     async def _resolve_voice(self, query: str) -> Voice:
         await self._refresh_catalog()
         if self.catalog is None:
             raise ServiceError("声の一覧を取得できませんでした。")
-        voice = resolve_voice(query, self.catalog)
+        pool = self._effective_pool()
+        voice = resolve_voice(query, self.catalog, pool)
         if voice is None and query.strip().isdecimal():
             # The ENGINE may have been updated since the catalog was cached
             await self._refresh_catalog(force=True)
-            voice = resolve_voice(query, self.catalog)
+            voice = resolve_voice(query, self.catalog, pool)
         if voice is None:
             raise ServiceError("声が見つかりません。候補から選んでください。")
         return voice

@@ -32,7 +32,9 @@ ALICE = 1
 BOB = 2
 ADMIN = 3
 CAROL = 4
-POOL = (3, 2, 8)
+DAVE = 5
+EVE = 6
+POOL = (3, 2, 8, 1, 11)
 VOICES = tuple(Voice(i, f"キャラ{i}", "ノーマル") for i in (1, 2, 3, 8, 11))
 
 
@@ -729,11 +731,13 @@ class MembersTest(VoiceTestCase):
             await self.join(user)
         await self.run_command(self.cog.leave, self.interaction(BOB))
         await self.join(BOB)
-        await self.vset(ALICE, "11")
+        assert self.cog.session is not None
+        new = next(v for v in POOL if v not in self.cog.session.voices.values())
+        await self.vset(ALICE, str(new))
         _, reply = await self.members()
         names = [line.split(":")[0] for line in reply.split("\n")[1:]]
         self.assertEqual(names, ["- user1（あなた）", f"- user{CAROL}", f"- user{BOB}"])
-        self.assertIn("- user1（あなた）: キャラ11（ノーマル）", reply)
+        self.assertIn(f"- user1（あなた）: キャラ{new}（ノーマル）", reply)
 
     async def test_caller_need_not_be_in_vc_or_opted_in(self) -> None:
         await self.join(ALICE)
@@ -814,9 +818,10 @@ class VoiceAssignmentTest(VoiceTestCase):
     async def test_participants_get_distinct_voices_until_the_pool_runs_out(
         self,
     ) -> None:
-        for user in (ALICE, BOB, CAROL):
+        users = (ALICE, BOB, CAROL, ADMIN, DAVE)
+        for user in users:
             await self.join(user)
-        voices = {self.session_voice(user) for user in (ALICE, BOB, CAROL)}
+        voices = {self.session_voice(user) for user in users}
         self.assertEqual(voices, set(POOL))
 
     async def test_simultaneous_joins_do_not_share_a_voice(self) -> None:
@@ -847,7 +852,7 @@ class VoiceAssignmentTest(VoiceTestCase):
     async def test_saved_voice_is_kept_as_duplicate_when_the_pool_is_full(
         self,
     ) -> None:
-        for user in (ALICE, BOB, CAROL):
+        for user in (ALICE, BOB, CAROL, DAVE, EVE):
             await self.join(user)
         taken = self.session_voice(ALICE)
         self.save(ADMIN, taken)
@@ -862,6 +867,15 @@ class VoiceAssignmentTest(VoiceTestCase):
         self.assertIn(self.session_voice(ALICE), POOL)
         self.assertIn("ID 99", reply)
         self.assertEqual(self.saved(ALICE), 99)
+
+    async def test_saved_voice_outside_pool_falls_back_and_keeps_the_row(
+        self,
+    ) -> None:
+        self.save(ALICE, 4)
+        reply = await self.join(ALICE)
+        self.assertIn(self.session_voice(ALICE), POOL)
+        self.assertIn("ID 4", reply)
+        self.assertEqual(self.saved(ALICE), 4)
 
     async def test_preference_read_failure_does_not_block_join(self) -> None:
         with (
@@ -959,6 +973,13 @@ class VoiceSetTest(VoiceTestCase):
                 reply = await self.vset(ALICE, query, None)
                 self.assertEqual(reply, "声が見つかりません。候補から選んでください。")
                 self.assertIsNone(self.saved(ALICE))
+
+    async def test_voice_outside_pool_is_not_saved(self) -> None:
+        self.cog.catalog = (*VOICES, Voice(4, "キャラ4", "ノーマル"))
+        self.cog.catalog_fetched_at = self.cog.clock()
+        reply = await self.vset(ALICE, "4", None)
+        self.assertEqual(reply, "声が見つかりません。候補から選んでください。")
+        self.assertIsNone(self.saved(ALICE))
 
     async def test_unknown_id_triggers_one_forced_refresh(self) -> None:
         await self.vset(ALICE, "999", None)
@@ -1096,6 +1117,13 @@ class VoiceResetShowTest(VoiceTestCase):
         self.assertIn("声の設定: キャラ11（ノーマル）（VOICEVOX:キャラ11）", reply)
         self.assertNotIn("現在の読み上げ", reply)
 
+    async def test_show_explains_a_saved_voice_outside_the_pool(self) -> None:
+        self.save(ALICE, 4)
+        await self.cog._refresh_catalog()
+        reply = await self.vshow(ALICE)
+        self.assertIn("自動", reply)
+        self.assertIn("保存されている ID 4", reply)
+
     async def test_show_explains_a_session_voice_that_differs(self) -> None:
         await self.join(ALICE)
         self.save(BOB, self.session_voice(ALICE))
@@ -1186,6 +1214,18 @@ class CatalogTest(VoiceTestCase):
         self.assertEqual(
             [(c.name, c.value) for c in choices],
             [("ノーマル（ノーマル）", "1"), ("English（Normal）", "3")],
+        )
+
+    async def test_autocomplete_offers_only_pool_voices(self) -> None:
+        self.cog.catalog = (
+            Voice(1, "プール内", "ノーマル"),
+            Voice(4, "プール外", "ノーマル"),
+        )
+        self.cog.catalog_fetched_at = self.cog.clock()
+        interaction = self.interaction(ALICE)
+        choices = await cast(Any, self.cog).voice_set_autocomplete(interaction, "")
+        self.assertEqual(
+            [(c.name, c.value) for c in choices], [("プール内（ノーマル）", "1")]
         )
 
     async def test_unload_cancels_the_background_refresh(self) -> None:

@@ -1,7 +1,7 @@
 import hashlib
 import re
 import unicodedata
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 
 MAX_VOICE_CHOICES = 25
@@ -102,22 +102,29 @@ def _is_normal_voice(voice: Voice) -> bool:
     return _fold(voice.style_name).strip() in _NORMAL_STYLE_NAMES
 
 
-def resolve_voice(query: str, voices: Sequence[Voice]) -> Voice | None:
-    """Resolve a style ID or an exact label (NFKC and casefold insensitive)."""
+def resolve_voice(
+    query: str, voices: Sequence[Voice], allowed_ids: Collection[int]
+) -> Voice | None:
+    """Resolve a style ID or an exact label among the allowed normal voices."""
     folded = _fold(query).strip()
     for voice in voices:
+        if voice.style_id not in allowed_ids or not _is_normal_voice(voice):
+            continue
         if folded == str(voice.style_id) or folded == _fold(voice.label):
             return voice
     return None
 
 
-def filter_voices(query: str, voices: Sequence[Voice]) -> list[Voice]:
-    """Return normal-style voices matching the query, for autocomplete."""
+def filter_voices(
+    query: str, voices: Sequence[Voice], allowed_ids: Collection[int]
+) -> list[Voice]:
+    """Return allowed normal-style voices matching the query, for autocomplete."""
     folded = _fold(query).strip()
     matched = [
         voice
         for voice in voices
-        if _is_normal_voice(voice)
+        if voice.style_id in allowed_ids
+        and _is_normal_voice(voice)
         and (folded in _fold(voice.label) or folded in str(voice.style_id))
     ]
     return matched[:MAX_VOICE_CHOICES]

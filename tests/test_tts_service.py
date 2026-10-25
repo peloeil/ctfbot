@@ -131,33 +131,54 @@ class VoiceCatalogHelpersTest(unittest.TestCase):
         Voice(1, "ずんだもん", "あまあま"),
         Voice(2, "四国めたん", "ノーマル"),
         Voice(10, "Zundamon", "Normal"),
+        Voice(4, "四国めたん", "ノーマル"),
     )
+    ALLOWED = frozenset({3, 2, 10})
 
     def test_label_and_credit(self) -> None:
         self.assertEqual(self.VOICES[0].label, "ずんだもん（ノーマル）")
         self.assertEqual(self.VOICES[0].credit, "VOICEVOX:ずんだもん")
 
     def test_resolve_by_id_or_exact_label(self) -> None:
-        self.assertEqual(resolve_voice("3", self.VOICES), self.VOICES[0])
-        self.assertEqual(resolve_voice("\uff13", self.VOICES), self.VOICES[0])
+        self.assertEqual(resolve_voice("3", self.VOICES, self.ALLOWED), self.VOICES[0])
         self.assertEqual(
-            resolve_voice("ずんだもん（あまあま）", self.VOICES), self.VOICES[1]
+            resolve_voice("\uff13", self.VOICES, self.ALLOWED), self.VOICES[0]
         )
         self.assertEqual(
-            resolve_voice("ZUNDAMON（NORMAL）", self.VOICES),
+            resolve_voice("四国めたん（ノーマル）", self.VOICES, self.ALLOWED),
+            self.VOICES[2],
+        )
+        self.assertEqual(
+            resolve_voice("ZUNDAMON（NORMAL）", self.VOICES, self.ALLOWED),
             self.VOICES[3],
         )
 
     def test_resolve_rejects_unknown_and_partial_input(self) -> None:
         for query in ("", "99", "ずんだもん", "ずんだもん（"):
             with self.subTest(query=query):
-                self.assertIsNone(resolve_voice(query, self.VOICES))
+                self.assertIsNone(resolve_voice(query, self.VOICES, self.ALLOWED))
+
+    def test_resolve_and_filter_restrict_to_allowed_ids(self) -> None:
+        self.assertIsNone(resolve_voice("4", self.VOICES, self.ALLOWED))
+        self.assertIsNone(
+            resolve_voice("ずんだもん（あまあま）", self.VOICES, self.ALLOWED)
+        )
+        self.assertEqual(
+            filter_voices("", self.VOICES, self.ALLOWED),
+            [self.VOICES[0], self.VOICES[2], self.VOICES[3]],
+        )
 
     def test_filter_matches_substrings_and_ids_in_catalog_order(self) -> None:
-        self.assertEqual(filter_voices("ずんだ", self.VOICES), [self.VOICES[0]])
-        self.assertEqual(filter_voices("ZUNDA", self.VOICES), [self.VOICES[3]])
-        self.assertEqual(filter_voices("10", self.VOICES), [self.VOICES[3]])
-        self.assertEqual(filter_voices("なし", self.VOICES), [])
+        self.assertEqual(
+            filter_voices("ずんだ", self.VOICES, self.ALLOWED), [self.VOICES[0]]
+        )
+        self.assertEqual(
+            filter_voices("ZUNDA", self.VOICES, self.ALLOWED), [self.VOICES[3]]
+        )
+        self.assertEqual(
+            filter_voices("10", self.VOICES, self.ALLOWED), [self.VOICES[3]]
+        )
+        self.assertEqual(filter_voices("なし", self.VOICES, self.ALLOWED), [])
 
     def test_filter_offers_only_normal_style_names(self) -> None:
         voices = (
@@ -169,18 +190,20 @@ class VoiceCatalogHelpersTest(unittest.TestCase):
             Voice(6, "感情", "あまあま"),
             Voice(7, "感情", "ツンツン"),
         )
+        allowed = set(range(1, 8))
         self.assertEqual(
-            filter_voices("", voices),
+            filter_voices("", voices, allowed),
             [voices[0], voices[1], voices[2], voices[3], voices[4]],
         )
-        self.assertEqual(filter_voices("あま", voices), [])
-        self.assertEqual(filter_voices("感情", voices), [])
+        self.assertEqual(filter_voices("あま", voices, allowed), [])
+        self.assertEqual(filter_voices("感情", voices, allowed), [])
 
     def test_filter_returns_at_most_25_and_all_for_empty_input(self) -> None:
         many = tuple(Voice(i, "キャラ", "ノーマル") for i in range(40))
-        self.assertEqual(filter_voices("", many), list(many[:25]))
-        self.assertEqual(filter_voices("キャラ", many), list(many[:25]))
-        self.assertEqual(filter_voices("", ()), [])
+        allowed = set(range(40))
+        self.assertEqual(filter_voices("", many, allowed), list(many[:25]))
+        self.assertEqual(filter_voices("キャラ", many, allowed), list(many[:25]))
+        self.assertEqual(filter_voices("", (), allowed), [])
 
 
 class VoicevoxClientTest(unittest.TestCase):

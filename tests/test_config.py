@@ -50,7 +50,7 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(settings.sudo_duration_minutes, 30)
         self.assertIsNone(settings.tts_voicevox_url)
         self.assertFalse(settings.tts_enabled)
-        self.assertEqual(settings.tts_speaker_ids, (3, 2, 8, 11, 14, 13))
+        self.assertEqual(settings.tts_speaker_ids, (3, 2, 8, 11, 14))
         self.assertEqual(settings.tts_max_chars, 200)
         self.assertEqual(settings.tts_speed_scale, 1.5)
 
@@ -89,7 +89,7 @@ class ConfigTest(unittest.TestCase):
             )
             self.assertEqual(
                 (defaults.tts_speaker_ids, defaults.tts_max_chars),
-                ((3, 2, 8, 11, 14, 13), 200),
+                ((3, 2, 8, 11, 14), 200),
             )
         single = load_settings(environ=self.env(TTS_SPEAKER_IDS="1"))
         self.assertEqual(single.tts_speaker_ids, (1,))

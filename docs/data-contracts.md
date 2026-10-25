@@ -45,7 +45,7 @@
 | `CTFTIME_EVENT_LIMIT` | 取得するイベント数上限 | `int` | — | `20` | `_require_positive` |
 | `CTFTIME_USER_AGENT` | CTFtime API リクエストの User-Agent | `str` | — | `ctfbot/2.0 (+discord)` | デフォルト付き文字列 |
 | `TTS_VOICEVOX_URL` | VOICEVOX ENGINE のベース URL（`None` で VC 読み上げ無効）。設定すると `Settings.tts_enabled` が真になり、Message Content Intent が有効になる | `str \| None` | — | なし（機能無効） | strip 後に空なら `None` |
-| `TTS_SPEAKER_IDS` | 自動割り当てに使う VOICEVOX の style ID のプール（順序が割り当ての巡回順）。変更すると自動の割り当てが変わる | `tuple[int, ...]` | — | `3,2,8,11,14,13` | カンマ区切り。各要素は strip した非負整数。未設定・空文字・空白のみはデフォルト。空の要素・整数でない値・負値は起動拒否。重複は最初の出現を残す。ENGINE に存在するかは起動時に検証しない |
+| `TTS_SPEAKER_IDS` | 自動割り当てと `/read voice set` の選択候補に使う VOICEVOX の style ID のプール（順序が割り当ての巡回順）。ここにない声は選べない | `tuple[int, ...]` | — | `3,2,8,11,14` | カンマ区切り。各要素は strip した非負整数。未設定・空文字・空白のみはデフォルト。空の要素・整数でない値・負値は起動拒否。重複は最初の出現を残す。ENGINE に存在するかは起動時に検証しない。増やすと VOICEVOX が読み込むモデルが増える |
 | `TTS_MAX_CHARS` | 1 投稿あたりの読み上げ文字数 | `int` | — | `200` | `_require_positive`。`1000` を超えたら起動拒否 |
 | `TTS_SPEED_SCALE` | 読み上げの話速。`audio_query` の `speedScale` を上書きする。変更は再起動で反映 | `float` | — | `1.5` | strip 後に空ならデフォルト。`float()` で解釈できない値・`nan`・`inf`・`0.5` 以上 `2.0` 以下を外れる値は起動拒否（既定値に戻さない） |
 
