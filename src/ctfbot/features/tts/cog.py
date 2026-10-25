@@ -11,6 +11,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from ctfbot.errors import ExternalAPIError, RepositoryError, ServiceError
+from ctfbot.features.tts.engine import VoicevoxEngine
 from ctfbot.features.tts.service import (
     SpeechItem,
     Voice,
@@ -62,6 +63,8 @@ class _Session:
         self.epoch = 0
         self.worker: asyncio.Task[None] | None = None
         self.grace: asyncio.Task[None] | None = None
+        # Whether this session keeps the ENGINE up (see VoicevoxEngine.hold)
+        self.holds_engine = False
 
     @property
     def opted_in(self) -> Collection[int]:
@@ -125,6 +128,7 @@ class TTS(commands.Cog):
         bot: commands.Bot,
         client: VoicevoxClient,
         *,
+        engine: VoicevoxEngine,
         grace_seconds: float = LEAVE_GRACE_SECONDS,
         playback_ready: bool | None = None,
     ) -> None:
@@ -135,6 +139,7 @@ class TTS(commands.Cog):
         self.pool = settings.tts_speaker_ids
         self.db = get_runtime(bot).db
         self.client = client
+        self.engine = engine
         self.grace_seconds = grace_seconds
         self.lock = asyncio.Lock()
         self.session: _Session | None = None
@@ -151,7 +156,8 @@ class TTS(commands.Cog):
         )
 
     async def cog_load(self) -> None:
-        self._start_catalog_refresh()
+        # The ENGINE is not started just to warm the catalog at boot
+        self.engine.start_idle_watch()
 
     async def cog_unload(self) -> None:
         if self.catalog_task is not None:
@@ -159,6 +165,7 @@ class TTS(commands.Cog):
         async with self.lock:
             if self.session is not None:
                 await self._teardown(self.session)
+        await self.engine.shutdown()
 
     def _catalog_is_fresh(self) -> bool:
         return (
@@ -192,7 +199,7 @@ class TTS(commands.Cog):
             ):
                 return
             try:
-                voices = await asyncio.to_thread(self.client.fetch_voices)
+                voices = await self.engine.call(self.client.fetch_voices)
             except ExternalAPIError:
                 logger.warning("Failed to fetch the VOICEVOX voice catalog")
                 self.catalog_failed_at = now
@@ -245,6 +252,9 @@ class TTS(commands.Cog):
             if task is not None and task is not current:
                 task.cancel()
         session.drain_queue()
+        if session.holds_engine:
+            session.holds_engine = False
+            self.engine.release()
         voice_client = session.voice_client
         if voice_client.is_playing():
             voice_client.stop()
@@ -288,7 +298,7 @@ class TTS(commands.Cog):
     async def _speak(self, session: _Session, item: SpeechItem) -> None:
         epoch = session.epoch
         try:
-            audio = await asyncio.to_thread(
+            audio = await self.engine.call(
                 self.client.synthesize, item.text, item.speaker_id
             )
         except ExternalAPIError:
@@ -520,6 +530,8 @@ class TTS(commands.Cog):
                 await self._force_disconnect(guild.voice_client)
             raise ServiceError("ボイスチャンネルに接続できませんでした。") from None
         session = _Session(channel.id, voice_client)
+        self.engine.hold()
+        session.holds_engine = True
         session.worker = asyncio.create_task(self._run_worker(session))
         self.session = session
         return session
@@ -660,6 +672,7 @@ class TTS(commands.Cog):
     async def _voice_show(self, interaction: discord.Interaction) -> str:
         require_guild(interaction)
         user_id = interaction.user.id
+        await self._refresh_catalog()
         try:
             saved = await asyncio.to_thread(self.db.find_tts_voice, user_id)
         except RepositoryError:
@@ -831,4 +844,5 @@ async def setup(bot: commands.Bot) -> None:
     client = VoicevoxClient(
         settings.tts_voicevox_url, speed_scale=settings.tts_speed_scale
     )
-    await bot.add_cog(TTS(bot, client))
+    engine = VoicevoxEngine(client, settings.tts_voicevox_container)
+    await bot.add_cog(TTS(bot, client, engine=engine))

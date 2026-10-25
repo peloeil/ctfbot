@@ -5,6 +5,7 @@ from ctfbot.features.tts.service import Voice
 
 TIMEOUT = (5, 30)
 SPEAKERS_TIMEOUT = (3, 10)
+VERSION_TIMEOUT = (1, 2)
 # Styles without "type" come from older engines; sing/frame_decode cannot go
 # through /audio_query
 TALK_STYLE_TYPES = frozenset({"talk", "streaming_talk"})
@@ -14,6 +15,13 @@ class VoicevoxClient:
     def __init__(self, base_url: str, *, speed_scale: float) -> None:
         self.base_url = base_url.rstrip("/")
         self.speed_scale = speed_scale
+
+    def check_version(self) -> None:
+        try:
+            response = requests.get(f"{self.base_url}/version", timeout=VERSION_TIMEOUT)
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            raise ExternalAPIError("VOICEVOX version request failed.") from exc
 
     def fetch_voices(self) -> tuple[Voice, ...]:
         try:

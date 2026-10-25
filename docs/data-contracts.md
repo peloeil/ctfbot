@@ -48,6 +48,7 @@
 | `AI_CHAT_API_URL` | チャット補完の完全な URL | `str` | — | `https://api.ai.sakura.ad.jp/v1/chat/completions` | デフォルト付き文字列。接続先変更時に指定 |
 | `AI_CHAT_MODEL` | チャット補完のモデル | `str` | — | `preview/gemma-4-31B-it` | デフォルト付き文字列。接続先変更時に指定 |
 | `TTS_VOICEVOX_URL` | VOICEVOX ENGINE のベース URL（`None` で VC 読み上げ無効）。設定すると `Settings.tts_enabled` が真になり、Message Content Intent が有効になる | `str \| None` | — | なし（機能無効） | strip 後に空なら `None` |
+| `TTS_VOICEVOX_CONTAINER` | VOICEVOX ENGINE の podman コンテナ名。bot が `podman start`/`podman stop` で ENGINE を必要なときだけ起動・停止する（[運用](features/tts.md#オンデマンド起動)）。`TTS_VOICEVOX_URL` が未設定なら使わない | `str` | — | `voicevox` | 未設定・空文字・空白のみはデフォルト。コンテナは運用者が事前に作成する。bot 実行ユーザーで rootless podman が動く必要がある |
 | `TTS_SPEAKER_IDS` | 自動割り当てと `/read voice set` の選択候補に使う VOICEVOX の style ID のプール（順序が割り当ての巡回順）。ここにない声は選べない | `tuple[int, ...]` | — | `3,13,2,46,8,10` | カンマ区切り。各要素は strip した非負整数。未設定・空文字・空白のみはデフォルト。空の要素・整数でない値・負値は起動拒否。重複は最初の出現を残す。ENGINE に存在するかは起動時に検証しない。別の VVM の声を加えると VOICEVOX が読み込むモデルが増える |
 | `TTS_MAX_CHARS` | 1 投稿あたりの読み上げ文字数 | `int` | — | `100` | `_require_positive`。`1000` を超えたら起動拒否。上げると VOICEVOX のメモリ使用量が VVM ごとに増える |
 | `TTS_SPEED_SCALE` | 読み上げの話速。`audio_query` の `speedScale` を上書きする。変更は再起動で反映 | `float` | — | `1.5` | strip 後に空ならデフォルト。`float()` で解釈できない値・`nan`・`inf`・`0.5` 以上 `2.0` 以下を外れる値は起動拒否（既定値に戻さない） |

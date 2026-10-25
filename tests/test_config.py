@@ -58,6 +58,17 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(settings.tts_speaker_ids, (3, 13, 2, 46, 8, 10))
         self.assertEqual(settings.tts_max_chars, 100)
         self.assertEqual(settings.tts_speed_scale, 1.5)
+        self.assertEqual(settings.tts_voicevox_container, "voicevox")
+
+    def test_tts_voicevox_container(self) -> None:
+        for raw, expected in (
+            ("", "voicevox"),
+            ("  ", "voicevox"),
+            (" other ", "other"),
+        ):
+            with self.subTest(raw=raw):
+                settings = load_settings(environ=self.env(TTS_VOICEVOX_CONTAINER=raw))
+                self.assertEqual(settings.tts_voicevox_container, expected)
 
     def test_tts_speed_scale(self) -> None:
         for raw, expected in (

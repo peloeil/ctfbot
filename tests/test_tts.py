@@ -15,12 +15,14 @@ from discord.ext import commands
 from ctfbot.db import Database
 from ctfbot.errors import ExternalAPIError, RepositoryError
 from ctfbot.features.tts import cog as tts_cog
+from ctfbot.features.tts import engine as tts_engine
 from ctfbot.features.tts.cog import (
     CATALOG_RETRY_SECONDS,
     CATALOG_TTL_SECONDS,
     MAX_QUEUE_SIZE,
     TTS,
 )
+from ctfbot.features.tts.engine import VoicevoxEngine
 from ctfbot.features.tts.service import Voice
 from ctfbot.runtime import BotRuntime
 
@@ -83,6 +85,25 @@ async def wait_until(predicate: Callable[[], bool], timeout: float = 2.0) -> Non
             await asyncio.sleep(0.005)
 
 
+class PassThroughEngine:
+    """Stands in for VoicevoxEngine without touching podman."""
+
+    def hold(self) -> None:
+        pass
+
+    def release(self) -> None:
+        pass
+
+    def start_idle_watch(self) -> None:
+        pass
+
+    async def shutdown(self) -> None:
+        pass
+
+    async def call(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+        return await asyncio.to_thread(func, *args, **kwargs)
+
+
 class TTSTestCase(unittest.IsolatedAsyncioTestCase):
     grace_seconds = 0.05
 
@@ -130,6 +151,7 @@ class TTSTestCase(unittest.IsolatedAsyncioTestCase):
         self.cog = TTS(
             cast(Any, self.bot),
             self.client,
+            engine=cast(Any, PassThroughEngine()),
             grace_seconds=self.grace_seconds,
             playback_ready=True,
         )
@@ -1117,6 +1139,11 @@ class VoiceResetShowTest(VoiceTestCase):
         self.assertIn("声の設定: キャラ11（ノーマル）（VOICEVOX:キャラ11）", reply)
         self.assertNotIn("現在の読み上げ", reply)
 
+    async def test_show_fetches_the_catalog_for_labels_and_credit(self) -> None:
+        self.save(ALICE, 11)
+        reply = await self.vshow(ALICE)
+        self.assertIn("声の設定: キャラ11（ノーマル）（VOICEVOX:キャラ11）", reply)
+
     async def test_show_explains_a_saved_voice_outside_the_pool(self) -> None:
         self.save(ALICE, 4)
         await self.cog._refresh_catalog()
@@ -1232,7 +1259,7 @@ class CatalogTest(VoiceTestCase):
         release = threading.Event()
         self.addCleanup(release.set)
         self.client.fetch_voices.side_effect = lambda: release.wait(2)
-        await self.cog.cog_load()
+        self.cog._start_catalog_refresh()
         task = self.cog.catalog_task
         assert task is not None
         await self.cog.cog_unload()
@@ -1254,6 +1281,7 @@ class SetupTest(unittest.IsolatedAsyncioTestCase):
                     tts_speed_scale=1.5,
                     tts_voicevox_url=url,
                     tts_speaker_ids=POOL,
+                    tts_voicevox_container="voicevox",
                 ),
             ),
             db=mock.Mock(),
@@ -1268,6 +1296,13 @@ class SetupTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_enabled_registers_commands_with_help(self) -> None:
         bot = self.bot("http://127.0.0.1:50021")
+        process = mock.Mock(returncode=0)
+        process.communicate = mock.AsyncMock(return_value=(b"", b""))
+        patcher = mock.patch.object(
+            tts_engine.asyncio, "create_subprocess_exec", return_value=process
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
         with (
             mock.patch.object(tts_cog, "check_playback_ready", return_value=True),
             mock.patch.object(
@@ -1304,3 +1339,62 @@ class SetupTest(unittest.IsolatedAsyncioTestCase):
         assert isinstance(cog, TTS)
         self.assertEqual(cast(Any, cog.client).speed_scale, 1.5)
         await bot.remove_cog("TTS")
+
+
+class OnDemandEngineTest(TTSTestCase):
+    async def asyncSetUp(self) -> None:
+        await super().asyncSetUp()
+        self.podman: list[tuple[str, ...]] = []
+        self.podman_exit = 0
+
+        async def create(*args: Any, **_: Any) -> Any:
+            self.podman.append(tuple(args))
+            process = mock.Mock(returncode=self.podman_exit)
+            process.communicate = mock.AsyncMock(return_value=(b"", b"no container"))
+            return process
+
+        patcher = mock.patch.object(
+            tts_engine.asyncio, "create_subprocess_exec", side_effect=create
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.client.check_version.return_value = None
+        self.engine = VoicevoxEngine(self.client, "voicevox")
+        self.cog.engine = self.engine
+
+    async def test_session_holds_the_engine_until_it_ends(self) -> None:
+        await self.join(ALICE)
+        self.assertEqual(self.engine.holds, 1)
+        await self.run_command(self.cog.leave, self.interaction(ALICE))
+        self.assertEqual(self.engine.holds, 0)
+
+    async def test_synthesis_starts_the_engine_first(self) -> None:
+        await self.join(ALICE)
+        await self.cog.on_message(self.message(ALICE))
+        await wait_until(lambda: self.voice_client.play_calls == 1)
+        self.assertEqual(self.podman, [("podman", "start", "voicevox")])
+        self.voice_client.finish()
+
+    async def test_start_failure_skips_the_post_and_keeps_the_queue_going(self) -> None:
+        await self.join(ALICE)
+        # The join above started it; simulate an external stop
+        self.engine.running = False
+        self.podman.clear()
+        self.podman_exit = 1
+        with self.assertLogs("ctfbot", "WARNING"):
+            await self.cog.on_message(self.message(ALICE, message_id=1))
+            await wait_until(lambda: len(self.podman) == 1)
+            await asyncio.sleep(0.02)
+        self.client.synthesize.assert_not_called()
+        self.podman_exit = 0
+        await self.cog.on_message(self.message(ALICE, message_id=2))
+        await wait_until(lambda: self.voice_client.play_calls == 1)
+        self.voice_client.finish()
+
+    async def test_load_does_not_start_the_engine_and_unload_stops_it(self) -> None:
+        await self.cog.cog_load()
+        await asyncio.sleep(0.02)
+        self.client.fetch_voices.assert_not_called()
+        self.assertEqual(self.podman, [])
+        await self.cog.cog_unload()
+        self.assertEqual(self.podman, [("podman", "stop", "voicevox")])

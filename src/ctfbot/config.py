@@ -40,6 +40,7 @@ class Settings:
     tts_speaker_ids: tuple[int, ...]
     tts_max_chars: int
     tts_speed_scale: float
+    tts_voicevox_container: str
 
     @property
     def tts_enabled(self) -> bool:
@@ -49,6 +50,7 @@ class Settings:
 MAX_TTS_CHARS = 1000
 DEFAULT_TTS_SPEAKER_IDS = (3, 13, 2, 46, 8, 10)
 DEFAULT_TTS_SPEED_SCALE = 1.5
+DEFAULT_TTS_VOICEVOX_CONTAINER = "voicevox"
 MIN_TTS_SPEED_SCALE = 0.5
 MAX_TTS_SPEED_SCALE = 2.0
 
@@ -241,4 +243,6 @@ def load_settings(
         tts_speaker_ids=_read_int_list(env, "TTS_SPEAKER_IDS", DEFAULT_TTS_SPEAKER_IDS),
         tts_max_chars=tts_max_chars,
         tts_speed_scale=_read_tts_speed_scale(env),
+        tts_voicevox_container=env.get("TTS_VOICEVOX_CONTAINER", "").strip()
+        or DEFAULT_TTS_VOICEVOX_CONTAINER,
     )

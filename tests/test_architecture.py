@@ -31,7 +31,7 @@ class ArchitectureTest(unittest.TestCase):
         )
 
     def test_tts_service_and_client_do_not_import_discord(self) -> None:
-        for name in ("service.py", "voicevox.py"):
+        for name in ("service.py", "voicevox.py", "engine.py"):
             imports = imports_for(SRC / "features" / "tts" / name)
             self.assertFalse(
                 any(
