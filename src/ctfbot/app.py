@@ -88,7 +88,7 @@ def create_bot(
     bot = CTFBot(
         runtime,
         extensions=DEFAULT_EXTENSIONS + extra_extensions,
-        message_content=message_content,
+        message_content=message_content or loaded.tts_enabled,
     )
 
     @bot.tree.error

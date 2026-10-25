@@ -48,6 +48,54 @@ class ConfigTest(unittest.TestCase):
         self.assertIsNone(settings.admin_role_id)
         self.assertIsNone(settings.sudoer_role_id)
         self.assertEqual(settings.sudo_duration_minutes, 30)
+        self.assertIsNone(settings.tts_voicevox_url)
+        self.assertFalse(settings.tts_enabled)
+        self.assertEqual(settings.tts_speaker_ids, (3, 2, 8, 11, 14, 13))
+        self.assertEqual(settings.tts_max_chars, 200)
+
+    def test_tts_configuration(self) -> None:
+        for blank in ("", "  "):
+            settings = load_settings(environ=self.env(TTS_VOICEVOX_URL=blank))
+            self.assertIsNone(settings.tts_voicevox_url)
+            self.assertFalse(settings.tts_enabled)
+        settings = load_settings(
+            environ=self.env(
+                TTS_VOICEVOX_URL=" http://127.0.0.1:50021 ",
+                TTS_SPEAKER_IDS=" 5 , 0,5, 7 ",
+                TTS_MAX_CHARS="1000",
+            )
+        )
+        self.assertEqual(settings.tts_voicevox_url, "http://127.0.0.1:50021")
+        self.assertTrue(settings.tts_enabled)
+        self.assertEqual(settings.tts_speaker_ids, (5, 0, 7))
+        self.assertEqual(settings.tts_max_chars, 1000)
+        for blank in ("", "  "):
+            defaults = load_settings(
+                environ=self.env(TTS_SPEAKER_IDS=blank, TTS_MAX_CHARS="")
+            )
+            self.assertEqual(
+                (defaults.tts_speaker_ids, defaults.tts_max_chars),
+                ((3, 2, 8, 11, 14, 13), 200),
+            )
+        single = load_settings(environ=self.env(TTS_SPEAKER_IDS="1"))
+        self.assertEqual(single.tts_speaker_ids, (1,))
+
+    def test_invalid_tts_numbers_are_rejected(self) -> None:
+        for name, value in (
+            ("TTS_SPEAKER_IDS", "-1"),
+            ("TTS_SPEAKER_IDS", "x"),
+            ("TTS_SPEAKER_IDS", "3,,2"),
+            ("TTS_SPEAKER_IDS", "3,"),
+            ("TTS_SPEAKER_IDS", "3,x"),
+            ("TTS_MAX_CHARS", "0"),
+            ("TTS_MAX_CHARS", "1001"),
+            ("TTS_MAX_CHARS", "x"),
+        ):
+            with (
+                self.subTest(name=name, value=value),
+                self.assertRaises(ConfigurationError),
+            ):
+                load_settings(environ=self.env(**{name: value}))
 
     def test_optional_channel_ids_default_to_none(self) -> None:
         env = self.env()

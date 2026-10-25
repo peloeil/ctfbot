@@ -8,6 +8,7 @@ DEFAULT_EXTENSIONS = (
     "ctfbot.features.ctftime",
     "ctfbot.features.audit_log",
     "ctfbot.features.sudo.cog",
+    "ctfbot.features.tts.cog",
 )
 
 

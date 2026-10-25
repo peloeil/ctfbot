@@ -43,7 +43,7 @@ Discord が扱う全権限について、Guild での実効権限を `Guild ✅ 
 
 | Discord の英語表示名 | 権限名 | 用途 |
 |---|---|---|
-| View Channels | `view_channel` | 対象チャンネルの閲覧 |
+| View Channels | `view_channel` | 対象チャンネルの閲覧、VC 読み上げ対象のテキストチャットの受信 |
 | Read Message History | `read_message_history` | 募集メッセージの取得 |
 | Send Messages | `send_messages` | 募集・通知・応答の送信 |
 | Send Messages in Threads | `send_messages_in_threads` | スレッド内での応答と archive 時の投稿禁止設定 |
@@ -56,8 +56,8 @@ Discord が扱う全権限について、Guild での実効権限を `Guild ✅ 
 | Manage Channels | `manage_channels` | チャンネルの作成・移動・削除 |
 | Manage Roles | `manage_roles` | ロールの作成・付与・剥奪・削除とチャンネル権限の設定 |
 | View Audit Log | `view_audit_log` | Discord 監査ログイベントの受信 |
-| Connect | `connect` | CTF 用 VC の接続許可の設定 |
-| Speak | `speak` | CTF 用 VC の発言許可の設定 |
+| Connect | `connect` | CTF 用 VC の接続許可の設定、VC 読み上げの接続 |
+| Speak | `speak` | CTF 用 VC の発言許可の設定、VC 読み上げの音声再生 |
 | Video | `stream` | CTF 用 VC の配信許可の設定 |
 
 権限上書きに使う権限は、チャンネル作成時は Guild で、archive 時は Guild または親カテゴリで Bot 自身が保持する必要がある（[チャンネル作成](https://docs.discord.com/developers/resources/guild#create-guild-channel)、[チャンネル変更](https://docs.discord.com/developers/resources/channel#modify-channel)）。

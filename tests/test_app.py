@@ -13,7 +13,8 @@ class AppTest(unittest.IsolatedAsyncioTestCase):
         self,
     ) -> None:
         runtime = BotRuntime(
-            settings=cast(Any, SimpleNamespace(guild_id=999)), db=mock.Mock()
+            settings=cast(Any, SimpleNamespace(guild_id=999, tts_enabled=False)),
+            db=mock.Mock(),
         )
         bot = CTFBot(runtime)
         tree = mock.Mock()
@@ -43,6 +44,7 @@ class AppTest(unittest.IsolatedAsyncioTestCase):
             SimpleNamespace(
                 database_path=":memory:",
                 log_level="INFO",
+                tts_enabled=False,
             ),
         )
 
@@ -58,3 +60,18 @@ class AppTest(unittest.IsolatedAsyncioTestCase):
             (*DEFAULT_EXTENSIONS, "private_bot.feature"),
         )
         self.assertTrue(bot.intents.message_content)
+
+    def test_create_bot_enables_message_content_only_with_tts(self) -> None:
+        for tts_enabled in (False, True):
+            with self.subTest(tts_enabled=tts_enabled):
+                settings = cast(
+                    Any,
+                    SimpleNamespace(
+                        database_path=":memory:",
+                        log_level="INFO",
+                        tts_enabled=tts_enabled,
+                    ),
+                )
+                with mock.patch("ctfbot.app.Database", return_value=mock.Mock()):
+                    bot = create_bot(settings)
+                self.assertEqual(bot.intents.message_content, tts_enabled)

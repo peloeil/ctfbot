@@ -16,7 +16,7 @@ Claude が設計し、Codex が実装する。担当や進め方が依頼で指�
 ## プロジェクト固有の制約
 
 - 単一 guild 運用。コマンド登録先は `GUILD_ID`。
-- feature 間の相互 import を禁止する。`db.py` が feature から import できるのは `models.py` のみ。`db.py`・feature の `models.py`・`ctfteam/campaign.py`・`alpacahack/service.py` は Discord 非依存とし、`ctfteam/discord_ops.py` は DB 非依存とする。[静的検証](tests/test_architecture.py)で確認する。
+- feature 間の相互 import を禁止する。`db.py` が feature から import できるのは `models.py` のみ。`db.py`・feature の `models.py`・`ctfteam/campaign.py`・`alpacahack/service.py`・`tts/service.py`・`tts/voicevox.py` は Discord 非依存とし、`ctfteam/discord_ops.py` は DB 非依存とする。[静的検証](tests/test_architecture.py)で確認する。
 - 全 SQL は `db.py` の `Database` に集約する。`BotRuntime` は Settings と Database のみ保持し、外部 API クライアントは各 cog で生成する。
 - async 処理からの同期 DB・HTTP 呼び出しは `asyncio.to_thread` に委譲する。
 - 状態を持つ定期処理では DB の更新を確定してから通知する。削除・終了処理の `discord.NotFound` は成功扱いにする。送信失敗で状態を巻き戻さない。

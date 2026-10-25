@@ -30,6 +30,16 @@ class ArchitectureTest(unittest.TestCase):
             any(name == "discord" or name.startswith("discord.") for name in imports)
         )
 
+    def test_tts_service_and_client_do_not_import_discord(self) -> None:
+        for name in ("service.py", "voicevox.py"):
+            imports = imports_for(SRC / "features" / "tts" / name)
+            self.assertFalse(
+                any(
+                    name == "discord" or name.startswith("discord.") for name in imports
+                ),
+                f"tts/{name} imports discord",
+            )
+
     def test_db_does_not_import_discord(self) -> None:
         imports = imports_for(SRC / "db.py")
         self.assertFalse(
@@ -67,6 +77,7 @@ class ArchitectureTest(unittest.TestCase):
             "ctfbot.features.audit_log",
             "ctfbot.features.ctfteam",
             "ctfbot.features.sudo",
+            "ctfbot.features.tts",
         }
         for path in (SRC / "features").rglob("*.py"):
             if path.name == "__init__.py":

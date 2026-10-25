@@ -4,7 +4,7 @@ version = "1.0.0"
 requires-python = ">=3.15.0"
 dependencies = [
     "beautifulsoup4>=4.15.0",
-    "discord-py>=2.7.1",
+    "discord-py[voice]>=2.7.1",
     "requests>=2.34.2",
 ]
 
@@ -23,6 +23,8 @@ line-length = 88
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "N", "UP", "B", "C4", "SIM", "RUF"]
+# Voice labels are "キャラクター名（スタイル名）" with full-width parentheses
+allowed-confusables = ["（", "）"]
 
 [tool.ty.environment]
 root = ["./src"]

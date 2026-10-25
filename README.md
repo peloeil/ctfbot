@@ -23,7 +23,7 @@ uv run --no-dev --locked --env-file .env -m ctfbot
 
 1. Developer Portal の Installation で `Guild Install` を有効にし、`Install Link` を `None` にする。
 2. OAuth2 の scope に `bot` と `applications.commands` を選択し、生成された URL から対象サーバーへ招待する。
-3. Bot の公開設定をオフにし、`Server Members Intent` を有効にする。
+3. Bot の公開設定をオフにし、`Server Members Intent` を有効にする。VC 読み上げを使う場合は `Message Content Intent` も有効にする（[運用](docs/features/tts.md#運用)）。
 4. [必要な権限](docs/features/utility.md#必要な-bot-権限) を付与し、Bot のロールを操作対象ロールより上に置く。招待後は `/perms` で付与状態を確認できる。
 
 CTF 募集には投稿先チャンネル・CTF 用カテゴリ・archive 先カテゴリを用意し、CTFTEAM の 3 ID をすべて設定する。times には作成先カテゴリの `TIMES_CATEGORY_ID` を設定する。sudo のロール準備は [sudo の前提](docs/features/sudo.md#discord-側の前提) を参照する。
@@ -39,6 +39,7 @@ CTF 募集には投稿先チャンネル・CTF 用カテゴリ・archive 先カ�
 | [ユーティリティ](docs/features/utility.md) | `/help`、`/perms`、`/roll` |
 | [一時昇格](docs/features/sudo.md) | `/sudo`、`/unsudo`、期限切れロールの自動剥奪 |
 | [Discord 監査ログ](docs/features/audit-log.md) | イベントを DB に保存し、管理者操作を通知 |
+| [VC 読み上げ](docs/features/tts.md) | `/read join・leave・skip・stop`、VC テキストチャットの VOICEVOX 読み上げ（参加者ごとに声を割り当て）（`TTS_VOICEVOX_URL` 設定時のみ） |
 | [共通挙動](docs/core.md) | コマンド実行ログ、接続・停止通知、応答とメンション制御 |
 
 ## 開発資料

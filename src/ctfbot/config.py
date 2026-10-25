@@ -32,6 +32,17 @@ class Settings:
     ctftime_window_days: int
     ctftime_event_limit: int
     ctftime_user_agent: str
+    tts_voicevox_url: str | None
+    tts_speaker_ids: tuple[int, ...]
+    tts_max_chars: int
+
+    @property
+    def tts_enabled(self) -> bool:
+        return self.tts_voicevox_url is not None
+
+
+MAX_TTS_CHARS = 1000
+DEFAULT_TTS_SPEAKER_IDS = (3, 2, 8, 11, 14, 13)
 
 
 def _read_int(environ: Mapping[str, str], name: str, default: int | None = None) -> int:
@@ -47,6 +58,29 @@ def _read_int(environ: Mapping[str, str], name: str, default: int | None = None)
     if value < 0:
         raise ConfigurationError(f"{name} must be non-negative.")
     return value
+
+
+def _read_int_list(
+    environ: Mapping[str, str], name: str, default: tuple[int, ...]
+) -> tuple[int, ...]:
+    raw = environ.get(name, "").strip()
+    if not raw:
+        return default
+    values: dict[int, None] = {}
+    for item in raw.split(","):
+        item = item.strip()
+        if not item:
+            raise ConfigurationError(f"{name} must not contain empty items.")
+        try:
+            value = int(item)
+        except ValueError as exc:
+            raise ConfigurationError(
+                f"{name} must be comma-separated integers."
+            ) from exc
+        if value < 0:
+            raise ConfigurationError(f"{name} must be non-negative.")
+        values.setdefault(value)
+    return tuple(values)
 
 
 def _require_positive(value: int, name: str) -> int:
@@ -124,6 +158,12 @@ def load_settings(
             "ADMIN_ROLE_ID and SUDOER_ROLE_ID must be different roles."
         )
 
+    tts_max_chars = _require_positive(
+        _read_int(env, "TTS_MAX_CHARS", 200), "TTS_MAX_CHARS"
+    )
+    if tts_max_chars > MAX_TTS_CHARS:
+        raise ConfigurationError(f"TTS_MAX_CHARS must be at most {MAX_TTS_CHARS}.")
+
     return Settings(
         discord_token=discord_token,
         guild_id=guild_id,
@@ -162,4 +202,7 @@ def load_settings(
             "CTFTIME_USER_AGENT", "ctfbot/2.0 (+discord)"
         ).strip()
         or "ctfbot/2.0 (+discord)",
+        tts_voicevox_url=env.get("TTS_VOICEVOX_URL", "").strip() or None,
+        tts_speaker_ids=_read_int_list(env, "TTS_SPEAKER_IDS", DEFAULT_TTS_SPEAKER_IDS),
+        tts_max_chars=tts_max_chars,
     )
