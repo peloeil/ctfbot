@@ -52,7 +52,7 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(
             settings.ai_chat_api_url, "https://api.ai.sakura.ad.jp/v1/chat/completions"
         )
-        self.assertEqual(settings.ai_chat_model, "gpt-oss-120b")
+        self.assertEqual(settings.ai_chat_model, "preview/gemma-4-31B-it")
         self.assertIsNone(settings.tts_voicevox_url)
         self.assertFalse(settings.tts_enabled)
         self.assertEqual(settings.tts_speaker_ids, (3, 2, 14, 11, 13))
@@ -149,7 +149,7 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(settings.ai_chat_model, "custom")
         self.assertEqual(
             load_settings(environ=self.env(AI_CHAT_MODEL=" ")).ai_chat_model,
-            "gpt-oss-120b",
+            "preview/gemma-4-31B-it",
         )
 
     def test_optional_channel_ids_default_to_none(self) -> None:

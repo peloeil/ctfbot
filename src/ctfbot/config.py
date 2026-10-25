@@ -235,8 +235,8 @@ def load_settings(
             "AI_CHAT_API_URL", "https://api.ai.sakura.ad.jp/v1/chat/completions"
         ).strip()
         or "https://api.ai.sakura.ad.jp/v1/chat/completions",
-        ai_chat_model=env.get("AI_CHAT_MODEL", "gpt-oss-120b").strip()
-        or "gpt-oss-120b",
+        ai_chat_model=env.get("AI_CHAT_MODEL", "preview/gemma-4-31B-it").strip()
+        or "preview/gemma-4-31B-it",
         tts_voicevox_url=env.get("TTS_VOICEVOX_URL", "").strip() or None,
         tts_speaker_ids=_read_int_list(env, "TTS_SPEAKER_IDS", DEFAULT_TTS_SPEAKER_IDS),
         tts_max_chars=tts_max_chars,
