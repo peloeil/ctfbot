@@ -685,6 +685,117 @@ class VoiceTestCase(TTSTestCase):
         self.db.upsert_tts_voice(user_id, speaker_id, 0)
 
 
+class MembersTest(VoiceTestCase):
+    async def members(self, user_id: int = ALICE, channel_id: int | None = CHANNEL_A):
+        interaction = self.interaction(user_id, channel_id)
+        reply = await self.run_command(self.cog.members, interaction)
+        return interaction, reply
+
+    def seed(self, count: int) -> None:
+        assert self.cog.session is not None
+        for user_id in range(100, 100 + count):
+            self.voice_of[user_id] = self.channels[CHANNEL_A]
+            self.cog.session.voices[user_id] = 3
+
+    async def test_without_session(self) -> None:
+        _, reply = await self.members()
+        self.assertEqual(reply, "読み上げは開始されていません。")
+
+    async def test_no_participants_during_grace(self) -> None:
+        self.cog.grace_seconds = 10
+        await self.join(ALICE)
+        assert self.cog.session is not None
+        self.cog.session.voices.clear()
+        _, reply = await self.members()
+        self.assertIn("参加者はいません", reply)
+        self.assertIn(f"<#{CHANNEL_A}>", reply)
+
+    async def test_lists_in_join_order_and_marks_the_caller(self) -> None:
+        for user in (ALICE, BOB, CAROL):
+            await self.join(user)
+        _, reply = await self.members(BOB)
+        lines = reply.split("\n")
+        self.assertEqual(lines[0], f"🔊 <#{CHANNEL_A}> の読み上げ参加者（3 人）")
+        expected = [
+            f"- user{user}{'（あなた）' if user == BOB else ''}: "
+            f"キャラ{self.session_voice(user)}（ノーマル）"
+            for user in (ALICE, BOB, CAROL)
+        ]
+        self.assertEqual(lines[1:], expected)
+
+    async def test_rejoin_moves_to_the_end_and_voice_change_keeps_order(self) -> None:
+        for user in (ALICE, BOB, CAROL):
+            await self.join(user)
+        await self.run_command(self.cog.leave, self.interaction(BOB))
+        await self.join(BOB)
+        await self.vset(ALICE, "11")
+        _, reply = await self.members()
+        names = [line.split(":")[0] for line in reply.split("\n")[1:]]
+        self.assertEqual(names, ["- user1（あなた）", f"- user{CAROL}", f"- user{BOB}"])
+        self.assertIn("- user1（あなた）: キャラ11（ノーマル）", reply)
+
+    async def test_caller_need_not_be_in_vc_or_opted_in(self) -> None:
+        await self.join(ALICE)
+        _, reply = await self.members(ADMIN, None)
+        self.assertIn("（1 人）", reply)
+        self.assertNotIn("あなた", reply)
+
+    async def test_unknown_member(self) -> None:
+        await self.join(ALICE)
+        await self.join(BOB)
+        del self.voice_of[BOB]
+        _, reply = await self.members()
+        self.assertIn(f"- 不明なメンバー: キャラ{self.session_voice(BOB)}", reply)
+
+    async def test_display_name_is_escaped(self) -> None:
+        await self.join(ALICE)
+        self.names[ALICE] = "a*b_c"
+        _, reply = await self.members()
+        self.assertIn(r"a\*b\_c", reply)
+
+    async def test_without_catalog_shows_ids_and_no_credit(self) -> None:
+        await self.join(ALICE)
+        self.cog.catalog = None
+        _, reply = await self.members()
+        self.assertIn(f"ID {self.session_voice(ALICE)}", reply)
+        self.assertNotIn("VOICEVOX:", reply)
+
+    async def test_more_than_twenty_members_are_summarized(self) -> None:
+        await self.join(ALICE)
+        self.seed(20)
+        _, reply = await self.members()
+        lines = reply.split("\n")
+        self.assertIn("（21 人）", lines[0])
+        self.assertEqual(len(lines), 1 + 20 + 1)
+        self.assertEqual(lines[-1], "他 1 人")
+
+    async def test_long_lines_are_cut_within_the_message_limit(self) -> None:
+        await self.join(ALICE)
+        self.seed(19)
+        self.cog.catalog = (Voice(3, "あ" * 150, "ノーマル"),)
+        _, reply = await self.members()
+        lines = reply.split("\n")
+        self.assertLessEqual(len(reply), 1900)
+        shown = len(lines) - 2
+        self.assertLess(shown, 20)
+        self.assertEqual(lines[-1], f"他 {20 - shown} 人")
+
+    async def test_ephemeral_without_defer(self) -> None:
+        await self.join(ALICE)
+        interaction, _ = await self.members()
+        interaction.response.defer.assert_not_awaited()
+        self.assertTrue(
+            interaction.response.send_message.await_args.kwargs["ephemeral"]
+        )
+
+    async def test_does_not_wait_for_the_lock(self) -> None:
+        await self.join(ALICE)
+        async with self.cog.lock:
+            async with asyncio.timeout(1):
+                _, reply = await self.members()
+        self.assertIn("（1 人）", reply)
+
+
 class VoiceAssignmentTest(VoiceTestCase):
     async def test_post_is_synthesized_as_body_only_with_the_authors_voice(
         self,
@@ -1118,7 +1229,7 @@ class SetupTest(unittest.IsolatedAsyncioTestCase):
         commands_by_name = {command.name: command for command in read_group.commands}
         self.assertEqual(
             set(commands_by_name),
-            {"join", "leave", "skip", "stop", "voice"},
+            {"join", "leave", "skip", "stop", "members", "voice"},
         )
         for command in commands_by_name.values():
             self.assertIn("help", command.extras)

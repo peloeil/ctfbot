@@ -21,7 +21,11 @@ from ctfbot.features.tts.service import (
     resolve_voice,
 )
 from ctfbot.features.tts.voicevox import VoicevoxClient
-from ctfbot.helpers import require_guild, send_interaction
+from ctfbot.helpers import (
+    MAX_MESSAGE_CONTENT_LENGTH,
+    require_guild,
+    send_interaction,
+)
 from ctfbot.log import logger
 from ctfbot.runtime import get_runtime
 
@@ -30,6 +34,7 @@ LEAVE_GRACE_SECONDS = 5.0
 CONNECT_TIMEOUT_SECONDS = 15.0
 CATALOG_TTL_SECONDS = 3600.0
 CATALOG_RETRY_SECONDS = 60.0
+MAX_LISTED_MEMBERS = 20
 
 
 def check_playback_ready() -> bool:
@@ -99,7 +104,8 @@ class TTS(commands.Cog):
             "help": "bot が接続している VC のテキストチャットを VOICEVOX で"
             "読み上げます。読み上げるのは `/read join` した人の投稿の本文だけで、"
             "VC から離れると対象から外れます。参加者ごとに声が変わり、"
-            "声は `/read voice` で選べます。\n"
+            "声は `/read voice` で選べます。"
+            "参加者と声は `/read members` で確認できます。\n"
             "VOICEVOX を使用しています。"
             "クレジットは `/read voice show` で確認できます。"
         },
@@ -582,6 +588,52 @@ class TTS(commands.Cog):
         except ServiceError as exc:
             reply = str(exc)
         await send_interaction(interaction, reply)
+
+    @read.command(
+        name="members",
+        description="読み上げの参加者と声を表示します。",
+        extras={
+            "help": "読み上げに参加している人と、それぞれの声を参加した順に"
+            "表示します。VC に入っていなくても実行できます。表示は 20 人までで、"
+            "それより多い場合は残りの人数だけを表示します。"
+        },
+    )
+    async def members(self, interaction: discord.Interaction) -> None:
+        try:
+            reply = self._members(interaction)
+        except ServiceError as exc:
+            reply = str(exc)
+        await send_interaction(interaction, reply)
+
+    def _members(self, interaction: discord.Interaction) -> str:
+        # No await, and no lock: a join in progress must not delay this reply
+        guild = require_guild(interaction)
+        session = self._require_session()
+        channel = f"<#{session.channel_id}>"
+        entries = list(session.voices.items())
+        if not entries:
+            return f"🔊 {channel} の読み上げ参加者はいません。まもなく切断します。"
+        total = len(entries)
+        message = f"🔊 {channel} の読み上げ参加者（{total} 人）"
+        shown = 0
+        for user_id, speaker_id in entries[:MAX_LISTED_MEMBERS]:
+            member = guild.get_member(user_id)
+            name = (
+                discord.utils.escape_markdown(member.display_name)
+                if member is not None
+                else "不明なメンバー"
+            )
+            mark = "（あなた）" if user_id == interaction.user.id else ""
+            line = f"\n- {name}{mark}: {self._label(speaker_id)}"
+            rest = total - shown - 1
+            tail = f"\n他 {rest} 人" if rest else ""
+            if len(message + line + tail) > MAX_MESSAGE_CONTENT_LENGTH:
+                break
+            message += line
+            shown += 1
+        if shown < total:
+            message += f"\n他 {total - shown} 人"
+        return message
 
     @voice.command(
         name="show",
