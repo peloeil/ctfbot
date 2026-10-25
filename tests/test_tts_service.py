@@ -154,13 +154,30 @@ class VoiceCatalogHelpersTest(unittest.TestCase):
                 self.assertIsNone(resolve_voice(query, self.VOICES))
 
     def test_filter_matches_substrings_and_ids_in_catalog_order(self) -> None:
-        self.assertEqual(filter_voices("ずんだ", self.VOICES), list(self.VOICES[:2]))
+        self.assertEqual(filter_voices("ずんだ", self.VOICES), [self.VOICES[0]])
         self.assertEqual(filter_voices("ZUNDA", self.VOICES), [self.VOICES[3]])
         self.assertEqual(filter_voices("10", self.VOICES), [self.VOICES[3]])
         self.assertEqual(filter_voices("なし", self.VOICES), [])
 
+    def test_filter_offers_only_normal_style_names(self) -> None:
+        voices = (
+            Voice(1, "ノーマル", "ノーマル"),
+            Voice(2, "ふつう", "ふつう"),
+            Voice(3, "English", "Normal"),
+            Voice(4, "通常", "通常"),
+            Voice(5, "標準", "標準"),
+            Voice(6, "感情", "あまあま"),
+            Voice(7, "感情", "ツンツン"),
+        )
+        self.assertEqual(
+            filter_voices("", voices),
+            [voices[0], voices[1], voices[2], voices[3], voices[4]],
+        )
+        self.assertEqual(filter_voices("あま", voices), [])
+        self.assertEqual(filter_voices("感情", voices), [])
+
     def test_filter_returns_at_most_25_and_all_for_empty_input(self) -> None:
-        many = tuple(Voice(i, "キャラ", f"s{i}") for i in range(40))
+        many = tuple(Voice(i, "キャラ", "ノーマル") for i in range(40))
         self.assertEqual(filter_voices("", many), list(many[:25]))
         self.assertEqual(filter_voices("キャラ", many), list(many[:25]))
         self.assertEqual(filter_voices("", ()), [])

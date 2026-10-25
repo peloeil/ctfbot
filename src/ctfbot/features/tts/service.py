@@ -93,6 +93,15 @@ def _fold(text: str) -> str:
     return unicodedata.normalize("NFKC", text).casefold()
 
 
+# VOICEVOX の話者には多数の感情・演技スタイルがある。選択候補は通常の
+# 読み上げに使うスタイルだけに絞り、似た名前のバリエーションで埋めない。
+_NORMAL_STYLE_NAMES = frozenset({"ノーマル", "ふつう", "normal", "通常", "標準"})
+
+
+def _is_normal_voice(voice: Voice) -> bool:
+    return _fold(voice.style_name).strip() in _NORMAL_STYLE_NAMES
+
+
 def resolve_voice(query: str, voices: Sequence[Voice]) -> Voice | None:
     """Resolve a style ID or an exact label (NFKC and casefold insensitive)."""
     folded = _fold(query).strip()
@@ -103,10 +112,12 @@ def resolve_voice(query: str, voices: Sequence[Voice]) -> Voice | None:
 
 
 def filter_voices(query: str, voices: Sequence[Voice]) -> list[Voice]:
+    """Return normal-style voices matching the query, for autocomplete."""
     folded = _fold(query).strip()
     matched = [
         voice
         for voice in voices
-        if folded in _fold(voice.label) or folded in str(voice.style_id)
+        if _is_normal_voice(voice)
+        and (folded in _fold(voice.label) or folded in str(voice.style_id))
     ]
     return matched[:MAX_VOICE_CHOICES]

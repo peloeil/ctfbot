@@ -1174,6 +1174,20 @@ class CatalogTest(VoiceTestCase):
             [("キャラ1（ノーマル）", "1"), ("キャラ11（ノーマル）", "11")],
         )
 
+    async def test_autocomplete_offers_only_normal_styles(self) -> None:
+        self.cog.catalog = (
+            Voice(1, "ノーマル", "ノーマル"),
+            Voice(2, "感情", "あまあま"),
+            Voice(3, "English", "Normal"),
+        )
+        self.cog.catalog_fetched_at = self.cog.clock()
+        interaction = self.interaction(ALICE)
+        choices = await cast(Any, self.cog).voice_set_autocomplete(interaction, "")
+        self.assertEqual(
+            [(c.name, c.value) for c in choices],
+            [("ノーマル（ノーマル）", "1"), ("English（Normal）", "3")],
+        )
+
     async def test_unload_cancels_the_background_refresh(self) -> None:
         release = threading.Event()
         self.addCleanup(release.set)
