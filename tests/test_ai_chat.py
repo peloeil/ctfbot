@@ -24,12 +24,20 @@ class PromptTest(unittest.TestCase):
         self,
     ) -> None:
         self.assertEqual(
-            parse_prompt("<@42> こんにちは <@!42> <@13>", 42), "こんにちは  <@13>"
+            parse_prompt("<@42> こんにちは <@!42> <@13>", 42, None),
+            "こんにちは  <@13>",
         )
-        self.assertEqual(parse_prompt("<@!42> 質問", 42), "質問")
-        self.assertEqual(parse_prompt("<@420> 質問", 42), None)
-        self.assertEqual(parse_prompt("<@13> 質問", 42), None)
-        self.assertEqual(parse_prompt("返信だけ", 42), None)
+        self.assertEqual(parse_prompt("<@!42> 質問", 42, None), "質問")
+        self.assertEqual(parse_prompt("<@420> 質問", 42, None), None)
+        self.assertEqual(parse_prompt("<@13> 質問", 42, None), None)
+        self.assertEqual(parse_prompt("返信だけ", 42, None), None)
+
+    def test_bot_managed_role_mention_triggers_and_other_roles_do_not(self) -> None:
+        self.assertEqual(
+            parse_prompt("<@&7> こんにちは <@&8>", 42, 7), "こんにちは <@&8>"
+        )
+        self.assertEqual(parse_prompt("<@&70> 質問", 42, 7), None)
+        self.assertEqual(parse_prompt("<@&7> 質問", 42, None), None)
 
 
 class ClientTest(unittest.TestCase):
@@ -118,6 +126,7 @@ class ChatTest(unittest.IsolatedAsyncioTestCase):
         self.chat = AIChat(cast(Any, self.bot))
         self.message = mock.Mock()
         self.message.guild.id = 99
+        self.message.guild.self_role = None
         self.message.author.bot = False
         self.message.author.id = 123
         self.message.webhook_id = None
@@ -148,6 +157,15 @@ class ChatTest(unittest.IsolatedAsyncioTestCase):
         self.message.channel.fetch_message.assert_not_called()
         self.assertEqual(self.chat.active_users, set())
 
+    async def test_bot_managed_role_mention_is_answered(self) -> None:
+        self.chat.client = mock.Mock()
+        self.chat.client.complete.return_value = "回答"
+        self.message.guild.self_role = SimpleNamespace(id=7)
+        self.message.content = "<@&7> 質問"
+        await self.chat.on_message(cast(Any, self.message))
+        self.chat.client.complete.assert_called_once_with("質問")
+        self.message.reply.assert_awaited_once()
+
     async def test_ignored_messages(self) -> None:
         variants = (
             {"guild": None},
@@ -161,6 +179,7 @@ class ChatTest(unittest.IsolatedAsyncioTestCase):
             with self.subTest(changes=changes):
                 message = mock.Mock()
                 message.guild.id = 99
+                message.guild.self_role = None
                 message.author.bot = False
                 message.webhook_id = None
                 message.type = discord.MessageType.default

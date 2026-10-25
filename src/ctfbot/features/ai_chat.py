@@ -20,8 +20,11 @@ MAX_CONCURRENT_REQUESTS = 2
 MAX_MONTHLY_REQUESTS = 30
 
 
-def parse_prompt(content: str, bot_id: int) -> str | None:
-    mention = re.compile(rf"<@!?{bot_id}>")
+def parse_prompt(content: str, bot_id: int, role_id: int | None) -> str | None:
+    pattern = rf"<@!?{bot_id}>"
+    if role_id is not None:
+        pattern += rf"|<@&{role_id}>"
+    mention = re.compile(pattern)
     if not mention.search(content):
         return None
     return mention.sub("", content).strip()
@@ -113,7 +116,10 @@ class AIChat(commands.Cog):
             or self.bot.user is None
         ):
             return
-        prompt = parse_prompt(message.content, self.bot.user.id)
+        role = message.guild.self_role
+        prompt = parse_prompt(
+            message.content, self.bot.user.id, role.id if role is not None else None
+        )
         if prompt is None:
             return
         try:
