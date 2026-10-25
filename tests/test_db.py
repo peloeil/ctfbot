@@ -420,6 +420,38 @@ PRAGMA user_version = 3;
         with self.assertRaises(RepositoryError):
             self.db.upsert_tts_voice(1, -1, 100)
 
+    def test_version_eight_migration_adds_ai_chat_usage(self) -> None:
+        with sqlite3.connect(self.path) as conn:
+            conn.execute("DROP TABLE ai_chat_usage")
+            conn.execute("PRAGMA user_version = 8")
+
+        db = Database(self.path)
+        self.assertEqual(db.count_ai_chat_requests(1, "2026-10"), 0)
+        db.record_ai_chat_request(1, "2026-10")
+
+        with sqlite3.connect(self.path) as conn:
+            version = conn.execute("PRAGMA user_version").fetchone()[0]
+        self.assertEqual(version, CURRENT_SCHEMA_VERSION)
+        self.assertEqual(db.count_ai_chat_requests(1, "2026-10"), 1)
+
+    def test_version_eight_migration_can_be_applied_twice(self) -> None:
+        self.db.record_ai_chat_request(1, "2026-10")
+        with sqlite3.connect(self.path) as conn:
+            conn.executescript(_MIGRATIONS[8])
+            conn.executescript(_MIGRATIONS[8])
+        self.assertEqual(self.db.count_ai_chat_requests(1, "2026-10"), 1)
+
+    def test_ai_chat_usage_counts_requests_per_user_and_period(self) -> None:
+        self.assertEqual(self.db.count_ai_chat_requests(1, "2026-10"), 0)
+        self.db.record_ai_chat_request(1, "2026-10")
+        self.db.record_ai_chat_request(1, "2026-10")
+        self.db.record_ai_chat_request(1, "2026-11")
+        self.db.record_ai_chat_request(2, "2026-10")
+        self.assertEqual(self.db.count_ai_chat_requests(1, "2026-10"), 2)
+        self.assertEqual(self.db.count_ai_chat_requests(1, "2026-11"), 1)
+        self.assertEqual(self.db.count_ai_chat_requests(2, "2026-10"), 1)
+        self.assertEqual(self.db.count_ai_chat_requests(2, "2026-11"), 0)
+
     def test_alpacahack_users(self) -> None:
         self.assertTrue(self.db.add_alpacahack_user(" zeta ", max_users=2))
         self.assertFalse(self.db.add_alpacahack_user("zeta", max_users=2))

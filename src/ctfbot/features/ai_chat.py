@@ -1,11 +1,12 @@
 import asyncio
+import datetime
 import re
 
 import discord
 import requests
 from discord.ext import commands
 
-from ctfbot.errors import ExternalAPIError
+from ctfbot.errors import ExternalAPIError, RepositoryError
 from ctfbot.helpers import MAX_MESSAGE_CONTENT_LENGTH
 from ctfbot.log import logger
 from ctfbot.runtime import get_runtime
@@ -16,6 +17,7 @@ SYSTEM_PROMPT = (
 )
 MAX_PROMPT_LENGTH = 2000
 MAX_CONCURRENT_REQUESTS = 2
+MAX_MONTHLY_REQUESTS = 30
 
 
 def parse_prompt(content: str, bot_id: int) -> str | None:
@@ -66,8 +68,11 @@ class ChatCompletionClient:
 
 class AIChat(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
-        settings = get_runtime(bot).settings
+        runtime = get_runtime(bot)
+        settings = runtime.settings
         self.bot = bot
+        self.db = runtime.db
+        self.tzinfo = settings.tzinfo
         self.guild_id = settings.guild_id
         self.client = (
             ChatCompletionClient(
@@ -91,6 +96,9 @@ class AIChat(commands.Cog):
             )
         except discord.HTTPException:
             logger.exception("Failed to reply to AI chat message id=%s", message.id)
+
+    def _current_period(self) -> str:
+        return datetime.datetime.now(self.tzinfo).strftime("%Y-%m")
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
@@ -126,6 +134,17 @@ class AIChat(commands.Cog):
                     message, "現在混雑しています。しばらくしてから再度お試しください。"
                 )
                 return
+            period = self._current_period()
+            used = await asyncio.to_thread(
+                self.db.count_ai_chat_requests, message.author.id, period
+            )
+            if used >= MAX_MONTHLY_REQUESTS:
+                await self._reply(
+                    message,
+                    f"今月の利用上限（{MAX_MONTHLY_REQUESTS} 回）に達しました。"
+                    "翌月にリセットされます。",
+                )
+                return
 
             self.active_users.add(message.author.id)
             try:
@@ -137,6 +156,15 @@ class AIChat(commands.Cog):
                     )
                     await self._reply(message, "AI の応答を取得できませんでした。")
                 else:
+                    try:
+                        await asyncio.to_thread(
+                            self.db.record_ai_chat_request, message.author.id, period
+                        )
+                    except RepositoryError:
+                        logger.exception(
+                            "Failed to record AI chat usage for message id=%s",
+                            message.id,
+                        )
                     if len(answer) > MAX_MESSAGE_CONTENT_LENGTH:
                         answer = answer[: MAX_MESSAGE_CONTENT_LENGTH - 3] + "..."
                     await self._reply(message, answer)

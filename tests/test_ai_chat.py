@@ -1,14 +1,21 @@
 import asyncio
+import datetime
 import unittest
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest import mock
+from zoneinfo import ZoneInfo
 
 import discord
 import requests
 
 from ctfbot.errors import ExternalAPIError
-from ctfbot.features.ai_chat import AIChat, ChatCompletionClient, parse_prompt
+from ctfbot.features.ai_chat import (
+    MAX_MONTHLY_REQUESTS,
+    AIChat,
+    ChatCompletionClient,
+    parse_prompt,
+)
 from ctfbot.runtime import BotRuntime
 
 
@@ -89,17 +96,21 @@ class ChatTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.bot = mock.Mock()
         self.bot.user.id = 42
+        self.tzinfo = datetime.timezone(datetime.timedelta(hours=9))
+        self.db = mock.Mock()
+        self.db.count_ai_chat_requests.return_value = 0
         self.bot.runtime = BotRuntime(
             settings=cast(
                 Any,
                 SimpleNamespace(
                     guild_id=99,
+                    tzinfo=self.tzinfo,
                     ai_chat_api_key="secret",
                     ai_chat_api_url="https://example.test/v1/chat/completions",
                     ai_chat_model="model",
                 ),
             ),
-            db=mock.Mock(),
+            db=self.db,
         )
         self.bot.get_context = mock.AsyncMock(
             return_value=SimpleNamespace(command=None)
@@ -121,8 +132,11 @@ class ChatTest(unittest.IsolatedAsyncioTestCase):
         self.message.reference = mock.Mock()
         self.message.attachments = [mock.Mock()]
         self.message.embeds = [mock.Mock()]
-        await self.chat.on_message(cast(Any, self.message))
+        with mock.patch.object(self.chat, "_current_period", return_value="2026-10"):
+            await self.chat.on_message(cast(Any, self.message))
         self.chat.client.complete.assert_called_once_with("質問")
+        self.db.count_ai_chat_requests.assert_called_once_with(123, "2026-10")
+        self.db.record_ai_chat_request.assert_called_once_with(123, "2026-10")
         args, kwargs = self.message.reply.await_args
         self.assertEqual(args, ("回答",))
         self.assertEqual(
@@ -170,12 +184,13 @@ class ChatTest(unittest.IsolatedAsyncioTestCase):
                 Any,
                 SimpleNamespace(
                     guild_id=99,
+                    tzinfo=self.tzinfo,
                     ai_chat_api_key=None,
                     ai_chat_api_url="https://example.test/v1/chat/completions",
                     ai_chat_model="model",
                 ),
             ),
-            db=mock.Mock(),
+            db=self.db,
         )
         disabled = AIChat(cast(Any, self.bot))
         await disabled.on_message(cast(Any, self.message))
@@ -199,6 +214,26 @@ class ChatTest(unittest.IsolatedAsyncioTestCase):
         self.chat.active_users = {1, 2}
         await self.chat.on_message(cast(Any, self.message))
         self.assertIn("混雑", self.message.reply.await_args.args[0])
+        self.db.record_ai_chat_request.assert_not_called()
+
+    async def test_monthly_limit_blocks_request_before_api_call(self) -> None:
+        self.chat.client = mock.Mock()
+        self.db.count_ai_chat_requests.return_value = MAX_MONTHLY_REQUESTS
+        await self.chat.on_message(cast(Any, self.message))
+        self.chat.client.complete.assert_not_called()
+        self.db.record_ai_chat_request.assert_not_called()
+        self.assertIn("今月の利用上限", self.message.reply.await_args.args[0])
+
+    async def test_failure_does_not_consume_the_monthly_limit(self) -> None:
+        self.chat.client = mock.Mock()
+        self.chat.client.complete.side_effect = ExternalAPIError("failed")
+        await self.chat.on_message(cast(Any, self.message))
+        self.db.record_ai_chat_request.assert_not_called()
+
+    async def test_period_is_the_month_in_the_configured_timezone(self) -> None:
+        self.chat.tzinfo = ZoneInfo("America/Los_Angeles")
+        expected = datetime.datetime.now(self.chat.tzinfo).strftime("%Y-%m")
+        self.assertEqual(self.chat._current_period(), expected)
 
     async def test_failure_and_deleted_message_release_slot(self) -> None:
         self.chat.client = mock.Mock()

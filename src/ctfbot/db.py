@@ -12,7 +12,7 @@ from ctfbot.features.ctfteam.models import (
 )
 from ctfbot.features.sudo.models import SudoGrant
 
-CURRENT_SCHEMA_VERSION = 8
+CURRENT_SCHEMA_VERSION = 9
 _MIGRATIONS: dict[int, str] = {
     1: """\
 CREATE TABLE IF NOT EXISTS audit_log_entry (
@@ -161,6 +161,14 @@ CREATE TABLE IF NOT EXISTS tts_voice_preference (
     updated_at_unix INTEGER NOT NULL
 );
 """,
+    8: """\
+CREATE TABLE IF NOT EXISTS ai_chat_usage (
+    user_id INTEGER NOT NULL,
+    period TEXT NOT NULL,
+    request_count INTEGER NOT NULL CHECK (request_count >= 0),
+    PRIMARY KEY (user_id, period)
+);
+""",
 }
 
 _SCHEMA_DDL = """\
@@ -238,6 +246,13 @@ CREATE TABLE IF NOT EXISTS tts_voice_preference (
     user_id INTEGER PRIMARY KEY,
     speaker_id INTEGER NOT NULL CHECK (speaker_id >= 0),
     updated_at_unix INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ai_chat_usage (
+    user_id INTEGER NOT NULL,
+    period TEXT NOT NULL,
+    request_count INTEGER NOT NULL CHECK (request_count >= 0),
+    PRIMARY KEY (user_id, period)
 );
 """
 
@@ -494,6 +509,25 @@ class Database:
             )
             conn.commit()
             return cur.rowcount > 0
+
+    def count_ai_chat_requests(self, user_id: int, period: str) -> int:
+        with self._connection() as conn:
+            row = conn.execute(
+                "SELECT request_count FROM ai_chat_usage WHERE user_id=? AND period=?",
+                (user_id, period),
+            ).fetchone()
+        return 0 if row is None else row[0]
+
+    def record_ai_chat_request(self, user_id: int, period: str) -> None:
+        with self._connection() as conn:
+            conn.execute(
+                "INSERT INTO ai_chat_usage (user_id, period, request_count) "
+                "VALUES (?, ?, 1) "
+                "ON CONFLICT (user_id, period) DO UPDATE SET "
+                "request_count = request_count + 1",
+                (user_id, period),
+            )
+            conn.commit()
 
     @staticmethod
     def _to_sudo_grant(row: _SudoGrantRow) -> SudoGrant:
