@@ -115,7 +115,7 @@ class TTSTestCase(unittest.IsolatedAsyncioTestCase):
                 SimpleNamespace(
                     guild_id=GUILD_ID,
                     tts_max_chars=200,
-                    tts_speed_scale=2.0,
+                    tts_speed_scale=1.5,
                     tts_voicevox_url="http://127.0.0.1:50021",
                     tts_speaker_ids=POOL,
                 ),

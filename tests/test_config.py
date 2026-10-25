@@ -52,12 +52,12 @@ class ConfigTest(unittest.TestCase):
         self.assertFalse(settings.tts_enabled)
         self.assertEqual(settings.tts_speaker_ids, (3, 2, 8, 11, 14, 13))
         self.assertEqual(settings.tts_max_chars, 200)
-        self.assertEqual(settings.tts_speed_scale, 2.0)
+        self.assertEqual(settings.tts_speed_scale, 1.5)
 
     def test_tts_speed_scale(self) -> None:
         for raw, expected in (
-            ("", 2.0),
-            ("  ", 2.0),
+            ("", 1.5),
+            ("  ", 1.5),
             (" 1.5 ", 1.5),
             ("0.5", 0.5),
             ("2.0", 2.0),
