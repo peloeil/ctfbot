@@ -133,7 +133,7 @@ WAV はディスクに書かず、`io.BytesIO` を `FFmpegPCMAudio(pipe=True)` �
 docker run --rm -p 127.0.0.1:50021:50021 voicevox/voicevox_engine:cpu-latest
 ```
 
-`.env` には `TTS_VOICEVOX_URL=http://127.0.0.1:50021` を設定する。自動割り当てと選択候補に使う声は `TTS_SPEAKER_IDS`（カンマ区切りの style ID。既定 `3,2,8,11,14` の 5 件）で選ぶ。ID は ENGINE の `GET /speakers` で確認する。順序は巡回の順でもあり、空きを探すときに似た声が続かないように並べている。VOICEVOX は使った声のモデルを保持するので、プールは必要な数だけにする。話速は `TTS_SPEED_SCALE`（0.5〜2.0、既定 1.5）で変える。ENGINE が bot より後に起動してもよい（カタログは後から取得する）。
+`.env` には `TTS_VOICEVOX_URL=http://127.0.0.1:50021` を設定する。自動割り当てと選択候補に使う声は `TTS_SPEAKER_IDS`（カンマ区切りの style ID。既定 `3,2,14,11,13` の 5 件）で選ぶ。ID は ENGINE の `GET /speakers` で確認する。順序は巡回の順でもあり、空きを探すときに似た声が続かないように並べている。VOICEVOX は使った声のモデルを保持するので、プールは必要な数だけにする。話速は `TTS_SPEED_SCALE`（0.5〜2.0、既定 1.5）で変える。ENGINE が bot より後に起動してもよい（カタログは後から取得する）。
 
 ## クレジット
 
@@ -143,9 +143,9 @@ docker run --rm -p 127.0.0.1:50021:50021 voicevox/voicevox_engine:cpu-latest
 |---|---|---|
 | 3 | ずんだもん（ノーマル） | VOICEVOX:ずんだもん |
 | 2 | 四国めたん（ノーマル） | VOICEVOX:四国めたん |
-| 8 | 春日部つむぎ（ノーマル） | VOICEVOX:春日部つむぎ |
-| 11 | 玄野武宏（ノーマル） | VOICEVOX:玄野武宏 |
 | 14 | 冥鳴ひまり（ノーマル） | VOICEVOX:冥鳴ひまり |
+| 11 | 玄野武宏（ノーマル） | VOICEVOX:玄野武宏 |
+| 13 | 青山龍星（ノーマル） | VOICEVOX:青山龍星 |
 
 - bot は使う声のクレジットを `/read join`・`/read voice show`・`/read voice set` の応答に表示し、`/read` の help にも「クレジットは `/read voice show` で確認できる」と書く。Discord VC での読み上げが規約上の「利用」にあたるかはキャラクターごとに解釈が分かれ得るため、安全側に倒している。`/read members` には、全員分を並べると文字数を圧迫するため載せない。
 - `/read voice set` で選べるのは `TTS_SPEAKER_IDS` に並べた声だけ。autocomplete も ID・ラベルの直接入力もプール外は受け付けない。VOICEVOX は使った声のモデルを保持するため、候補を増やすとメモリ使用量が増える。既定は 5 件に抑えている。
