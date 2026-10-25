@@ -1,7 +1,10 @@
 import hashlib
 import re
+import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+
+MAX_VOICE_CHOICES = 25
 
 _FENCED_CODE = re.compile(r"```.*?(?:```|\Z)", re.DOTALL)
 _INLINE_CODE = re.compile(r"`[^`\n]*`")
@@ -84,3 +87,26 @@ def assign_auto_voice(
     order = [pool[(start + offset) % len(pool)] for offset in range(len(pool))]
     # min() keeps the first of equal counts, i.e. the earliest in rotation order
     return min(order, key=lambda voice_id: usage.get(voice_id, 0))
+
+
+def _fold(text: str) -> str:
+    return unicodedata.normalize("NFKC", text).casefold()
+
+
+def resolve_voice(query: str, voices: Sequence[Voice]) -> Voice | None:
+    """Resolve a style ID or an exact label (NFKC and casefold insensitive)."""
+    folded = _fold(query).strip()
+    for voice in voices:
+        if folded == str(voice.style_id) or folded == _fold(voice.label):
+            return voice
+    return None
+
+
+def filter_voices(query: str, voices: Sequence[Voice]) -> list[Voice]:
+    folded = _fold(query).strip()
+    matched = [
+        voice
+        for voice in voices
+        if folded in _fold(voice.label) or folded in str(voice.style_id)
+    ]
+    return matched[:MAX_VOICE_CHOICES]

@@ -12,7 +12,7 @@ from ctfbot.features.ctfteam.models import (
 )
 from ctfbot.features.sudo.models import SudoGrant
 
-CURRENT_SCHEMA_VERSION = 7
+CURRENT_SCHEMA_VERSION = 8
 _MIGRATIONS: dict[int, str] = {
     1: """\
 CREATE TABLE IF NOT EXISTS audit_log_entry (
@@ -154,6 +154,13 @@ CREATE INDEX IF NOT EXISTS idx_campaign_due_archive
 CREATE INDEX IF NOT EXISTS idx_campaign_active_creator
     ON ctfteam_campaign (created_by) WHERE status = 'active';
 """,
+    7: """\
+CREATE TABLE IF NOT EXISTS tts_voice_preference (
+    user_id INTEGER PRIMARY KEY,
+    speaker_id INTEGER NOT NULL CHECK (speaker_id >= 0),
+    updated_at_unix INTEGER NOT NULL
+);
+""",
 }
 
 _SCHEMA_DDL = """\
@@ -226,6 +233,12 @@ CREATE TABLE IF NOT EXISTS sudo_grant (
 
 CREATE INDEX IF NOT EXISTS idx_sudo_grant_expires
     ON sudo_grant (expires_at_unix);
+
+CREATE TABLE IF NOT EXISTS tts_voice_preference (
+    user_id INTEGER PRIMARY KEY,
+    speaker_id INTEGER NOT NULL CHECK (speaker_id >= 0),
+    updated_at_unix INTEGER NOT NULL
+);
 """
 
 _CAMPAIGN_COLUMNS = (
@@ -448,6 +461,36 @@ class Database:
                     extra_text,
                     created_at_unix,
                 ),
+            )
+            conn.commit()
+            return cur.rowcount > 0
+
+    def find_tts_voice(self, user_id: int) -> int | None:
+        with self._connection() as conn:
+            row = conn.execute(
+                "SELECT speaker_id FROM tts_voice_preference WHERE user_id=?",
+                (user_id,),
+            ).fetchone()
+        return None if row is None else row[0]
+
+    def upsert_tts_voice(
+        self, user_id: int, speaker_id: int, updated_at_unix: int
+    ) -> None:
+        with self._connection() as conn:
+            conn.execute(
+                "INSERT INTO tts_voice_preference "
+                "(user_id, speaker_id, updated_at_unix) VALUES (?, ?, ?) "
+                "ON CONFLICT (user_id) DO UPDATE SET "
+                "speaker_id=excluded.speaker_id, "
+                "updated_at_unix=excluded.updated_at_unix",
+                (user_id, speaker_id, updated_at_unix),
+            )
+            conn.commit()
+
+    def delete_tts_voice(self, user_id: int) -> bool:
+        with self._connection() as conn:
+            cur = conn.execute(
+                "DELETE FROM tts_voice_preference WHERE user_id=?", (user_id,)
             )
             conn.commit()
             return cur.rowcount > 0

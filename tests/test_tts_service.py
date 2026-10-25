@@ -8,8 +8,10 @@ from ctfbot.features.tts.service import (
     Voice,
     assign_auto_voice,
     build_speech_text,
+    filter_voices,
     mentions_user,
     normalize_text,
+    resolve_voice,
 )
 from ctfbot.features.tts.voicevox import VoicevoxClient
 
@@ -134,6 +136,34 @@ class VoiceCatalogHelpersTest(unittest.TestCase):
     def test_label_and_credit(self) -> None:
         self.assertEqual(self.VOICES[0].label, "ずんだもん（ノーマル）")
         self.assertEqual(self.VOICES[0].credit, "VOICEVOX:ずんだもん")
+
+    def test_resolve_by_id_or_exact_label(self) -> None:
+        self.assertEqual(resolve_voice("3", self.VOICES), self.VOICES[0])
+        self.assertEqual(resolve_voice("\uff13", self.VOICES), self.VOICES[0])
+        self.assertEqual(
+            resolve_voice("ずんだもん（あまあま）", self.VOICES), self.VOICES[1]
+        )
+        self.assertEqual(
+            resolve_voice("ZUNDAMON（NORMAL）", self.VOICES),
+            self.VOICES[3],
+        )
+
+    def test_resolve_rejects_unknown_and_partial_input(self) -> None:
+        for query in ("", "99", "ずんだもん", "ずんだもん（"):
+            with self.subTest(query=query):
+                self.assertIsNone(resolve_voice(query, self.VOICES))
+
+    def test_filter_matches_substrings_and_ids_in_catalog_order(self) -> None:
+        self.assertEqual(filter_voices("ずんだ", self.VOICES), list(self.VOICES[:2]))
+        self.assertEqual(filter_voices("ZUNDA", self.VOICES), [self.VOICES[3]])
+        self.assertEqual(filter_voices("10", self.VOICES), [self.VOICES[3]])
+        self.assertEqual(filter_voices("なし", self.VOICES), [])
+
+    def test_filter_returns_at_most_25_and_all_for_empty_input(self) -> None:
+        many = tuple(Voice(i, "キャラ", f"s{i}") for i in range(40))
+        self.assertEqual(filter_voices("", many), list(many[:25]))
+        self.assertEqual(filter_voices("キャラ", many), list(many[:25]))
+        self.assertEqual(filter_voices("", ()), [])
 
 
 class VoicevoxClientTest(unittest.TestCase):

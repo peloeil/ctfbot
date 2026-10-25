@@ -13,7 +13,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from ctfbot.db import Database
-from ctfbot.errors import ExternalAPIError
+from ctfbot.errors import ExternalAPIError, RepositoryError
 from ctfbot.features.tts import cog as tts_cog
 from ctfbot.features.tts.cog import (
     CATALOG_RETRY_SECONDS,
@@ -659,9 +659,30 @@ class LifecycleTest(TTSTestCase):
 
 
 class VoiceTestCase(TTSTestCase):
+    async def vset(
+        self, user_id: int, query: str, channel_id: int | None = CHANNEL_A
+    ) -> str:
+        interaction = self.interaction(user_id, channel_id)
+        await cast(Any, self.cog.voice_set).callback(self.cog, interaction, query)
+        return self.reply(interaction)
+
+    async def vshow(self, user_id: int) -> str:
+        interaction = self.interaction(user_id, CHANNEL_A)
+        return await self.run_command(self.cog.voice_show, interaction)
+
+    async def vreset(self, user_id: int) -> str:
+        interaction = self.interaction(user_id, CHANNEL_A)
+        return await self.run_command(self.cog.voice_reset, interaction)
+
     def session_voice(self, user_id: int) -> int:
         assert self.cog.session is not None
         return self.cog.session.voices[user_id]
+
+    def saved(self, user_id: int) -> int | None:
+        return self.db.find_tts_voice(user_id)
+
+    def save(self, user_id: int, speaker_id: int) -> None:
+        self.db.upsert_tts_voice(user_id, speaker_id, 0)
 
 
 class VoiceAssignmentTest(VoiceTestCase):
@@ -695,6 +716,50 @@ class VoiceAssignmentTest(VoiceTestCase):
         voice = self.session_voice(ALICE)
         self.assertIn(f"声: キャラ{voice}（ノーマル）（VOICEVOX:キャラ{voice}）", reply)
 
+    async def test_saved_voice_is_used(self) -> None:
+        self.save(ALICE, 11)
+        reply = await self.join(ALICE)
+        self.assertEqual(self.session_voice(ALICE), 11)
+        self.assertIn("キャラ11", reply)
+
+    async def test_saved_voice_in_use_goes_to_the_earlier_participant(self) -> None:
+        await self.join(ALICE)
+        taken = self.session_voice(ALICE)
+        self.save(BOB, taken)
+        reply = await self.join(BOB)
+        self.assertEqual(self.session_voice(ALICE), taken)
+        self.assertNotEqual(self.session_voice(BOB), taken)
+        self.assertIn(self.session_voice(BOB), POOL)
+        self.assertIn("使用中", reply)
+
+    async def test_saved_voice_is_kept_as_duplicate_when_the_pool_is_full(
+        self,
+    ) -> None:
+        for user in (ALICE, BOB, CAROL):
+            await self.join(user)
+        taken = self.session_voice(ALICE)
+        self.save(ADMIN, taken)
+        await self.join(ADMIN)
+        self.assertEqual(self.session_voice(ADMIN), taken)
+
+    async def test_saved_voice_missing_from_catalog_falls_back_and_keeps_the_row(
+        self,
+    ) -> None:
+        self.save(ALICE, 99)
+        reply = await self.join(ALICE)
+        self.assertIn(self.session_voice(ALICE), POOL)
+        self.assertIn("ID 99", reply)
+        self.assertEqual(self.saved(ALICE), 99)
+
+    async def test_preference_read_failure_does_not_block_join(self) -> None:
+        with (
+            mock.patch.object(self.db, "find_tts_voice", side_effect=RepositoryError),
+            self.assertLogs("ctfbot", "ERROR"),
+        ):
+            reply = await self.join(ALICE)
+        self.assertIn("開始しました", reply)
+        self.assertIn(self.session_voice(ALICE), POOL)
+
     async def test_voice_is_kept_while_others_leave_and_after_rejoining(self) -> None:
         await self.join(ALICE)
         await self.join(BOB)
@@ -705,6 +770,13 @@ class VoiceAssignmentTest(VoiceTestCase):
         await self.join(ALICE)
         self.assertEqual(self.session_voice(ALICE), alice)
 
+    async def test_rejoining_while_opted_in_keeps_the_voice(self) -> None:
+        await self.join(ALICE)
+        voice = self.session_voice(ALICE)
+        self.save(ALICE, 11)
+        await self.join(ALICE)
+        self.assertEqual(self.session_voice(ALICE), voice)
+
     async def test_leaving_the_channel_releases_the_voice(self) -> None:
         await self.join(ALICE)
         await self.join(BOB)
@@ -714,6 +786,228 @@ class VoiceAssignmentTest(VoiceTestCase):
         )
         assert self.cog.session is not None
         self.assertNotIn(ALICE, self.cog.session.voices)
+
+
+class VoiceSetTest(VoiceTestCase):
+    async def test_set_saves_without_a_session(self) -> None:
+        reply = await self.vset(ALICE, "11", None)
+        self.assertIn("キャラ11（ノーマル）（VOICEVOX:キャラ11） に設定しました", reply)
+        self.assertNotIn("現在の読み上げ", reply)
+        self.assertEqual(self.saved(ALICE), 11)
+
+    async def test_set_accepts_an_exact_label(self) -> None:
+        await self.vset(ALICE, "キャラ８（ノーマル）", None)
+        self.assertEqual(self.saved(ALICE), 8)
+
+    async def test_set_applies_immediately_but_queued_posts_keep_the_old_voice(
+        self,
+    ) -> None:
+        release = threading.Event()
+        used: list[int] = []
+
+        def synth(text: str, speaker_id: int) -> bytes:
+            used.append(speaker_id)
+            release.wait(2)
+            return b"RIFFdata"
+
+        self.client.synthesize.side_effect = synth
+        await self.join(ALICE)
+        old = self.session_voice(ALICE)
+        new = 11
+        await self.cog.on_message(self.message(ALICE, message_id=1))
+        await self.cog.on_message(self.message(ALICE, message_id=2))
+        reply = await self.vset(ALICE, str(new))
+        self.assertIn("現在の読み上げにも反映しました", reply)
+        self.assertEqual(self.session_voice(ALICE), new)
+        await self.cog.on_message(self.message(ALICE, message_id=3))
+        release.set()
+        async with asyncio.timeout(2):
+            while len(used) < 3:
+                if self.voice_client.playing:
+                    self.voice_client.finish()
+                await asyncio.sleep(0.005)
+        self.assertEqual(used, [old, old, new])
+
+    async def test_set_to_a_voice_in_use_saves_but_keeps_the_session_voice(
+        self,
+    ) -> None:
+        await self.join(ALICE)
+        await self.join(BOB)
+        bob = self.session_voice(BOB)
+        taken = self.session_voice(ALICE)
+        reply = await self.vset(BOB, str(taken))
+        self.assertIn("使用中", reply)
+        self.assertIn(f"キャラ{bob}", reply)
+        self.assertEqual(self.saved(BOB), taken)
+        self.assertEqual(self.session_voice(BOB), bob)
+
+    async def test_unknown_input_is_not_saved(self) -> None:
+        for query in ("存在しない", "999"):
+            with self.subTest(query=query):
+                reply = await self.vset(ALICE, query, None)
+                self.assertEqual(reply, "声が見つかりません。候補から選んでください。")
+                self.assertIsNone(self.saved(ALICE))
+
+    async def test_unknown_id_triggers_one_forced_refresh(self) -> None:
+        await self.vset(ALICE, "999", None)
+        self.assertEqual(self.client.fetch_voices.call_count, 2)
+
+    async def test_catalog_failure_is_not_saved(self) -> None:
+        self.client.fetch_voices.side_effect = ExternalAPIError("down")
+        with self.assertLogs("ctfbot", "WARNING"):
+            reply = await self.vset(ALICE, "3", None)
+        self.assertEqual(reply, "声の一覧を取得できませんでした。")
+        self.assertIsNone(self.saved(ALICE))
+
+    async def test_write_failure_changes_neither_db_nor_session(self) -> None:
+        await self.join(ALICE)
+        before = self.session_voice(ALICE)
+        with (
+            mock.patch.object(self.db, "upsert_tts_voice", side_effect=RepositoryError),
+            self.assertLogs("ctfbot", "ERROR"),
+        ):
+            reply = await self.vset(ALICE, "11")
+        self.assertEqual(reply, "声の設定を保存できませんでした。")
+        self.assertIsNone(self.saved(ALICE))
+        self.assertEqual(self.session_voice(ALICE), before)
+
+
+class VoiceConcurrencyTest(VoiceTestCase):
+    def block_first_write(self) -> tuple[threading.Event, threading.Event, list[int]]:
+        entered, release = threading.Event(), threading.Event()
+        writes: list[int] = []
+        real = self.db.upsert_tts_voice
+
+        def upsert(user_id: int, speaker_id: int, updated_at_unix: int) -> None:
+            writes.append(speaker_id)
+            if len(writes) == 1:
+                entered.set()
+                release.wait(2)
+            real(user_id, speaker_id, updated_at_unix)
+
+        patcher = mock.patch.object(self.db, "upsert_tts_voice", side_effect=upsert)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(release.set)
+        return entered, release, writes
+
+    async def test_concurrent_sets_leave_db_and_session_in_agreement(self) -> None:
+        await self.join(ALICE)
+        entered, release, writes = self.block_first_write()
+        first = asyncio.create_task(self.vset(ALICE, "11"))
+        await wait_until(entered.is_set)
+        second = asyncio.create_task(self.vset(ALICE, "1"))
+        await asyncio.sleep(0.05)
+        self.assertEqual(writes, [11])
+        release.set()
+        await asyncio.gather(first, second)
+        self.assertEqual(writes, [11, 1])
+        self.assertEqual(self.saved(ALICE), self.session_voice(ALICE))
+        self.assertEqual(self.session_voice(ALICE), 1)
+
+    async def test_reset_after_a_blocked_set_wins_in_both_places(self) -> None:
+        await self.join(ALICE)
+        entered, release, _ = self.block_first_write()
+        first = asyncio.create_task(self.vset(ALICE, "11"))
+        await wait_until(entered.is_set)
+        second = asyncio.create_task(self.vreset(ALICE))
+        await asyncio.sleep(0.05)
+        release.set()
+        await asyncio.gather(first, second)
+        self.assertIsNone(self.saved(ALICE))
+        self.assertIn(self.session_voice(ALICE), POOL)
+
+    async def test_set_waiting_for_join_applies_to_the_new_session(self) -> None:
+        connecting = asyncio.Event()
+
+        async def slow_connect(**_: object) -> FakeVoiceClient:
+            connecting.set()
+            await asyncio.sleep(0.05)
+            return self.voice_client
+
+        self.channels[CHANNEL_A].connect.side_effect = slow_connect
+        joined = asyncio.create_task(self.join(ALICE))
+        await connecting.wait()
+        await self.vset(ALICE, "11")
+        await joined
+        self.assertEqual(self.session_voice(ALICE), 11)
+        self.assertEqual(self.saved(ALICE), 11)
+
+    async def test_catalog_fetch_does_not_hold_the_session_lock(self) -> None:
+        await self.join(ALICE)
+        release = threading.Event()
+        started = threading.Event()
+
+        def slow_fetch() -> tuple[Voice, ...]:
+            started.set()
+            release.wait(2)
+            return VOICES
+
+        self.addCleanup(release.set)
+        self.client.fetch_voices.side_effect = slow_fetch
+        pending = asyncio.create_task(self.vset(BOB, "999", None))
+        await wait_until(started.is_set)
+        async with asyncio.timeout(1):
+            await self.join(CAROL)
+        self.assertIn(self.session_voice(CAROL), POOL)
+        release.set()
+        await pending
+
+
+class VoiceResetShowTest(VoiceTestCase):
+    async def test_reset_returns_to_auto_and_applies_immediately(self) -> None:
+        self.save(ALICE, 11)
+        await self.join(ALICE)
+        self.assertEqual(self.session_voice(ALICE), 11)
+        reply = await self.vreset(ALICE)
+        self.assertIn("自動に戻しました", reply)
+        self.assertIsNone(self.saved(ALICE))
+        self.assertIn(self.session_voice(ALICE), POOL)
+        self.assertIn(f"キャラ{self.session_voice(ALICE)}", reply)
+
+    async def test_reset_without_preference(self) -> None:
+        self.assertEqual(await self.vreset(ALICE), "声は既に自動です。")
+
+    async def test_reset_failure(self) -> None:
+        with (
+            mock.patch.object(self.db, "delete_tts_voice", side_effect=RepositoryError),
+            self.assertLogs("ctfbot", "ERROR"),
+        ):
+            reply = await self.vreset(ALICE)
+        self.assertEqual(reply, "声の設定を戻せませんでした。")
+
+    async def test_show_auto_and_saved(self) -> None:
+        self.assertIn("自動（通常は", await self.vshow(ALICE))
+        self.save(ALICE, 11)
+        await self.cog._refresh_catalog()
+        reply = await self.vshow(ALICE)
+        self.assertIn("声の設定: キャラ11（ノーマル）（VOICEVOX:キャラ11）", reply)
+        self.assertNotIn("現在の読み上げ", reply)
+
+    async def test_show_explains_a_session_voice_that_differs(self) -> None:
+        await self.join(ALICE)
+        self.save(BOB, self.session_voice(ALICE))
+        await self.join(BOB)
+        reply = await self.vshow(BOB)
+        self.assertIn("現在の読み上げ", reply)
+        self.assertIn("使用中", reply)
+
+    async def test_show_without_catalog_uses_ids(self) -> None:
+        self.client.fetch_voices.side_effect = ExternalAPIError("down")
+        self.save(ALICE, 11)
+        with self.assertLogs("ctfbot", "WARNING"):
+            await self.join(ALICE)
+        reply = await self.vshow(ALICE)
+        self.assertIn("声の設定: ID 11", reply)
+        self.assertNotIn("VOICEVOX:", reply)
+
+    async def test_show_read_failure(self) -> None:
+        with (
+            mock.patch.object(self.db, "find_tts_voice", side_effect=RepositoryError),
+            self.assertLogs("ctfbot", "ERROR"),
+        ):
+            reply = await self.vshow(ALICE)
+        self.assertEqual(reply, "声の設定を読み込めませんでした。")
 
 
 class CatalogTest(VoiceTestCase):
@@ -743,6 +1037,30 @@ class CatalogTest(VoiceTestCase):
         await self.cog._refresh_catalog()
         await self.cog._refresh_catalog()
         self.assertEqual(self.client.fetch_voices.call_count, 1)
+
+    async def test_autocomplete_answers_from_memory_and_starts_a_refresh(self) -> None:
+        release = threading.Event()
+        self.addCleanup(release.set)
+
+        def slow_fetch() -> tuple[Voice, ...]:
+            release.wait(2)
+            return VOICES
+
+        self.client.fetch_voices.side_effect = slow_fetch
+        interaction = self.interaction(ALICE)
+        async with asyncio.timeout(1):
+            choices = await cast(Any, self.cog).voice_set_autocomplete(interaction, "")
+        self.assertEqual(choices, [])
+        release.set()
+        assert self.cog.catalog_task is not None
+        await self.cog.catalog_task
+        choices = await cast(Any, self.cog).voice_set_autocomplete(
+            interaction, "キャラ1"
+        )
+        self.assertEqual(
+            [(c.name, c.value) for c in choices],
+            [("キャラ1（ノーマル）", "1"), ("キャラ11（ノーマル）", "11")],
+        )
 
     async def test_unload_cancels_the_background_refresh(self) -> None:
         release = threading.Event()
@@ -798,8 +1116,22 @@ class SetupTest(unittest.IsolatedAsyncioTestCase):
         assert isinstance(read_group, app_commands.Group)
         self.assertIn("help", read_group.extras)
         commands_by_name = {command.name: command for command in read_group.commands}
-        self.assertEqual(set(commands_by_name), {"join", "leave", "skip", "stop"})
+        self.assertEqual(
+            set(commands_by_name),
+            {"join", "leave", "skip", "stop", "voice"},
+        )
         for command in commands_by_name.values():
             self.assertIn("help", command.extras)
+        voice_group = commands_by_name["voice"]
+        assert isinstance(voice_group, app_commands.Group)
+        voice_commands = {command.name: command for command in voice_group.commands}
+        self.assertEqual(set(voice_commands), {"show", "set", "reset"})
+        for command in voice_commands.values():
+            self.assertIn("help", command.extras)
+        set_command = voice_commands["set"]
+        assert isinstance(set_command, app_commands.Command)
+        parameter = set_command.get_parameter("voice")
+        assert parameter is not None
+        self.assertIsNotNone(parameter.autocomplete)
         self.assertIsInstance(bot.get_cog("TTS"), TTS)
         await bot.remove_cog("TTS")

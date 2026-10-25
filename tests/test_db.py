@@ -117,6 +117,7 @@ PRAGMA user_version = 3;
         self.assertIn("ctfteam_campaign", tables)
         self.assertIn("audit_log_entry", tables)
         self.assertIn("sudo_grant", tables)
+        self.assertIn("tts_voice_preference", tables)
         self.assertIn("idx_campaign_status_end", indexes)
         self.assertIn("idx_campaign_status_created", indexes)
         self.assertIn("idx_campaign_due_start", indexes)
@@ -384,6 +385,40 @@ PRAGMA user_version = 3;
         self.assertIn("idx_campaign_due_start", indexes)
         self.assertIn("idx_campaign_due_archive", indexes)
         self.assertIn("idx_campaign_active_creator", indexes)
+
+    def test_version_seven_migration_adds_tts_voice_preference(self) -> None:
+        with sqlite3.connect(self.path) as conn:
+            conn.execute("DROP TABLE tts_voice_preference")
+            conn.execute("PRAGMA user_version = 7")
+
+        db = Database(self.path)
+        db.upsert_tts_voice(1, 3, 100)
+
+        with sqlite3.connect(self.path) as conn:
+            version = conn.execute("PRAGMA user_version").fetchone()[0]
+        self.assertEqual(version, CURRENT_SCHEMA_VERSION)
+        self.assertEqual(db.find_tts_voice(1), 3)
+
+    def test_version_seven_migration_can_be_applied_twice(self) -> None:
+        self.db.upsert_tts_voice(1, 3, 100)
+        with sqlite3.connect(self.path) as conn:
+            conn.executescript(_MIGRATIONS[7])
+            conn.executescript(_MIGRATIONS[7])
+        self.assertEqual(self.db.find_tts_voice(1), 3)
+
+    def test_tts_voice_preference_lifecycle(self) -> None:
+        self.assertIsNone(self.db.find_tts_voice(1))
+        self.db.upsert_tts_voice(1, 3, 100)
+        self.db.upsert_tts_voice(1, 8, 200)
+        self.assertEqual(self.db.find_tts_voice(1), 8)
+        self.assertIsNone(self.db.find_tts_voice(2))
+        self.assertTrue(self.db.delete_tts_voice(1))
+        self.assertFalse(self.db.delete_tts_voice(1))
+        self.assertIsNone(self.db.find_tts_voice(1))
+
+    def test_tts_voice_preference_rejects_negative_speaker_id(self) -> None:
+        with self.assertRaises(RepositoryError):
+            self.db.upsert_tts_voice(1, -1, 100)
 
     def test_alpacahack_users(self) -> None:
         self.assertTrue(self.db.add_alpacahack_user(" zeta ", max_users=2))

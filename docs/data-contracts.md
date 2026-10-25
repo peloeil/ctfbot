@@ -88,6 +88,7 @@ DDL は `db.py` の `_SCHEMA_DDL`、移行 SQL は `_MIGRATIONS`、対応する�
 | `ctfteam_campaign` | 募集と状態。`message_id` は一意、active の CTF 名は重複不可 |
 | `audit_log_entry` | Discord 監査ログ。`entry_id` は一意、検索用に guild と発生時刻の index を持つ |
 | `sudo_grant` | bot が管理する期限付きロール。`user_id` ごとに 1 件 |
+| `tts_voice_preference` | VC 読み上げで `/read voice set` が選んだ声（VOICEVOX の style ID）。`user_id` ごとに 1 件。自動割り当ての声は保存しない |
 
 CTF 名の `COLLATE NOCASE` は ASCII の大文字小文字だけを同一視する。非 ASCII の名前は大文字小文字を区別する。
 
@@ -103,6 +104,7 @@ CTF 名の `COLLATE NOCASE` は ASCII の大文字小文字だけを同一視す
 | 4 → 5 | `ctf_team_campaign` を `ctfteam_campaign` へ改名 |
 | 5 → 6 | Daily 通知の重複防止 |
 | 6 → 7 | 開始・archive の期日検索と作成者別 active 件数の index |
+| 7 → 8 | VC 読み上げの声の設定 |
 
 テーブル再構築はトランザクション内で新テーブルへ明示した列をコピーする。募集の ID は維持し、index は最後の `_SCHEMA_DDL` 適用で復元する。
 
@@ -161,6 +163,16 @@ CTF 名の `COLLATE NOCASE` は ASCII の大文字小文字だけを同一視す
 | `get_sudo_grant` | 主キー一致の 1 件 |
 | `delete_sudo_grant` | 不在でも成功（冪等） |
 | `list_expired_sudo_grants` | `expires_at_unix <= now` を `expires_at_unix` 昇順で全件 |
+
+### tts_voice_preference
+
+単一 guild 運用のため `guild_id` は持たない。guild を抜けたユーザーの行も消さない。戻り値は `int`・`bool` のみで、tts に `models.py` は置かない。
+
+| メソッド | 契約 |
+|---|---|
+| `find_tts_voice` | 保存済みの style ID。なければ `None` |
+| `upsert_tts_voice` | `ON CONFLICT (user_id) DO UPDATE` で `speaker_id`・`updated_at_unix` を更新。`speaker_id` は 0 以上（CHECK 違反は `RepositoryError`） |
+| `delete_tts_voice` | 削除したら `True`、なければ `False` |
 
 ### ctfteam_campaign
 

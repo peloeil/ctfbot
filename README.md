@@ -39,7 +39,7 @@ CTF 募集には投稿先チャンネル・CTF 用カテゴリ・archive 先カ�
 | [ユーティリティ](docs/features/utility.md) | `/help`、`/perms`、`/roll` |
 | [一時昇格](docs/features/sudo.md) | `/sudo`、`/unsudo`、期限切れロールの自動剥奪 |
 | [Discord 監査ログ](docs/features/audit-log.md) | イベントを DB に保存し、管理者操作を通知 |
-| [VC 読み上げ](docs/features/tts.md) | `/read join・leave・skip・stop`、VC テキストチャットの VOICEVOX 読み上げ（参加者ごとに声を割り当て）（`TTS_VOICEVOX_URL` 設定時のみ） |
+| [VC 読み上げ](docs/features/tts.md) | `/read join・leave・skip・stop・voice`、VC テキストチャットの VOICEVOX 読み上げ（参加者ごとに声を割り当て）（`TTS_VOICEVOX_URL` 設定時のみ） |
 | [共通挙動](docs/core.md) | コマンド実行ログ、接続・停止通知、応答とメンション制御 |
 
 ## 開発資料

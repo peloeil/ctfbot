@@ -10,13 +10,15 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from ctfbot.errors import ExternalAPIError, ServiceError
+from ctfbot.errors import ExternalAPIError, RepositoryError, ServiceError
 from ctfbot.features.tts.service import (
     SpeechItem,
     Voice,
     assign_auto_voice,
     build_speech_text,
+    filter_voices,
     mentions_user,
+    resolve_voice,
 )
 from ctfbot.features.tts.voicevox import VoicevoxClient
 from ctfbot.helpers import require_guild, send_interaction
@@ -96,8 +98,19 @@ class TTS(commands.Cog):
         extras={
             "help": "bot が接続している VC のテキストチャットを VOICEVOX で"
             "読み上げます。読み上げるのは `/read join` した人の投稿の本文だけで、"
-            "VC から離れると対象から外れます。参加者ごとに声を自動で割り当てます。\n"
-            "VOICEVOX を使用しています。クレジットは参加時に表示します。"
+            "VC から離れると対象から外れます。参加者ごとに声が変わり、"
+            "声は `/read voice` で選べます。\n"
+            "VOICEVOX を使用しています。"
+            "クレジットは `/read voice show` で確認できます。"
+        },
+    )
+    voice = app_commands.Group(
+        name="voice",
+        description="読み上げの声を確認・設定します。",
+        parent=read,
+        extras={
+            "help": "読み上げの声を確認・設定します。声を設定していない場合は、"
+            "参加者ごとに自動で割り当てます。読み上げ中でなくても設定できます。"
         },
     )
 
@@ -114,6 +127,7 @@ class TTS(commands.Cog):
         self.guild_id = settings.guild_id
         self.max_chars = settings.tts_max_chars
         self.pool = settings.tts_speaker_ids
+        self.db = get_runtime(bot).db
         self.client = client
         self.grace_seconds = grace_seconds
         self.lock = asyncio.Lock()
@@ -390,7 +404,8 @@ class TTS(commands.Cog):
         extras={
             "help": "あなたを読み上げ対象に加え、bot が未接続なら今いる VC に"
             "接続します。対象の人が VC に居る間に VC のテキストチャットへ投稿した"
-            "メッセージの本文を、あなた専用の声で VOICEVOX で読み上げます。\n"
+            "メッセージの本文を、あなた専用の声で VOICEVOX で読み上げます。"
+            "声は `/read voice` で選べます。\n"
             "別の VC で読み上げ中の場合は参加できません。VC から離れると対象から外れ、"
             "再開するには再度実行してください。"
         },
@@ -418,6 +433,7 @@ class TTS(commands.Cog):
         user_id = interaction.user.id
         # Fetching can take seconds, so it must finish before taking the lock
         await self._refresh_catalog()
+        notes: list[str] = []
         async with self.lock:
             session = self.session
             if session is None:
@@ -432,18 +448,47 @@ class TTS(commands.Cog):
                     self._schedule_leave(session)
                 raise ServiceError("ボイスチャンネルに参加してから実行してください。")
             if user_id not in session.voices:
-                session.voices[user_id] = self._assign_voice(session, user_id)
+                session.voices[user_id], notes = await self._assign_voice(
+                    session, user_id
+                )
             speaker_id = session.voices[user_id]
         return (
             f"✅ {channel.mention} のテキストチャットの読み上げを開始しました。"
-            f"声: {self._describe(speaker_id)}"
+            f"声: {self._describe(speaker_id)}" + "".join(f" {note}" for note in notes)
         )
 
-    def _assign_voice(self, session: _Session, user_id: int) -> int:
+    async def _assign_voice(
+        self, session: _Session, user_id: int
+    ) -> tuple[int, list[str]]:
         """Decide the session voice. The caller must hold the lock."""
-        return assign_auto_voice(
-            user_id, self._effective_pool(), session.usage(excluding=user_id)
+        try:
+            saved = await asyncio.to_thread(self.db.find_tts_voice, user_id)
+        except RepositoryError:
+            logger.exception("Failed to read the TTS voice preference")
+            saved = None
+            notes = ["声の設定を読み込めなかったため、自動の声を使います。"]
+        else:
+            notes = []
+        usage = session.usage(excluding=user_id)
+        pool = self._effective_pool()
+        if saved is None:
+            return assign_auto_voice(user_id, pool, usage), notes
+        if self.catalog is not None and self._find_voice(saved) is None:
+            notes.append(
+                f"設定した声（ID {saved}）が見つからないため、自動の声を使います。"
+            )
+            return assign_auto_voice(user_id, pool, usage), notes
+        if not usage[saved]:
+            return saved, notes
+        # The earlier participant keeps the voice; fall back only if a free one exists
+        voice = assign_auto_voice(user_id, pool, usage)
+        if usage[voice]:
+            return saved, notes
+        notes.append(
+            f"設定した声 {self._label(saved)} は他の人が使用中のため、"
+            f"この読み上げでは {self._label(voice)} を使います。"
         )
+        return voice, notes
 
     async def _connect(
         self, guild: discord.Guild, channel: discord.VoiceChannel
@@ -537,6 +582,160 @@ class TTS(commands.Cog):
         except ServiceError as exc:
             reply = str(exc)
         await send_interaction(interaction, reply)
+
+    @voice.command(
+        name="show",
+        description="読み上げの声の設定を確認します。",
+        extras={
+            "help": "保存している声の設定と、読み上げ中であれば現在使っている声を"
+            "表示します。設定がなければ自動で割り当てられる声を表示します。"
+            "VOICEVOX のクレジットも表示します。"
+        },
+    )
+    async def voice_show(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True)
+        try:
+            reply = await self._voice_show(interaction)
+        except ServiceError as exc:
+            reply = str(exc)
+        await send_interaction(interaction, reply)
+
+    async def _voice_show(self, interaction: discord.Interaction) -> str:
+        require_guild(interaction)
+        user_id = interaction.user.id
+        try:
+            saved = await asyncio.to_thread(self.db.find_tts_voice, user_id)
+        except RepositoryError:
+            logger.exception("Failed to read the TTS voice preference")
+            raise ServiceError("声の設定を読み込めませんでした。") from None
+        # No await from here on, so both values are read at one instant
+        session = self.session
+        current = session.voices.get(user_id) if session is not None else None
+        if saved is not None:
+            lines = [f"声の設定: {self._describe(saved)}"]
+        else:
+            auto = assign_auto_voice(user_id, self._effective_pool(), {})
+            lines = [f"声の設定: 自動（通常は {self._describe(auto)}）"]
+        if current is not None:
+            line = f"現在の読み上げ: {self._describe(current)}"
+            if saved is not None and current != saved:
+                if self.catalog is not None and self._find_voice(saved) is None:
+                    line += "（設定した声が見つからないため）"
+                else:
+                    line += "（設定した声は他の人が使用中のため）"
+            lines.append(line)
+        return "\n".join(lines)
+
+    @voice.command(
+        name="set",
+        description="読み上げの声を設定します。",
+        extras={
+            "help": "読み上げに使う声を選んで保存します。読み上げに参加して"
+            "いなくても設定できます。読み上げ中は、他の人が使っていない声なら"
+            "すぐに反映します。使用中の声は保存だけして、次に参加したときに"
+            "反映します。選べるのは VOICEVOX ENGINE が提供する声です。"
+        },
+    )
+    @app_commands.describe(voice="声の名前または ID (候補から選択)")
+    async def voice_set(self, interaction: discord.Interaction, voice: str) -> None:
+        await interaction.response.defer(ephemeral=True)
+        try:
+            reply = await self._voice_set(interaction, voice)
+        except ServiceError as exc:
+            reply = str(exc)
+        await send_interaction(interaction, reply)
+
+    @voice_set.autocomplete("voice")
+    async def voice_set_autocomplete(
+        self, interaction: discord.Interaction, current: str
+    ) -> list[app_commands.Choice[str]]:
+        # Answered from memory only; Discord allows 3 seconds per keystroke
+        if not self._catalog_is_fresh():
+            self._start_catalog_refresh()
+        return [
+            app_commands.Choice(name=voice.label[:100], value=str(voice.style_id))
+            for voice in filter_voices(current, self.catalog or ())
+        ]
+
+    async def _resolve_voice(self, query: str) -> Voice:
+        await self._refresh_catalog()
+        if self.catalog is None:
+            raise ServiceError("声の一覧を取得できませんでした。")
+        voice = resolve_voice(query, self.catalog)
+        if voice is None and query.strip().isdecimal():
+            # The ENGINE may have been updated since the catalog was cached
+            await self._refresh_catalog(force=True)
+            voice = resolve_voice(query, self.catalog)
+        if voice is None:
+            raise ServiceError("声が見つかりません。候補から選んでください。")
+        return voice
+
+    async def _voice_set(self, interaction: discord.Interaction, query: str) -> str:
+        require_guild(interaction)
+        chosen = await self._resolve_voice(query)
+        user_id = interaction.user.id
+        # The DB write and the session update must be one step under the lock,
+        # or concurrent calls could leave them in different orders
+        async with self.lock:
+            try:
+                await asyncio.to_thread(
+                    self.db.upsert_tts_voice, user_id, chosen.style_id, int(time.time())
+                )
+            except RepositoryError:
+                logger.exception("Failed to save the TTS voice preference")
+                raise ServiceError("声の設定を保存できませんでした。") from None
+            session = self.session
+            current = session.voices.get(user_id) if session is not None else None
+            if session is None or current is None:
+                return f"✅ 声を {self._describe(chosen.style_id)} に設定しました。"
+            if session.usage(excluding=user_id)[chosen.style_id]:
+                return (
+                    f"✅ 声を {self._describe(chosen.style_id)} に設定しました。"
+                    f"この読み上げでは他の人が使用中のため、{self._describe(current)} "
+                    "のままです。次に参加したときに反映します。"
+                )
+            session.voices[user_id] = chosen.style_id
+        return (
+            f"✅ 声を {self._describe(chosen.style_id)} に設定しました。"
+            "現在の読み上げにも反映しました。"
+        )
+
+    @voice.command(
+        name="reset",
+        description="読み上げの声を自動に戻します。",
+        extras={
+            "help": "保存している声の設定を削除し、参加者ごとの自動割り当てに"
+            "戻します。読み上げ中であれば、すぐに反映します。"
+        },
+    )
+    async def voice_reset(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=True)
+        try:
+            reply = await self._voice_reset(interaction)
+        except ServiceError as exc:
+            reply = str(exc)
+        await send_interaction(interaction, reply)
+
+    async def _voice_reset(self, interaction: discord.Interaction) -> str:
+        require_guild(interaction)
+        user_id = interaction.user.id
+        async with self.lock:
+            try:
+                deleted = await asyncio.to_thread(self.db.delete_tts_voice, user_id)
+            except RepositoryError:
+                logger.exception("Failed to delete the TTS voice preference")
+                raise ServiceError("声の設定を戻せませんでした。") from None
+            if not deleted:
+                return "声は既に自動です。"
+            session = self.session
+            reply = "✅ 声の設定を自動に戻しました。"
+            if session is not None and user_id in session.voices:
+                auto = assign_auto_voice(
+                    user_id, self._effective_pool(), session.usage(excluding=user_id)
+                )
+                session.voices[user_id] = auto
+                reply += f"現在の読み上げでは {self._describe(auto)} を使います。"
+        return reply
 
     def _require_session(self) -> _Session:
         if self.session is None:
