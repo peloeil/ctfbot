@@ -44,8 +44,8 @@ Discord が扱う全権限について、Guild での実効権限を `Guild ✅ 
 | Discord の英語表示名 | 権限名 | 用途 |
 |---|---|---|
 | View Channels | `view_channel` | 対象チャンネルの閲覧、VC 読み上げ対象のテキストチャットの受信 |
-| Read Message History | `read_message_history` | 募集メッセージの取得 |
-| Send Messages | `send_messages` | 募集・通知・応答の送信 |
+| Read Message History | `read_message_history` | 募集メッセージの取得、AI の元投稿への返信 |
+| Send Messages | `send_messages` | 募集・通知・応答、AI の返信の送信 |
 | Send Messages in Threads | `send_messages_in_threads` | スレッド内での応答と archive 時の投稿禁止設定 |
 | Create Public Threads | `create_public_threads` | archive 時に公開スレッドの作成を禁止する設定 |
 | Create Private Threads | `create_private_threads` | archive 時にプライベートスレッドの作成を禁止する設定 |

@@ -3,12 +3,36 @@ from types import SimpleNamespace
 from typing import Any, cast
 from unittest import mock
 
+from discord.ext import commands
+
 from ctfbot.app import CTFBot, create_bot
 from ctfbot.cogs_loader import DEFAULT_EXTENSIONS
 from ctfbot.runtime import BotRuntime
 
 
 class AppTest(unittest.IsolatedAsyncioTestCase):
+    async def test_mention_chat_keeps_message_content_intent_off(self) -> None:
+        runtime = BotRuntime(
+            settings=cast(Any, SimpleNamespace(guild_id=999, tts_enabled=False)),
+            db=mock.Mock(),
+        )
+        bot = CTFBot(runtime)
+        self.assertFalse(bot.intents.message_content)
+
+    async def test_unknown_mention_command_is_ignored(self) -> None:
+        runtime = BotRuntime(
+            settings=cast(Any, SimpleNamespace(guild_id=999, tts_enabled=False)),
+            db=mock.Mock(),
+        )
+        bot = CTFBot(runtime)
+        with mock.patch.object(
+            commands.Bot, "on_command_error", new_callable=mock.AsyncMock
+        ) as parent:
+            await bot.on_command_error(mock.Mock(), commands.CommandNotFound("unknown"))
+            parent.assert_not_awaited()
+            await bot.on_command_error(mock.Mock(), commands.CommandError("failed"))
+            parent.assert_awaited_once()
+
     async def test_setup_hook_syncs_commands_to_the_configured_guild_only(
         self,
     ) -> None:

@@ -77,6 +77,7 @@ class ArchitectureTest(unittest.TestCase):
             "ctfbot.features.audit_log",
             "ctfbot.features.ctfteam",
             "ctfbot.features.sudo",
+            "ctfbot.features.ai_chat",
             "ctfbot.features.tts",
         }
         for path in (SRC / "features").rglob("*.py"):

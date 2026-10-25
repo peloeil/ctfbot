@@ -58,6 +58,13 @@ class CTFBot(commands.Bot):
             interaction.channel_id,
         )
 
+    async def on_command_error(
+        self, context: commands.Context, exception: commands.CommandError
+    ) -> None:
+        if isinstance(exception, commands.CommandNotFound):
+            return
+        await super().on_command_error(context, exception)
+
     async def close(self) -> None:
         if self._shutdown_requested_by_sigint and not self.is_closed():
             now = datetime.datetime.now(self.runtime.settings.tzinfo)

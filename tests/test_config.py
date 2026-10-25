@@ -48,6 +48,11 @@ class ConfigTest(unittest.TestCase):
         self.assertIsNone(settings.admin_role_id)
         self.assertIsNone(settings.sudoer_role_id)
         self.assertEqual(settings.sudo_duration_minutes, 30)
+        self.assertIsNone(settings.ai_chat_api_key)
+        self.assertEqual(
+            settings.ai_chat_api_url, "https://api.ai.sakura.ad.jp/v1/chat/completions"
+        )
+        self.assertEqual(settings.ai_chat_model, "gpt-oss-120b")
         self.assertIsNone(settings.tts_voicevox_url)
         self.assertFalse(settings.tts_enabled)
         self.assertEqual(settings.tts_speaker_ids, (3, 2, 8, 11, 14))
@@ -125,6 +130,27 @@ class ConfigTest(unittest.TestCase):
                 self.assertRaises(ConfigurationError),
             ):
                 load_settings(environ=self.env(**{name: value}))
+
+    def test_ai_chat_configuration(self) -> None:
+        self.assertIsNone(
+            load_settings(environ=self.env(AI_CHAT_API_KEY="  ")).ai_chat_api_key
+        )
+        settings = load_settings(
+            environ=self.env(
+                AI_CHAT_API_KEY=" secret ",
+                AI_CHAT_API_URL=" https://example.test/v1/chat/completions ",
+                AI_CHAT_MODEL=" custom ",
+            )
+        )
+        self.assertEqual(settings.ai_chat_api_key, "secret")
+        self.assertEqual(
+            settings.ai_chat_api_url, "https://example.test/v1/chat/completions"
+        )
+        self.assertEqual(settings.ai_chat_model, "custom")
+        self.assertEqual(
+            load_settings(environ=self.env(AI_CHAT_MODEL=" ")).ai_chat_model,
+            "gpt-oss-120b",
+        )
 
     def test_optional_channel_ids_default_to_none(self) -> None:
         env = self.env()

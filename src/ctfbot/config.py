@@ -33,6 +33,9 @@ class Settings:
     ctftime_window_days: int
     ctftime_event_limit: int
     ctftime_user_agent: str
+    ai_chat_api_key: str | None
+    ai_chat_api_url: str
+    ai_chat_model: str
     tts_voicevox_url: str | None
     tts_speaker_ids: tuple[int, ...]
     tts_max_chars: int
@@ -227,6 +230,13 @@ def load_settings(
             "CTFTIME_USER_AGENT", "ctfbot/2.0 (+discord)"
         ).strip()
         or "ctfbot/2.0 (+discord)",
+        ai_chat_api_key=env.get("AI_CHAT_API_KEY", "").strip() or None,
+        ai_chat_api_url=env.get(
+            "AI_CHAT_API_URL", "https://api.ai.sakura.ad.jp/v1/chat/completions"
+        ).strip()
+        or "https://api.ai.sakura.ad.jp/v1/chat/completions",
+        ai_chat_model=env.get("AI_CHAT_MODEL", "gpt-oss-120b").strip()
+        or "gpt-oss-120b",
         tts_voicevox_url=env.get("TTS_VOICEVOX_URL", "").strip() or None,
         tts_speaker_ids=_read_int_list(env, "TTS_SPEAKER_IDS", DEFAULT_TTS_SPEAKER_IDS),
         tts_max_chars=tts_max_chars,
