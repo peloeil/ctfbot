@@ -47,7 +47,7 @@ class Settings:
 
 
 MAX_TTS_CHARS = 1000
-DEFAULT_TTS_SPEAKER_IDS = (3, 2, 14, 11, 13)
+DEFAULT_TTS_SPEAKER_IDS = (3, 13, 2, 46, 8, 10)
 DEFAULT_TTS_SPEED_SCALE = 1.5
 MIN_TTS_SPEED_SCALE = 0.5
 MAX_TTS_SPEED_SCALE = 2.0
@@ -187,7 +187,7 @@ def load_settings(
         )
 
     tts_max_chars = _require_positive(
-        _read_int(env, "TTS_MAX_CHARS", 200), "TTS_MAX_CHARS"
+        _read_int(env, "TTS_MAX_CHARS", 100), "TTS_MAX_CHARS"
     )
     if tts_max_chars > MAX_TTS_CHARS:
         raise ConfigurationError(f"TTS_MAX_CHARS must be at most {MAX_TTS_CHARS}.")

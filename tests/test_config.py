@@ -55,8 +55,8 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(settings.ai_chat_model, "preview/gemma-4-31B-it")
         self.assertIsNone(settings.tts_voicevox_url)
         self.assertFalse(settings.tts_enabled)
-        self.assertEqual(settings.tts_speaker_ids, (3, 2, 14, 11, 13))
-        self.assertEqual(settings.tts_max_chars, 200)
+        self.assertEqual(settings.tts_speaker_ids, (3, 13, 2, 46, 8, 10))
+        self.assertEqual(settings.tts_max_chars, 100)
         self.assertEqual(settings.tts_speed_scale, 1.5)
 
     def test_tts_speed_scale(self) -> None:
@@ -94,7 +94,7 @@ class ConfigTest(unittest.TestCase):
             )
             self.assertEqual(
                 (defaults.tts_speaker_ids, defaults.tts_max_chars),
-                ((3, 2, 14, 11, 13), 200),
+                ((3, 13, 2, 46, 8, 10), 100),
             )
         single = load_settings(environ=self.env(TTS_SPEAKER_IDS="1"))
         self.assertEqual(single.tts_speaker_ids, (1,))
