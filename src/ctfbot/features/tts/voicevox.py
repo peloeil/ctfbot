@@ -11,8 +11,9 @@ TALK_STYLE_TYPES = frozenset({"talk", "streaming_talk"})
 
 
 class VoicevoxClient:
-    def __init__(self, base_url: str) -> None:
+    def __init__(self, base_url: str, *, speed_scale: float) -> None:
         self.base_url = base_url.rstrip("/")
+        self.speed_scale = speed_scale
 
     def fetch_voices(self) -> tuple[Voice, ...]:
         try:
@@ -64,6 +65,7 @@ class VoicevoxClient:
             query = query_response.json()
             if not isinstance(query, dict):
                 raise ExternalAPIError("Unexpected VOICEVOX audio query.")
+            query["speedScale"] = self.speed_scale
             synthesis_response = requests.post(
                 f"{self.base_url}/synthesis",
                 params={"speaker": speaker_id},

@@ -168,7 +168,7 @@ class VoiceCatalogHelpersTest(unittest.TestCase):
 
 class VoicevoxClientTest(unittest.TestCase):
     def client(self) -> VoicevoxClient:
-        return VoicevoxClient("http://127.0.0.1:50021/")
+        return VoicevoxClient("http://127.0.0.1:50021/", speed_scale=2.0)
 
     @mock.patch("ctfbot.features.tts.voicevox.requests.post")
     def test_query_then_synthesis(self, post: mock.Mock) -> None:
@@ -188,9 +188,18 @@ class VoicevoxClientTest(unittest.TestCase):
         self.assertEqual(synthesis_call.args, ("http://127.0.0.1:50021/synthesis",))
         self.assertEqual(synthesis_call.kwargs["params"], {"speaker": 3})
         self.assertEqual(
-            synthesis_call.kwargs["json"], {"speedScale": 1.0, "pitchScale": 0.0}
+            synthesis_call.kwargs["json"], {"speedScale": 2.0, "pitchScale": 0.0}
         )
         self.assertEqual(synthesis_call.kwargs["timeout"], (5, 30))
+
+    @mock.patch("ctfbot.features.tts.voicevox.requests.post")
+    def test_speed_is_added_when_the_query_has_none(self, post: mock.Mock) -> None:
+        post.side_effect = [
+            mock.Mock(json=mock.Mock(return_value={})),
+            mock.Mock(content=b"RIFFxxxx"),
+        ]
+        self.client().synthesize("a", 3)
+        self.assertEqual(post.call_args_list[1].kwargs["json"], {"speedScale": 2.0})
 
     @mock.patch("ctfbot.features.tts.voicevox.requests.post")
     def test_failures_raise_external_api_error(self, post: mock.Mock) -> None:
@@ -227,7 +236,7 @@ class VoicevoxClientTest(unittest.TestCase):
 
 class FetchVoicesTest(unittest.TestCase):
     def client(self) -> VoicevoxClient:
-        return VoicevoxClient("http://127.0.0.1:50021/")
+        return VoicevoxClient("http://127.0.0.1:50021/", speed_scale=2.0)
 
     def response(self, payload: object) -> mock.Mock:
         return mock.Mock(json=mock.Mock(return_value=payload))

@@ -111,7 +111,7 @@ opt-in が 0 人になると 5 秒の猶予後に切断する。一時的な接�
 
 ## 音声合成と再生
 
-VOICEVOX ENGINE の `POST /audio_query` の結果をそのまま `POST /synthesis` に渡して WAV を得る（接続 5 秒・読み取り 30 秒のタイムアウト）。空・`RIFF` で始まらない応答は `ExternalAPIError`。音量・ピッチ・抑揚・話速は ENGINE の値のままにする。
+VOICEVOX ENGINE の `POST /audio_query` の結果を `POST /synthesis` に渡して WAV を得る（接続 5 秒・読み取り 30 秒のタイムアウト）。空・`RIFF` で始まらない応答は `ExternalAPIError`。`audio_query` の結果は `speedScale` だけを `TTS_SPEED_SCALE`（既定 2.0）で上書きして渡し、音量・ピッチ・抑揚は ENGINE の値のままにする。チャットの流れに読み上げが追いつかずキューが詰まるのを減らすための既定で、プロセス全体で 1 つの値をクライアントが保持するため、キュー済みの投稿を含め全員に同じ速度がかかる。範囲は VOICEVOX エディタの話速と同じ 0.5〜2.0 で、ENGINE が範囲外の値をどう扱うかに依存しないよう bot 側で起動時に拒否する（`nan`・`inf` も拒否）。2 倍を超えると聞き取りにくくなるため上限も 2.0 とする。変更は再起動で反映する。
 
 失敗時は warning ログを出してその投稿を飛ばし、キューは止めず再試行もしない。
 
@@ -133,7 +133,7 @@ WAV はディスクに書かず、`io.BytesIO` を `FFmpegPCMAudio(pipe=True)` �
 docker run --rm -p 127.0.0.1:50021:50021 voicevox/voicevox_engine:cpu-latest
 ```
 
-`.env` には `TTS_VOICEVOX_URL=http://127.0.0.1:50021` を設定する。自動割り当てに使う声は `TTS_SPEAKER_IDS`（カンマ区切りの style ID。既定 `3,2,8,11,14,13`）で選ぶ。ID は ENGINE の `GET /speakers` で確認する。順序は巡回の順でもあり、空きを探すときに似た声が続かないように並べている。ENGINE が bot より後に起動してもよい（カタログは後から取得する）。
+`.env` には `TTS_VOICEVOX_URL=http://127.0.0.1:50021` を設定する。自動割り当てに使う声は `TTS_SPEAKER_IDS`（カンマ区切りの style ID。既定 `3,2,8,11,14,13`）で選ぶ。ID は ENGINE の `GET /speakers` で確認する。順序は巡回の順でもあり、空きを探すときに似た声が続かないように並べている。話速は `TTS_SPEED_SCALE`（0.5〜2.0、既定 2.0）で変える。ENGINE が bot より後に起動してもよい（カタログは後から取得する）。
 
 ## クレジット
 

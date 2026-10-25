@@ -1,4 +1,5 @@
 import datetime
+import math
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -35,6 +36,7 @@ class Settings:
     tts_voicevox_url: str | None
     tts_speaker_ids: tuple[int, ...]
     tts_max_chars: int
+    tts_speed_scale: float
 
     @property
     def tts_enabled(self) -> bool:
@@ -43,6 +45,9 @@ class Settings:
 
 MAX_TTS_CHARS = 1000
 DEFAULT_TTS_SPEAKER_IDS = (3, 2, 8, 11, 14, 13)
+DEFAULT_TTS_SPEED_SCALE = 2.0
+MIN_TTS_SPEED_SCALE = 0.5
+MAX_TTS_SPEED_SCALE = 2.0
 
 
 def _read_int(environ: Mapping[str, str], name: str, default: int | None = None) -> int:
@@ -81,6 +86,26 @@ def _read_int_list(
             raise ConfigurationError(f"{name} must be non-negative.")
         values.setdefault(value)
     return tuple(values)
+
+
+def _read_tts_speed_scale(environ: Mapping[str, str]) -> float:
+    raw = environ.get("TTS_SPEED_SCALE", "").strip()
+    if not raw:
+        return DEFAULT_TTS_SPEED_SCALE
+    message = (
+        f"TTS_SPEED_SCALE must be a number between "
+        f"{MIN_TTS_SPEED_SCALE} and {MAX_TTS_SPEED_SCALE}."
+    )
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise ConfigurationError(message) from exc
+    # nan passes every range comparison it appears in, so reject it explicitly
+    if not math.isfinite(value) or not (
+        MIN_TTS_SPEED_SCALE <= value <= MAX_TTS_SPEED_SCALE
+    ):
+        raise ConfigurationError(message)
+    return value
 
 
 def _require_positive(value: int, name: str) -> int:
@@ -205,4 +230,5 @@ def load_settings(
         tts_voicevox_url=env.get("TTS_VOICEVOX_URL", "").strip() or None,
         tts_speaker_ids=_read_int_list(env, "TTS_SPEAKER_IDS", DEFAULT_TTS_SPEAKER_IDS),
         tts_max_chars=tts_max_chars,
+        tts_speed_scale=_read_tts_speed_scale(env),
     )

@@ -811,5 +811,7 @@ async def setup(bot: commands.Bot) -> None:
     if settings.tts_voicevox_url is None:
         logger.info("TTS disabled (TTS_VOICEVOX_URL is not set)")
         return
-    client = VoicevoxClient(settings.tts_voicevox_url)
+    client = VoicevoxClient(
+        settings.tts_voicevox_url, speed_scale=settings.tts_speed_scale
+    )
     await bot.add_cog(TTS(bot, client))

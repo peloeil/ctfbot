@@ -115,6 +115,7 @@ class TTSTestCase(unittest.IsolatedAsyncioTestCase):
                 SimpleNamespace(
                     guild_id=GUILD_ID,
                     tts_max_chars=200,
+                    tts_speed_scale=2.0,
                     tts_voicevox_url="http://127.0.0.1:50021",
                     tts_speaker_ids=POOL,
                 ),
@@ -1196,6 +1197,7 @@ class SetupTest(unittest.IsolatedAsyncioTestCase):
                 SimpleNamespace(
                     guild_id=GUILD_ID,
                     tts_max_chars=200,
+                    tts_speed_scale=1.5,
                     tts_voicevox_url=url,
                     tts_speaker_ids=POOL,
                 ),
@@ -1244,5 +1246,7 @@ class SetupTest(unittest.IsolatedAsyncioTestCase):
         parameter = set_command.get_parameter("voice")
         assert parameter is not None
         self.assertIsNotNone(parameter.autocomplete)
-        self.assertIsInstance(bot.get_cog("TTS"), TTS)
+        cog = bot.get_cog("TTS")
+        assert isinstance(cog, TTS)
+        self.assertEqual(cast(Any, cog.client).speed_scale, 1.5)
         await bot.remove_cog("TTS")
