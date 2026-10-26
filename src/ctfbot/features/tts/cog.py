@@ -343,8 +343,9 @@ class TTS(commands.Cog):
         # No await between the checks above and play(), so the session stays current
         source = None
         try:
+            # before_options would be overridden by discord.py's own -loglevel warning
             source = discord.FFmpegPCMAudio(
-                io.BytesIO(audio), pipe=True, before_options="-loglevel error"
+                io.BytesIO(audio), pipe=True, options="-loglevel error"
             )
             session.voice_client.play(source, after=after)
         except discord.ClientException:
