@@ -51,10 +51,13 @@ class CTFBot(commands.Bot):
         interaction: discord.Interaction,
         command: discord.app_commands.Command | discord.app_commands.ContextMenu,
     ) -> None:
+        channel_name = getattr(interaction.channel, "name", None)
         logger.info(
-            "Application command completed: command=/%s user_id=%s channel_id=%s",
+            "Application command completed: command=/%s user=%s(%s) channel=%s(%s)",
             command.qualified_name,
+            interaction.user.name,
             interaction.user.id,
+            f"#{channel_name}" if channel_name else "unknown",
             interaction.channel_id,
         )
 

@@ -62,6 +62,32 @@ class AppTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(tree.sync.await_args_list, [mock.call(guild=guild)])
         tree.clear_commands.assert_not_called()
 
+    async def test_command_completion_log_shows_names_with_ids(self) -> None:
+        runtime = BotRuntime(
+            settings=cast(Any, SimpleNamespace(guild_id=999, tts_enabled=False)),
+            db=mock.Mock(),
+        )
+        bot = CTFBot(runtime)
+        command = cast(Any, SimpleNamespace(qualified_name="ctf list"))
+        user = SimpleNamespace(name="alice", id=1)
+        cases = {
+            "named channel": (SimpleNamespace(name="general"), "#general(2)"),
+            "channel without name": (SimpleNamespace(), "unknown(2)"),
+            "missing channel": (None, "unknown(2)"),
+        }
+        for label, (channel, expected) in cases.items():
+            with self.subTest(label):
+                interaction = cast(
+                    Any, SimpleNamespace(user=user, channel=channel, channel_id=2)
+                )
+                with self.assertLogs("ctfbot", level="INFO") as logs:
+                    await bot.on_app_command_completion(interaction, command)
+                self.assertEqual(
+                    logs.records[0].getMessage(),
+                    "Application command completed: command=/ctf list "
+                    f"user=alice(1) channel={expected}",
+                )
+
     def test_create_bot_accepts_private_extensions_and_message_content(self) -> None:
         settings = cast(
             Any,
