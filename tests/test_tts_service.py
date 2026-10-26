@@ -91,6 +91,12 @@ class BuildSpeechTextTest(unittest.TestCase):
             with self.subTest(content=content):
                 self.assertIsNone(build_speech_text(content, 200))
 
+    def test_semicolon_prefixed_message_is_not_read(self) -> None:
+        for content in (";メモ", "\uff1bメモ", "  ;メモ"):
+            with self.subTest(content=content):
+                self.assertIsNone(build_speech_text(content, 200))
+        self.assertEqual(build_speech_text("メモ;", 200), "メモ;")
+
 
 class MentionsUserTest(unittest.TestCase):
     def test_only_the_exact_bot_mention_matches(self) -> None:

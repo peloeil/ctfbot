@@ -5,6 +5,8 @@ from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 
 MAX_VOICE_CHOICES = 25
+# The full-width form is what a Japanese IME types by default
+SILENT_PREFIXES = (";", "\uff1b")
 
 _FENCED_CODE = re.compile(r"```.*?(?:```|\Z)", re.DOTALL)
 _INLINE_CODE = re.compile(r"`[^`\n]*`")
@@ -66,6 +68,8 @@ def normalize_text(text: str) -> str:
 
 
 def build_speech_text(content: str, max_chars: int) -> str | None:
+    if content.lstrip().startswith(SILENT_PREFIXES):
+        return None
     return normalize_text(content)[:max_chars].strip() or None
 
 
