@@ -50,10 +50,16 @@ class ChatCompletionClient:
                         {"role": "system", "content": SYSTEM_PROMPT},
                         {"role": "user", "content": prompt},
                     ],
-                    "max_tokens": 2048,
+                    # Not reasoning_effort alone: Gemma 4 ignores it and only
+                    # thinks when enable_thinking is set.
+                    # No max_tokens: reasoning tokens count against it and can
+                    # leave content empty, and the reply is truncated to fit
+                    # Discord anyway.
+                    "reasoning_effort": "high",
+                    "chat_template_kwargs": {"enable_thinking": True},
                     "stream": False,
                 },
-                timeout=(5, 60),
+                timeout=(5, 180),
             )
             response.raise_for_status()
             payload = response.json()
@@ -155,7 +161,8 @@ class AIChat(commands.Cog):
             self.active_users.add(message.author.id)
             try:
                 try:
-                    answer = await asyncio.to_thread(self.client.complete, prompt)
+                    async with message.channel.typing():
+                        answer = await asyncio.to_thread(self.client.complete, prompt)
                 except ExternalAPIError:
                     logger.warning(
                         "AI chat request failed for message id=%s", message.id

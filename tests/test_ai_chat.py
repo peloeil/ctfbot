@@ -56,9 +56,20 @@ class ClientTest(unittest.TestCase):
         args, kwargs = post.call_args
         self.assertEqual(args, ("https://example.test/v1/chat/completions",))
         self.assertEqual(kwargs["headers"]["Authorization"], "Bearer secret")
-        self.assertEqual(kwargs["timeout"], (5, 60))
+        self.assertEqual(kwargs["timeout"], (5, 180))
         self.assertEqual(
-            set(kwargs["json"]), {"model", "messages", "max_tokens", "stream"}
+            set(kwargs["json"]),
+            {
+                "model",
+                "messages",
+                "reasoning_effort",
+                "chat_template_kwargs",
+                "stream",
+            },
+        )
+        self.assertEqual(kwargs["json"]["reasoning_effort"], "high")
+        self.assertEqual(
+            kwargs["json"]["chat_template_kwargs"], {"enable_thinking": True}
         )
         self.assertEqual(
             kwargs["json"]["messages"][1], {"role": "user", "content": "質問"}
@@ -134,6 +145,22 @@ class ChatTest(unittest.IsolatedAsyncioTestCase):
         self.message.content = "<@42> 質問"
         self.message.id = 5
         self.message.reply = mock.AsyncMock()
+        self.message.channel = mock.MagicMock()
+
+    async def test_typing_is_shown_only_while_waiting_for_the_api(self) -> None:
+        typing = self.message.channel.typing.return_value
+
+        def complete(prompt: str) -> str:
+            typing.__aenter__.assert_awaited_once()
+            typing.__aexit__.assert_not_awaited()
+            return "回答"
+
+        self.chat.client = mock.Mock()
+        self.chat.client.complete.side_effect = complete
+        await self.chat.on_message(cast(Any, self.message))
+        self.chat.client.complete.assert_called_once()
+        typing.__aexit__.assert_awaited_once()
+        self.message.reply.assert_awaited_once()
 
     async def test_reply_uses_only_message_content_and_does_not_ping(self) -> None:
         self.chat.client = mock.Mock()
