@@ -12,7 +12,7 @@ from ctfbot.features.ctfteam.models import (
 )
 from ctfbot.features.sudo.models import SudoGrant
 
-CURRENT_SCHEMA_VERSION = 9
+CURRENT_SCHEMA_VERSION = 10
 _MIGRATIONS: dict[int, str] = {
     1: """\
 CREATE TABLE IF NOT EXISTS audit_log_entry (
@@ -169,6 +169,12 @@ CREATE TABLE IF NOT EXISTS ai_chat_usage (
     PRIMARY KEY (user_id, period)
 );
 """,
+    9: """\
+CREATE TABLE IF NOT EXISTS tts_ban (
+    user_id INTEGER PRIMARY KEY,
+    banned_at_unix INTEGER NOT NULL
+);
+""",
 }
 
 _SCHEMA_DDL = """\
@@ -253,6 +259,11 @@ CREATE TABLE IF NOT EXISTS ai_chat_usage (
     period TEXT NOT NULL,
     request_count INTEGER NOT NULL CHECK (request_count >= 0),
     PRIMARY KEY (user_id, period)
+);
+
+CREATE TABLE IF NOT EXISTS tts_ban (
+    user_id INTEGER PRIMARY KEY,
+    banned_at_unix INTEGER NOT NULL
 );
 """
 
@@ -507,6 +518,29 @@ class Database:
             cur = conn.execute(
                 "DELETE FROM tts_voice_preference WHERE user_id=?", (user_id,)
             )
+            conn.commit()
+            return cur.rowcount > 0
+
+    def is_tts_banned(self, user_id: int) -> bool:
+        with self._connection() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM tts_ban WHERE user_id=?", (user_id,)
+            ).fetchone()
+        return row is not None
+
+    def add_tts_ban(self, user_id: int, banned_at_unix: int) -> bool:
+        with self._connection() as conn:
+            cur = conn.execute(
+                "INSERT INTO tts_ban (user_id, banned_at_unix) VALUES (?, ?) "
+                "ON CONFLICT (user_id) DO NOTHING",
+                (user_id, banned_at_unix),
+            )
+            conn.commit()
+            return cur.rowcount > 0
+
+    def delete_tts_ban(self, user_id: int) -> bool:
+        with self._connection() as conn:
+            cur = conn.execute("DELETE FROM tts_ban WHERE user_id=?", (user_id,))
             conn.commit()
             return cur.rowcount > 0
 

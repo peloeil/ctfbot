@@ -94,6 +94,7 @@ DDL は `db.py` の `_SCHEMA_DDL`、移行 SQL は `_MIGRATIONS`、対応する�
 | `audit_log_entry` | Discord 監査ログ。`entry_id` は一意、検索用に guild と発生時刻の index を持つ |
 | `sudo_grant` | bot が管理する期限付きロール。`user_id` ごとに 1 件 |
 | `tts_voice_preference` | VC 読み上げで `/read voice set` が選んだ声（VOICEVOX の style ID）。`user_id` ごとに 1 件。自動割り当ての声は保存しない |
+| `tts_ban` | VC 読み上げで `/read ban` により禁止したユーザー。`user_id` ごとに 1 件 |
 | `ai_chat_usage` | AI チャットの月次利用回数。`user_id`・`period`（`YYYY-MM`）の組ごとに 1 件。月初にリセットするため行は消さず、`period` を変えて加算する |
 
 CTF 名の `COLLATE NOCASE` は ASCII の大文字小文字だけを同一視する。非 ASCII の名前は大文字小文字を区別する。
@@ -112,6 +113,7 @@ CTF 名の `COLLATE NOCASE` は ASCII の大文字小文字だけを同一視す
 | 6 → 7 | 開始・archive の期日検索と作成者別 active 件数の index |
 | 7 → 8 | VC 読み上げの声の設定 |
 | 8 → 9 | AI チャットの月次利用回数の記録 |
+| 9 → 10 | VC 読み上げの禁止 |
 
 テーブル再構築はトランザクション内で新テーブルへ明示した列をコピーする。募集の ID は維持し、index は最後の `_SCHEMA_DDL` 適用で復元する。
 
@@ -180,6 +182,16 @@ CTF 名の `COLLATE NOCASE` は ASCII の大文字小文字だけを同一視す
 | `find_tts_voice` | 保存済みの style ID。なければ `None` |
 | `upsert_tts_voice` | `ON CONFLICT (user_id) DO UPDATE` で `speaker_id`・`updated_at_unix` を更新。`speaker_id` は 0 以上（CHECK 違反は `RepositoryError`） |
 | `delete_tts_voice` | 削除したら `True`、なければ `False` |
+
+### tts_ban
+
+単一 guild 運用のため `guild_id` は持たない。guild を抜けたユーザーの行も消さない。
+
+| メソッド | 契約 |
+|---|---|
+| `is_tts_banned` | 禁止されていれば `True` |
+| `add_tts_ban` | 挿入したら `True`、既に禁止済みなら変更せず `False`（`ON CONFLICT (user_id) DO NOTHING`） |
+| `delete_tts_ban` | 削除したら `True`、なければ `False` |
 
 ### ai_chat_usage
 

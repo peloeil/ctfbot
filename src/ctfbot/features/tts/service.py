@@ -30,6 +30,7 @@ _SPACES = re.compile(r"[ \t　]+")
 @dataclass(frozen=True, slots=True)
 class SpeechItem:
     message_id: int
+    author_id: int
     text: str
     speaker_id: int
 

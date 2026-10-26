@@ -441,6 +441,36 @@ PRAGMA user_version = 3;
             conn.executescript(_MIGRATIONS[8])
         self.assertEqual(self.db.count_ai_chat_requests(1, "2026-10"), 1)
 
+    def test_version_nine_migration_adds_tts_ban(self) -> None:
+        with sqlite3.connect(self.path) as conn:
+            conn.execute("DROP TABLE tts_ban")
+            conn.execute("PRAGMA user_version = 9")
+
+        db = Database(self.path)
+        db.add_tts_ban(1, 100)
+
+        with sqlite3.connect(self.path) as conn:
+            version = conn.execute("PRAGMA user_version").fetchone()[0]
+        self.assertEqual(version, CURRENT_SCHEMA_VERSION)
+        self.assertTrue(db.is_tts_banned(1))
+
+    def test_version_nine_migration_can_be_applied_twice(self) -> None:
+        self.db.add_tts_ban(1, 100)
+        with sqlite3.connect(self.path) as conn:
+            conn.executescript(_MIGRATIONS[9])
+            conn.executescript(_MIGRATIONS[9])
+        self.assertTrue(self.db.is_tts_banned(1))
+
+    def test_tts_ban_lifecycle(self) -> None:
+        self.assertFalse(self.db.is_tts_banned(1))
+        self.assertTrue(self.db.add_tts_ban(1, 100))
+        self.assertFalse(self.db.add_tts_ban(1, 200))
+        self.assertTrue(self.db.is_tts_banned(1))
+        self.assertFalse(self.db.is_tts_banned(2))
+        self.assertTrue(self.db.delete_tts_ban(1))
+        self.assertFalse(self.db.delete_tts_ban(1))
+        self.assertFalse(self.db.is_tts_banned(1))
+
     def test_ai_chat_usage_counts_requests_per_user_and_period(self) -> None:
         self.assertEqual(self.db.count_ai_chat_requests(1, "2026-10"), 0)
         self.db.record_ai_chat_request(1, "2026-10")

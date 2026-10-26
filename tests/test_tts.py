@@ -36,6 +36,8 @@ ADMIN = 3
 CAROL = 4
 DAVE = 5
 EVE = 6
+SUDOER = 7
+SUDOER_ROLE_ID = 20
 POOL = (3, 2, 8, 1, 11)
 VOICES = tuple(Voice(i, f"キャラ{i}", "ノーマル") for i in (1, 2, 3, 8, 11))
 
@@ -137,6 +139,8 @@ class TTSTestCase(unittest.IsolatedAsyncioTestCase):
                 Any,
                 SimpleNamespace(
                     guild_id=GUILD_ID,
+                    sudoer_role_id=SUDOER_ROLE_ID,
+                    bot_channel_id=None,
                     tts_max_chars=200,
                     tts_speed_scale=1.5,
                     tts_voicevox_url="http://127.0.0.1:50021",
@@ -163,7 +167,11 @@ class TTSTestCase(unittest.IsolatedAsyncioTestCase):
         await self.cog.cog_unload()
 
     def interaction(
-        self, user_id: int, channel_id: int | None = CHANNEL_A, manage: bool = False
+        self,
+        user_id: int,
+        channel_id: int | None = CHANNEL_A,
+        manage: bool = False,
+        sudoer: bool = False,
     ) -> mock.Mock:
         channel = self.channels[channel_id] if channel_id is not None else None
         self.voice_of[user_id] = channel
@@ -172,6 +180,7 @@ class TTSTestCase(unittest.IsolatedAsyncioTestCase):
         interaction.user.id = user_id
         interaction.user.voice = SimpleNamespace(channel=channel) if channel else None
         interaction.user.guild_permissions.manage_guild = manage
+        interaction.user.roles = [SimpleNamespace(id=SUDOER_ROLE_ID)] if sudoer else []
         interaction.response.is_done.return_value = False
         interaction.response.defer = mock.AsyncMock(
             side_effect=lambda **_: interaction.response.is_done.configure_mock(
@@ -374,6 +383,92 @@ class LeaveTest(TTSTestCase):
         self.assertIsNone(self.cog.session)
         self.voice_client.disconnect.assert_awaited_once_with(force=True)
 
+    async def test_sudoer_without_sudo_cannot_end_everything(self) -> None:
+        await self.join(ALICE)
+        reply = await self.run_command(
+            self.cog.leave, self.interaction(SUDOER, None, sudoer=True)
+        )
+        self.assertIn("対象ではありません", reply)
+        self.assertIsNotNone(self.cog.session)
+
+
+class BanTest(TTSTestCase):
+    async def run_member_command(
+        self, command: Any, interaction: mock.Mock, target: int
+    ) -> str:
+        member = mock.Mock(id=target, display_name=f"user{target}")
+        member.mention = f"<@{target}>"
+        await command.callback(self.cog, interaction, member)
+        return self.reply(interaction)
+
+    async def ban(self, target: int) -> str:
+        return await self.run_member_command(
+            self.cog.ban, self.interaction(ADMIN, None, manage=True), target
+        )
+
+    async def unban(self, target: int) -> str:
+        return await self.run_member_command(
+            self.cog.unban, self.interaction(ADMIN, None, manage=True), target
+        )
+
+    async def test_ban_and_unban_require_manage_guild_even_for_sudoers(
+        self,
+    ) -> None:
+        for actor in (self.interaction(ALICE), self.interaction(SUDOER, sudoer=True)):
+            for command in (self.cog.ban, self.cog.unban):
+                with self.subTest(actor=actor.user.id, command=command.name):
+                    reply = await self.run_member_command(command, actor, BOB)
+                    self.assertIn("`/sudo` で昇格してから", reply)
+        self.assertFalse(self.db.is_tts_banned(BOB))
+        reply = await self.ban(BOB)
+        self.assertIn("禁止しました", reply)
+        self.assertTrue(self.db.is_tts_banned(BOB))
+
+    async def test_banned_member_cannot_join_until_unbanned(self) -> None:
+        await self.ban(ALICE)
+        reply = await self.join(ALICE)
+        self.assertEqual(reply, "読み上げを禁止されているため参加できません。")
+        self.assertIsNone(self.cog.session)
+        reply = await self.unban(ALICE)
+        self.assertIn("解除しました", reply)
+        reply = await self.join(ALICE)
+        self.assertIn("開始しました", reply)
+
+    async def test_ban_removes_member_and_their_queued_posts(self) -> None:
+        release = threading.Event()
+        self.addCleanup(release.set)
+        self.client.synthesize.side_effect = lambda text, speaker_id: (
+            release.wait(2) and b"RIFFdata"
+        )
+        await self.join(ALICE)
+        await self.join(BOB)
+        await self.cog.on_message(self.message(ALICE, message_id=1))
+        await wait_until(lambda: self.client.synthesize.call_count == 1)
+        await self.cog.on_message(self.message(BOB, message_id=2))
+        await self.cog.on_message(self.message(ALICE, message_id=3))
+        await self.cog.on_message(self.message(BOB, message_id=4))
+
+        await self.ban(BOB)
+
+        session = self.cog.session
+        assert session is not None
+        self.assertEqual(set(session.opted_in), {ALICE})
+        self.assertEqual(self.queued(), 1)
+        self.assertEqual(session.queue.get_nowait().message_id, 3)
+        self.voice_client.disconnect.assert_not_awaited()
+
+    async def test_banning_the_last_member_disconnects(self) -> None:
+        await self.join(ALICE)
+        await self.ban(ALICE)
+        self.assertIsNone(self.cog.session)
+        self.voice_client.disconnect.assert_awaited_once_with(force=True)
+
+    async def test_repeated_ban_and_unban_are_reported(self) -> None:
+        await self.ban(BOB)
+        self.assertEqual(await self.ban(BOB), "既に読み上げを禁止しています。")
+        await self.unban(BOB)
+        self.assertEqual(await self.unban(BOB), "読み上げを禁止していません。")
+
 
 class MessageTest(TTSTestCase):
     async def asyncSetUp(self) -> None:
@@ -564,9 +659,29 @@ class ControlTest(TTSTestCase):
             reply = await self.run_command(command, self.interaction(ALICE))
             self.assertEqual(reply, "読み上げは開始されていません。")
         await self.join(ALICE)
-        for command in (self.cog.skip, self.cog.stop):
-            reply = await self.run_command(command, self.interaction(BOB))
-            self.assertIn("対象の人か、サーバー管理権限", reply)
+        reply = await self.run_command(self.cog.skip, self.interaction(BOB))
+        self.assertIn("対象の人か、sudoer ロールかサーバー管理権限", reply)
+        reply = await self.run_command(self.cog.stop, self.interaction(BOB))
+        self.assertIn("対象の人か、サーバー管理権限", reply)
+
+    async def test_sudoer_without_sudo_cannot_stop(self) -> None:
+        await self.join(ALICE)
+        reply = await self.run_command(
+            self.cog.stop, self.interaction(SUDOER, None, sudoer=True)
+        )
+        self.assertIn("対象の人か、サーバー管理権限", reply)
+
+    async def test_sudoer_can_skip_without_opting_in(self) -> None:
+        self.client.synthesize.side_effect = None
+        self.client.synthesize.return_value = b"RIFFdata"
+        await self.join(ALICE)
+        await self.cog.on_message(self.message(ALICE))
+        await wait_until(lambda: self.voice_client.play_calls == 1)
+        reply = await self.run_command(
+            self.cog.skip, self.interaction(SUDOER, None, sudoer=True)
+        )
+        self.assertIn("スキップ", reply)
+        self.assertFalse(self.voice_client.playing)
 
     async def test_skip_stops_current_playback(self) -> None:
         self.client.synthesize.side_effect = None
@@ -1277,6 +1392,8 @@ class SetupTest(unittest.IsolatedAsyncioTestCase):
                 Any,
                 SimpleNamespace(
                     guild_id=GUILD_ID,
+                    sudoer_role_id=SUDOER_ROLE_ID,
+                    bot_channel_id=None,
                     tts_max_chars=200,
                     tts_speed_scale=1.5,
                     tts_voicevox_url=url,
@@ -1320,7 +1437,7 @@ class SetupTest(unittest.IsolatedAsyncioTestCase):
         commands_by_name = {command.name: command for command in read_group.commands}
         self.assertEqual(
             set(commands_by_name),
-            {"join", "leave", "skip", "stop", "members", "voice"},
+            {"join", "leave", "skip", "stop", "ban", "unban", "members", "voice"},
         )
         for command in commands_by_name.values():
             self.assertIn("help", command.extras)

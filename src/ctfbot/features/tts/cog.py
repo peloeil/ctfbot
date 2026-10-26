@@ -24,6 +24,7 @@ from ctfbot.features.tts.service import (
 from ctfbot.features.tts.voicevox import VoicevoxClient
 from ctfbot.helpers import (
     MAX_MESSAGE_CONTENT_LENGTH,
+    log_audit,
     require_guild,
     send_interaction,
 )
@@ -83,6 +84,18 @@ class _Session:
             except asyncio.QueueEmpty:
                 return
 
+    def discard_queued(self, author_id: int) -> None:
+        kept: list[SpeechItem] = []
+        while True:
+            try:
+                item = self.queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+            if item.author_id != author_id:
+                kept.append(item)
+        for item in kept:
+            self.queue.put_nowait(item)
+
 
 def _is_in_channel(guild: discord.Guild, user_id: int, channel_id: int) -> bool:
     member = guild.get_member(user_id)
@@ -97,6 +110,12 @@ def _is_in_channel(guild: discord.Guild, user_id: int, channel_id: int) -> bool:
 def _can_manage(interaction: discord.Interaction) -> bool:
     permissions = getattr(interaction.user, "guild_permissions", None)
     return permissions is not None and permissions.manage_guild
+
+
+def _is_sudoer(interaction: discord.Interaction, sudoer_role_id: int | None) -> bool:
+    return sudoer_role_id is not None and any(
+        role.id == sudoer_role_id for role in getattr(interaction.user, "roles", ())
+    )
 
 
 class TTS(commands.Cog):
@@ -136,6 +155,7 @@ class TTS(commands.Cog):
         settings = get_runtime(bot).settings
         self.bot = bot
         self.guild_id = settings.guild_id
+        self.sudoer_role_id = settings.sudoer_role_id
         self.max_chars = settings.tts_max_chars
         self.pool = settings.tts_speaker_ids
         self.db = get_runtime(bot).db
@@ -369,7 +389,9 @@ class TTS(commands.Cog):
         # Fixed at enqueue so a later voice change does not alter queued posts
         speaker_id = session.voices[message.author.id]
         try:
-            session.queue.put_nowait(SpeechItem(message.id, text, speaker_id))
+            session.queue.put_nowait(
+                SpeechItem(message.id, message.author.id, text, speaker_id)
+            )
         except asyncio.QueueFull:
             logger.warning(
                 "TTS queue is full; dropped message id=%s chars=%s",
@@ -452,6 +474,14 @@ class TTS(commands.Cog):
         await self._refresh_catalog()
         notes: list[str] = []
         async with self.lock:
+            # Checked under the lock so a concurrent /read ban cannot be overtaken
+            try:
+                banned = await asyncio.to_thread(self.db.is_tts_banned, user_id)
+            except RepositoryError:
+                logger.exception("Failed to read the TTS ban")
+                raise ServiceError("読み上げの設定を確認できませんでした。") from None
+            if banned:
+                raise ServiceError("読み上げを禁止されているため参加できません。")
             session = self.session
             if session is None:
                 session = await self._connect(guild, channel)
@@ -573,12 +603,13 @@ class TTS(commands.Cog):
         description="再生中の読み上げをスキップします。",
         extras={
             "help": "再生中の読み上げを止めて、次の投稿へ進みます。"
-            "読み上げの対象の人かサーバー管理権限を持つ人が実行できます。"
+            "読み上げの対象の人と、sudoer ロールかサーバー管理権限を持つ人が"
+            "実行できます。sudoer は `/sudo` なしで実行できます。"
         },
     )
     async def skip(self, interaction: discord.Interaction) -> None:
         try:
-            session = self._require_controllable_session(interaction)
+            session = self._require_controllable_session(interaction, allow_sudoer=True)
             if not session.voice_client.is_playing():
                 raise ServiceError("再生中の読み上げはありません。")
             session.voice_client.stop()
@@ -606,6 +637,102 @@ class TTS(commands.Cog):
         except ServiceError as exc:
             reply = str(exc)
         await send_interaction(interaction, reply)
+
+    @read.command(
+        name="ban",
+        description="指定したメンバーの読み上げを禁止します。",
+        extras={
+            "help": "指定したメンバーを読み上げ対象から外し、`/read unban` で"
+            "解除するまで `/read join` できないようにします。"
+            "待機中の読み上げのうち、そのメンバーの投稿も破棄します。"
+            "bot の再起動後も禁止は続きます。\n"
+            "サーバー管理権限を持つ人が実行できます。"
+            "sudoer は `/sudo` で昇格してから実行してください。"
+        },
+    )
+    @app_commands.describe(member="読み上げを禁止するメンバー")
+    async def ban(
+        self, interaction: discord.Interaction, member: discord.Member
+    ) -> None:
+        await interaction.response.defer(ephemeral=True)
+        try:
+            reply = await self._ban(interaction, member)
+        except ServiceError as exc:
+            await send_interaction(interaction, str(exc))
+            return
+        await send_interaction(interaction, reply)
+        await log_audit(
+            self.bot,
+            interaction,
+            command_name="read ban",
+            details=[f"対象: {member.display_name} ({member.id})"],
+        )
+
+    async def _ban(
+        self, interaction: discord.Interaction, member: discord.Member
+    ) -> str:
+        require_guild(interaction)
+        self._require_manager(interaction)
+        async with self.lock:
+            try:
+                added = await asyncio.to_thread(
+                    self.db.add_tts_ban, member.id, int(time.time())
+                )
+            except RepositoryError:
+                logger.exception("Failed to save the TTS ban")
+                raise ServiceError("読み上げの禁止を保存できませんでした。") from None
+            if not added:
+                raise ServiceError("既に読み上げを禁止しています。")
+            session = self.session
+            if session is not None:
+                session.discard_queued(member.id)
+                if member.id in session.voices:
+                    del session.voices[member.id]
+                    if not session.opted_in:
+                        await self._teardown(session)
+        return f"✅ {member.mention} の読み上げを禁止しました。"
+
+    @read.command(
+        name="unban",
+        description="メンバーの読み上げの禁止を解除します。",
+        extras={
+            "help": "`/read ban` で禁止したメンバーが、再び `/read join` "
+            "できるようにします。\n"
+            "サーバー管理権限を持つ人が実行できます。"
+            "sudoer は `/sudo` で昇格してから実行してください。"
+        },
+    )
+    @app_commands.describe(member="禁止を解除するメンバー")
+    async def unban(
+        self, interaction: discord.Interaction, member: discord.Member
+    ) -> None:
+        await interaction.response.defer(ephemeral=True)
+        try:
+            reply = await self._unban(interaction, member)
+        except ServiceError as exc:
+            await send_interaction(interaction, str(exc))
+            return
+        await send_interaction(interaction, reply)
+        await log_audit(
+            self.bot,
+            interaction,
+            command_name="read unban",
+            details=[f"対象: {member.display_name} ({member.id})"],
+        )
+
+    async def _unban(
+        self, interaction: discord.Interaction, member: discord.Member
+    ) -> str:
+        require_guild(interaction)
+        self._require_manager(interaction)
+        try:
+            deleted = await asyncio.to_thread(self.db.delete_tts_ban, member.id)
+        except RepositoryError:
+            logger.exception("Failed to delete the TTS ban")
+            raise ServiceError("読み上げの禁止を解除できませんでした。") from None
+        if not deleted:
+            raise ServiceError("読み上げを禁止していません。")
+        return f"✅ {member.mention} の読み上げの禁止を解除しました。"
 
     @read.command(
         name="members",
@@ -826,15 +953,29 @@ class TTS(commands.Cog):
         return self.session
 
     def _require_controllable_session(
-        self, interaction: discord.Interaction
+        self, interaction: discord.Interaction, *, allow_sudoer: bool = False
     ) -> _Session:
         require_guild(interaction)
         session = self._require_session()
-        if interaction.user.id not in session.opted_in and not _can_manage(interaction):
+        if interaction.user.id in session.opted_in or _can_manage(interaction):
+            return session
+        if allow_sudoer:
+            if _is_sudoer(interaction, self.sudoer_role_id):
+                return session
             raise ServiceError(
-                "読み上げの対象の人か、サーバー管理権限を持つ人のみ実行できます。"
+                "読み上げの対象の人か、sudoer ロールかサーバー管理権限を持つ人のみ"
+                "実行できます。"
             )
-        return session
+        raise ServiceError(
+            "読み上げの対象の人か、サーバー管理権限を持つ人のみ実行できます。"
+        )
+
+    def _require_manager(self, interaction: discord.Interaction) -> None:
+        if not _can_manage(interaction):
+            raise ServiceError(
+                "サーバー管理権限を持つ人のみ実行できます。"
+                "sudoer は `/sudo` で昇格してから実行してください。"
+            )
 
 
 async def setup(bot: commands.Bot) -> None:
