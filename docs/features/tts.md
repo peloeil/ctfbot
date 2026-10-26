@@ -150,7 +150,7 @@ ENGINE 0.26.0（cpu）での実測（かなの文。RSS）:
 - 使っていない間も抱え続ける分は、[オンデマンド起動](#オンデマンド起動)でコンテナごと止めて手放せる。
 - VOICEVOX CORE を直接使えば VVM を解放できるが、VVM を 2 つに固定する限り解放する対象がなく、bot のプロセスにネイティブライブラリを入れる手間だけが残るため採らない。3 つ以上の VVM を使いたくなったら再検討する。
 
-WAV はディスクに書かず、`io.BytesIO` を `FFmpegPCMAudio(pipe=True)` へ渡す。本文を含む一時ファイルを残さないため。再生完了は `after` コールバックから Future に伝えて待つ。コールバックの二重呼び出しとループ終了後の呼び出しは無害にしてある。`play()` の `ClientException`（自動再接続中を含む）はその項目を飛ばし、`OpusNotLoaded` はセッションを切断する。
+WAV はディスクに書かず、`io.BytesIO` を `FFmpegPCMAudio(pipe=True)` へ渡す。本文を含む一時ファイルを残さないため。再生ごとに出る ffmpeg の警告（`Guessed Channel Layout` など）と `discord.player` の INFO ログは抑止し、ffmpeg のエラーと `discord.player` の warning 以上だけを出す。再生完了は `after` コールバックから Future に伝えて待つ。コールバックの二重呼び出しとループ終了後の呼び出しは無害にしてある。`play()` の `ClientException`（自動再接続中を含む）はその項目を飛ばし、`OpusNotLoaded` はセッションを切断する。
 
 キューは 20 件まで（合成中・再生中の 1 件は含めない）。満杯のときは古いものを捨てず、新しい投稿を warning ログに残して捨てる。ログに本文は出さず、メッセージ ID と文字数だけを残す（声の ID も出さない）。
 

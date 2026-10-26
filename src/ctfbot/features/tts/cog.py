@@ -343,7 +343,9 @@ class TTS(commands.Cog):
         # No await between the checks above and play(), so the session stays current
         source = None
         try:
-            source = discord.FFmpegPCMAudio(io.BytesIO(audio), pipe=True)
+            source = discord.FFmpegPCMAudio(
+                io.BytesIO(audio), pipe=True, before_options="-loglevel error"
+            )
             session.voice_client.play(source, after=after)
         except discord.ClientException:
             logger.warning("TTS playback failed for message id=%s", item.message_id)
