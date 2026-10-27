@@ -11,10 +11,7 @@ from ctfbot.helpers import MAX_MESSAGE_CONTENT_LENGTH
 from ctfbot.log import logger
 from ctfbot.runtime import get_runtime
 
-SYSTEM_PROMPT = (
-    "あなたは CTF コミュニティの Discord bot です。日本語で簡潔に答えてください。"
-    "回答は 1500 文字以内にしてください。"
-)
+SYSTEM_PROMPT = "日本語で簡潔に答えてください。回答は 1500 文字以内にしてください。"
 MAX_PROMPT_LENGTH = 2000
 MAX_CONCURRENT_REQUESTS = 2
 MAX_MONTHLY_REQUESTS = 30
