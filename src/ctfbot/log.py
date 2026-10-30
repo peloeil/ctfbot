@@ -5,6 +5,7 @@ logger = logging.getLogger("ctfbot")
 
 def configure_logging(level: str) -> None:
     logging.getLogger("discord.player").setLevel(logging.WARNING)
+    logging.getLogger("discord.gateway").setLevel(logging.WARNING)
     root = logging.getLogger()
     if root.handlers:
         root.setLevel(level)
