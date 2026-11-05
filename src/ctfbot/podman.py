@@ -4,7 +4,6 @@ import time
 from collections.abc import Awaitable, Callable
 
 from ctfbot.errors import ExternalAPIError
-from ctfbot.features.tts.voicevox import VoicevoxClient
 from ctfbot.log import logger
 
 IDLE_STOP_SECONDS = 300.0
@@ -14,28 +13,31 @@ PODMAN_TIMEOUT_SECONDS = 30.0
 MAX_STDERR_CHARS = 200
 
 
-class VoicevoxEngine:
-    """Calls to the ENGINE, starting and stopping its podman container on demand."""
+class PodmanEngine:
+    """Calls to a server, starting and stopping its podman container on demand."""
 
     def __init__(
         self,
-        client: VoicevoxClient,
+        ready_check: Callable[[], None],
         container: str,
+        name: str,
         *,
         idle_seconds: float = IDLE_STOP_SECONDS,
         ready_timeout: float = READY_TIMEOUT_SECONDS,
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], Awaitable[object]] = asyncio.sleep,
     ) -> None:
-        self.client = client
+        # Blocking probe that raises ExternalAPIError until the server answers
+        self.ready_check = ready_check
         self.container = container
+        self.name = name
         self.idle_seconds = idle_seconds
         self.ready_timeout = ready_timeout
         self.clock = clock
         self.sleep = sleep
         # Serializes start and stop so they never interleave
         self.lock = asyncio.Lock()
-        # Whether the ENGINE is believed to be up; dropped when a call fails
+        # Whether the server is believed to be up; dropped when a call fails
         self.running = False
         self.holds = 0
         self.active = 0
@@ -43,7 +45,7 @@ class VoicevoxEngine:
         self.idle_task: asyncio.Task[None] | None = None
 
     def hold(self) -> None:
-        """Keep the ENGINE up until a matching release (a TTS session)."""
+        """Keep the server up until a matching release (e.g. a TTS session)."""
         self.holds += 1
 
     def release(self) -> None:
@@ -67,7 +69,7 @@ class VoicevoxEngine:
     async def call[**P, R](
         self, func: Callable[P, R], *args: P.args, **kwargs: P.kwargs
     ) -> R:
-        """Run a blocking client call in a thread, with the ENGINE up."""
+        """Run a blocking client call in a thread, with the server up."""
         self.active += 1
         try:
             await self._ensure_running()
@@ -100,17 +102,19 @@ class VoicevoxEngine:
         deadline = self.clock() + self.ready_timeout
         while True:
             try:
-                await asyncio.to_thread(self.client.check_version)
+                await asyncio.to_thread(self.ready_check)
                 return
             except ExternalAPIError:
                 if self.clock() >= deadline:
-                    logger.warning("VOICEVOX did not become ready after podman start")
+                    logger.warning(
+                        "%s did not become ready after podman start", self.name
+                    )
                     raise
             await self.sleep(READY_POLL_SECONDS)
 
     async def _idle_loop(self) -> None:
         # Re-armed by _touch whenever a hold or call ends, so it simply exits
-        # while the ENGINE is in use
+        # while the server is in use
         while True:
             if self.holds or self.active:
                 return

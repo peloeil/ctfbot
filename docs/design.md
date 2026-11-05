@@ -22,6 +22,7 @@ Discord のモックなしでテストするロジックを分離する。小さ
 | feature の models | Database と共有する Discord 非依存の型 |
 | db.py | 全テーブルの SQL とトランザクション |
 | helpers.py | feature をまたぐ Discord 操作 |
+| podman.py | TTS と翻訳が共有する、podman コンテナのオンデマンド起動・停止（Discord 非依存） |
 | runtime.py | Settings と Database の受け渡し |
 
 Database が feature の models に依存するのは、SQL を 1 クラスへ集約するため。runtime を app から分けるのは、feature が bot の起動・終了処理に依存せず設定と DB を受け取るため。

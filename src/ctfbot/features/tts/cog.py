@@ -11,7 +11,6 @@ from discord import app_commands
 from discord.ext import commands
 
 from ctfbot.errors import ExternalAPIError, RepositoryError, ServiceError
-from ctfbot.features.tts.engine import VoicevoxEngine
 from ctfbot.features.tts.service import (
     SpeechItem,
     Voice,
@@ -32,6 +31,7 @@ from ctfbot.helpers import (
     send_interaction,
 )
 from ctfbot.log import logger
+from ctfbot.podman import PodmanEngine
 from ctfbot.runtime import get_runtime
 
 MAX_QUEUE_SIZE = 20
@@ -67,7 +67,7 @@ class _Session:
         self.epoch = 0
         self.worker: asyncio.Task[None] | None = None
         self.grace: asyncio.Task[None] | None = None
-        # Whether this session keeps the ENGINE up (see VoicevoxEngine.hold)
+        # Whether this session keeps the ENGINE up (see PodmanEngine.hold)
         self.holds_engine = False
 
     @property
@@ -152,7 +152,7 @@ class TTS(commands.Cog):
         bot: commands.Bot,
         client: VoicevoxClient,
         *,
-        engine: VoicevoxEngine,
+        engine: PodmanEngine,
         grace_seconds: float = LEAVE_GRACE_SECONDS,
         playback_ready: bool | None = None,
     ) -> None:
@@ -1077,5 +1077,7 @@ async def setup(bot: commands.Bot) -> None:
     client = VoicevoxClient(
         settings.tts_voicevox_url, speed_scale=settings.tts_speed_scale
     )
-    engine = VoicevoxEngine(client, settings.tts_voicevox_container)
+    engine = PodmanEngine(
+        client.check_version, settings.tts_voicevox_container, "VOICEVOX"
+    )
     await bot.add_cog(TTS(bot, client, engine=engine))

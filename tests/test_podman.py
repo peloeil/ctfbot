@@ -3,9 +3,9 @@ import unittest
 from typing import Any, cast
 from unittest import mock
 
+from ctfbot import podman as engine_module
 from ctfbot.errors import ExternalAPIError
-from ctfbot.features.tts import engine as engine_module
-from ctfbot.features.tts.engine import VoicevoxEngine
+from ctfbot.podman import PodmanEngine
 
 CONTAINER = "voicevox"
 IDLE = 300.0
@@ -72,10 +72,11 @@ class EngineTestCase(unittest.IsolatedAsyncioTestCase):
         if task is not None:
             task.cancel()
 
-    def make_engine(self, container: str) -> VoicevoxEngine:
-        return VoicevoxEngine(
-            self.client,
+    def make_engine(self, container: str) -> PodmanEngine:
+        return PodmanEngine(
+            self.client.check_version,
             container,
+            "VOICEVOX",
             idle_seconds=IDLE,
             ready_timeout=30.0,
             clock=self.clock,

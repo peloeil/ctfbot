@@ -174,7 +174,7 @@ WAV はディスクに書かず、`io.BytesIO` を `FFmpegPCMAudio(pipe=True)` �
 
 ### オンデマンド起動
 
-ENGINE は一度読み込んだモデルと推論用メモリを解放しないため、常駐させると使っていない間も 1〜2 GB を抱える。TTS 有効時は、bot が `TTS_VOICEVOX_CONTAINER`（既定 `voicevox`）の podman コンテナを必要なときだけ `podman start`、使い終えたら `podman stop` する（計測では `start` から `/version` 応答まで約 0.7 秒、最初の合成まで約 1.3 秒、`stop` は約 0.5 秒で、起動の待ちはほぼ問題にならない）。実装: [engine.py](../../src/ctfbot/features/tts/engine.py)（Discord 非依存）。
+ENGINE は一度読み込んだモデルと推論用メモリを解放しないため、常駐させると使っていない間も 1〜2 GB を抱える。TTS 有効時は、bot が `TTS_VOICEVOX_CONTAINER`（既定 `voicevox`）の podman コンテナを必要なときだけ `podman start`、使い終えたら `podman stop` する（計測では `start` から `/version` 応答まで約 0.7 秒、最初の合成まで約 1.3 秒、`stop` は約 0.5 秒で、起動の待ちはほぼ問題にならない）。実装: 翻訳と共通の [podman.py](../../src/ctfbot/podman.py)（Discord 非依存）。
 
 常駐 ENGINE にそのまま接続する設定は設けない。コンテナ以外で ENGINE を運用する環境がなく、分岐とテストが増えるだけのため。
 

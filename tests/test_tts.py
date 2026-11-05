@@ -12,18 +12,18 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from ctfbot import podman as podman_module
 from ctfbot.db import Database
 from ctfbot.errors import ExternalAPIError, RepositoryError
 from ctfbot.features.tts import cog as tts_cog
-from ctfbot.features.tts import engine as tts_engine
 from ctfbot.features.tts.cog import (
     CATALOG_RETRY_SECONDS,
     CATALOG_TTL_SECONDS,
     MAX_QUEUE_SIZE,
     TTS,
 )
-from ctfbot.features.tts.engine import VoicevoxEngine
 from ctfbot.features.tts.service import Voice
+from ctfbot.podman import PodmanEngine
 from ctfbot.runtime import BotRuntime
 
 GUILD_ID = 99
@@ -88,7 +88,7 @@ async def wait_until(predicate: Callable[[], bool], timeout: float = 2.0) -> Non
 
 
 class PassThroughEngine:
-    """Stands in for VoicevoxEngine without touching podman."""
+    """Stands in for PodmanEngine without touching podman."""
 
     def hold(self) -> None:
         pass
@@ -1506,7 +1506,7 @@ class SetupTest(unittest.IsolatedAsyncioTestCase):
         process = mock.Mock(returncode=0)
         process.communicate = mock.AsyncMock(return_value=(b"", b""))
         patcher = mock.patch.object(
-            tts_engine.asyncio, "create_subprocess_exec", return_value=process
+            podman_module.asyncio, "create_subprocess_exec", return_value=process
         )
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -1561,12 +1561,12 @@ class OnDemandEngineTest(TTSTestCase):
             return process
 
         patcher = mock.patch.object(
-            tts_engine.asyncio, "create_subprocess_exec", side_effect=create
+            podman_module.asyncio, "create_subprocess_exec", side_effect=create
         )
         patcher.start()
         self.addCleanup(patcher.stop)
         self.client.check_version.return_value = None
-        self.engine = VoicevoxEngine(self.client, "voicevox")
+        self.engine = PodmanEngine(self.client.check_version, "voicevox", "VOICEVOX")
         self.cog.engine = self.engine
 
     async def test_session_holds_the_engine_until_it_ends(self) -> None:

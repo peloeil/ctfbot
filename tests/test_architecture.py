@@ -31,7 +31,7 @@ class ArchitectureTest(unittest.TestCase):
         )
 
     def test_tts_service_and_client_do_not_import_discord(self) -> None:
-        for name in ("service.py", "voicevox.py", "engine.py"):
+        for name in ("service.py", "voicevox.py"):
             imports = imports_for(SRC / "features" / "tts" / name)
             self.assertFalse(
                 any(
@@ -39,6 +39,12 @@ class ArchitectureTest(unittest.TestCase):
                 ),
                 f"tts/{name} imports discord",
             )
+
+    def test_podman_does_not_import_discord(self) -> None:
+        imports = imports_for(SRC / "podman.py")
+        self.assertFalse(
+            any(name == "discord" or name.startswith("discord.") for name in imports)
+        )
 
     def test_db_does_not_import_discord(self) -> None:
         imports = imports_for(SRC / "db.py")
