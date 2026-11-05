@@ -36,6 +36,10 @@ class Settings:
     ai_chat_api_key: str | None
     ai_chat_api_url: str
     ai_chat_model: str
+    translate_api_url: str | None
+    translate_container: str
+    translate_model: str
+    translate_max_chars: int
     tts_voicevox_url: str | None
     tts_speaker_ids: tuple[int, ...]
     tts_max_chars: int
@@ -53,6 +57,7 @@ DEFAULT_TTS_SPEED_SCALE = 1.5
 DEFAULT_TTS_VOICEVOX_CONTAINER = "voicevox"
 MIN_TTS_SPEED_SCALE = 0.5
 MAX_TTS_SPEED_SCALE = 2.0
+MAX_TRANSLATE_CHARS = 2000
 
 
 def _read_int(environ: Mapping[str, str], name: str, default: int | None = None) -> int:
@@ -194,6 +199,15 @@ def load_settings(
     if tts_max_chars > MAX_TTS_CHARS:
         raise ConfigurationError(f"TTS_MAX_CHARS must be at most {MAX_TTS_CHARS}.")
 
+    translate_max_chars = _require_positive(
+        _read_int(env, "TRANSLATE_MAX_CHARS", MAX_TRANSLATE_CHARS),
+        "TRANSLATE_MAX_CHARS",
+    )
+    if translate_max_chars > MAX_TRANSLATE_CHARS:
+        raise ConfigurationError(
+            f"TRANSLATE_MAX_CHARS must be at most {MAX_TRANSLATE_CHARS}."
+        )
+
     return Settings(
         discord_token=discord_token,
         guild_id=guild_id,
@@ -239,6 +253,11 @@ def load_settings(
         or "https://api.ai.sakura.ad.jp/v1/chat/completions",
         ai_chat_model=env.get("AI_CHAT_MODEL", "preview/gemma-4-31B-it").strip()
         or "preview/gemma-4-31B-it",
+        translate_api_url=env.get("TRANSLATE_API_URL", "").strip() or None,
+        translate_container=env.get("TRANSLATE_CONTAINER", "").strip()
+        or "plamo-translate",
+        translate_model=env.get("TRANSLATE_MODEL", "").strip() or "plamo-3-translate",
+        translate_max_chars=translate_max_chars,
         tts_voicevox_url=env.get("TTS_VOICEVOX_URL", "").strip() or None,
         tts_speaker_ids=_read_int_list(env, "TTS_SPEAKER_IDS", DEFAULT_TTS_SPEAKER_IDS),
         tts_max_chars=tts_max_chars,

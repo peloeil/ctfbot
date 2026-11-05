@@ -53,6 +53,10 @@ class ConfigTest(unittest.TestCase):
             settings.ai_chat_api_url, "https://api.ai.sakura.ad.jp/v1/chat/completions"
         )
         self.assertEqual(settings.ai_chat_model, "preview/gemma-4-31B-it")
+        self.assertIsNone(settings.translate_api_url)
+        self.assertEqual(settings.translate_container, "plamo-translate")
+        self.assertEqual(settings.translate_model, "plamo-3-translate")
+        self.assertEqual(settings.translate_max_chars, 2000)
         self.assertIsNone(settings.tts_voicevox_url)
         self.assertFalse(settings.tts_enabled)
         self.assertEqual(settings.tts_speaker_ids, (3, 13, 2, 46, 8, 10))
@@ -162,6 +166,35 @@ class ConfigTest(unittest.TestCase):
             load_settings(environ=self.env(AI_CHAT_MODEL=" ")).ai_chat_model,
             "preview/gemma-4-31B-it",
         )
+
+    def test_translate_configuration(self) -> None:
+        for blank in ("", "  "):
+            self.assertIsNone(
+                load_settings(
+                    environ=self.env(TRANSLATE_API_URL=blank)
+                ).translate_api_url
+            )
+        settings = load_settings(
+            environ=self.env(
+                TRANSLATE_API_URL=" http://127.0.0.1:8080 ",
+                TRANSLATE_CONTAINER=" plamo ",
+                TRANSLATE_MODEL=" custom ",
+                TRANSLATE_MAX_CHARS="500",
+            )
+        )
+        self.assertEqual(settings.translate_api_url, "http://127.0.0.1:8080")
+        self.assertEqual(settings.translate_container, "plamo")
+        self.assertEqual(settings.translate_model, "custom")
+        self.assertEqual(settings.translate_max_chars, 500)
+        for name, value in (
+            ("TRANSLATE_MAX_CHARS", "0"),
+            ("TRANSLATE_MAX_CHARS", "2001"),
+        ):
+            with (
+                self.subTest(name=name, value=value),
+                self.assertRaises(ConfigurationError),
+            ):
+                load_settings(environ=self.env(**{name: value}))
 
     def test_optional_channel_ids_default_to_none(self) -> None:
         env = self.env()

@@ -9,6 +9,7 @@ DEFAULT_EXTENSIONS = (
     "ctfbot.features.audit_log",
     "ctfbot.features.sudo.cog",
     "ctfbot.features.ai_chat",
+    "ctfbot.features.translate",
     "ctfbot.features.tts.cog",
 )
 
