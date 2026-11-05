@@ -13,6 +13,35 @@ MAX_EMBED_DESCRIPTION_LENGTH = 4096
 MAX_CHANNEL_NAME_LENGTH = 100
 
 
+def _format_log_entity(
+    entity: object | None, entity_id: int | None, *, prefix: str = ""
+) -> str:
+    identifier = getattr(entity, "id", None)
+    if not isinstance(identifier, int):
+        identifier = entity_id if isinstance(entity_id, int) else None
+    name = getattr(entity, "name", None)
+    if not isinstance(name, str) or not name:
+        name = None
+    label = f"{prefix}{name}" if name else "unknown"
+    return f"{label}({identifier})" if identifier is not None else label
+
+
+def format_log_user(user: object | None, user_id: int | None = None) -> str:
+    return _format_log_entity(user, user_id)
+
+
+def format_log_channel(channel: object | None, channel_id: int | None = None) -> str:
+    return _format_log_entity(channel, channel_id, prefix="#")
+
+
+def format_log_role(role: object | None, role_id: int | None = None) -> str:
+    return _format_log_entity(role, role_id)
+
+
+def format_log_guild(guild: object | None, guild_id: int | None = None) -> str:
+    return _format_log_entity(guild, guild_id)
+
+
 def normalize_channel_name(value: str) -> str:
     normalized = re.sub(r"[^a-z0-9\-]", "-", value.lower())
     normalized = re.sub(r"-+", "-", normalized).strip("-")
@@ -44,7 +73,10 @@ async def send_safely(
             return await channel.send(content, allowed_mentions=allowed_mentions)
         return await channel.send(content)
     except discord.HTTPException:
-        logger.exception("Failed to send message safely")
+        logger.exception(
+            "Failed to send message safely: channel=%s",
+            format_log_channel(channel),
+        )
         return None
 
 
@@ -71,7 +103,11 @@ async def send_interaction(
         discord.NotFound,
         discord.HTTPException,
     ):
-        logger.exception("Failed to send interaction response")
+        logger.exception(
+            "Failed to send interaction response: user=%s channel=%s",
+            format_log_user(interaction.user),
+            format_log_channel(interaction.channel, interaction.channel_id),
+        )
 
 
 def format_timestamp_with_relative(value: int | None, *, style: str = "f") -> str:
@@ -151,11 +187,16 @@ async def resolve_messageable(
         try:
             channel = await bot.fetch_channel(channel_id)
         except discord.NotFound, discord.Forbidden, discord.HTTPException:
-            logger.warning("Failed to resolve channel %s", channel_id)
+            logger.warning(
+                "Failed to resolve channel: channel=%s",
+                format_log_channel(None, channel_id),
+            )
             return None
     if isinstance(channel, discord.abc.Messageable):
         return channel
-    logger.warning("Channel %s is not messageable", channel_id)
+    logger.warning(
+        "Channel is not messageable: channel=%s", format_log_channel(channel)
+    )
     return None
 
 

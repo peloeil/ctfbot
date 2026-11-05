@@ -8,6 +8,8 @@ from ctfbot.errors import ServiceError
 from ctfbot.features.ctfteam.models import CampaignDraft
 from ctfbot.helpers import (
     MAX_CHANNEL_NAME_LENGTH,
+    format_log_channel,
+    format_log_role,
     format_timestamp_with_relative,
     send_safely,
 )
@@ -194,10 +196,16 @@ async def archive_discussion_channel(
         # Already gone: success, keeps the periodic loop idempotent (docs/design.md)
         return True
     except discord.Forbidden:
-        logger.warning("Forbidden while archiving discussion channel %s", discussion.id)
+        logger.warning(
+            "Forbidden while archiving discussion channel: channel=%s",
+            format_log_channel(discussion),
+        )
         return False
     except discord.HTTPException:
-        logger.exception("Failed to archive discussion channel %s", discussion.id)
+        logger.exception(
+            "Failed to archive discussion channel: channel=%s",
+            format_log_channel(discussion),
+        )
         return False
 
 
@@ -216,7 +224,10 @@ async def delete_voice_channel(
             # Already gone: success, keeps the periodic loop idempotent (docs/design.md)
             return True
         except discord.Forbidden, discord.HTTPException:
-            logger.warning("Failed to fetch voice channel %s", channel_id)
+            logger.warning(
+                "Failed to fetch voice channel: channel=%s",
+                format_log_channel(None, channel_id),
+            )
             return False
         channel = fetched if isinstance(fetched, discord.VoiceChannel) else None
     if channel is None:
@@ -228,8 +239,24 @@ async def delete_voice_channel(
         # Already gone: success, keeps the periodic loop idempotent (docs/design.md)
         return True
     except discord.Forbidden, discord.HTTPException:
-        logger.warning("Failed to delete voice channel %s", channel_id)
+        logger.warning(
+            "Failed to delete voice channel: channel=%s",
+            format_log_channel(channel),
+        )
         return False
+
+
+def _describe_resource(
+    resource: discord.Message
+    | discord.Role
+    | discord.TextChannel
+    | discord.VoiceChannel,
+) -> str:
+    if isinstance(resource, discord.Message):
+        return f"message={resource.id} channel={format_log_channel(resource.channel)}"
+    if isinstance(resource, discord.Role):
+        return f"role={format_log_role(resource)}"
+    return f"channel={format_log_channel(resource)}"
 
 
 async def cleanup_resources(
@@ -246,7 +273,9 @@ async def cleanup_resources(
         try:
             await resource.delete()
         except discord.NotFound, discord.Forbidden, discord.HTTPException:
-            logger.warning("Failed to cleanup resource %s", resource)
+            logger.warning(
+                "Failed to cleanup resource: %s", _describe_resource(resource)
+            )
 
 
 async def mark_message_closed(
@@ -263,7 +292,11 @@ async def mark_message_closed(
         # Already gone: success, keeps the periodic loop idempotent (docs/design.md)
         return True
     except discord.Forbidden, discord.HTTPException:
-        logger.warning("Failed to mark recruitment message %s closed", message_id)
+        logger.warning(
+            "Failed to mark recruitment message closed: message=%s channel=%s",
+            message_id,
+            format_log_channel(channel),
+        )
         return False
 
 

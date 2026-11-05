@@ -398,6 +398,9 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
                 guild=SimpleNamespace(id=1),
                 response=SimpleNamespace(defer=self.defer),
                 followup=SimpleNamespace(send=self.followup_send),
+                user=SimpleNamespace(name="alice", id=2),
+                channel=SimpleNamespace(name="general", id=3),
+                channel_id=3,
             ),
         )
 
@@ -504,7 +507,7 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
             patch(
                 "ctfbot.features.alpacahack.cog.resolve_messageable",
                 new_callable=mock.AsyncMock,
-                return_value=Mock(),
+                return_value=SimpleNamespace(name="alpaca", id=3),
             ),
             patch(
                 "ctfbot.features.alpacahack.cog.collect_weekly_summary",
@@ -520,7 +523,8 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
             await self.cog.weekly_solve_report.coro(self.cog)
 
         warning.assert_called_once_with(
-            "Weekly AlpacaHack report sent: users=%s failed_users=%s",
+            "Weekly AlpacaHack report sent: channel=%s users=%s failed_users=%s",
+            "#alpaca(3)",
             2,
             1,
         )

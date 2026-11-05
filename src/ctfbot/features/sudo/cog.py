@@ -9,6 +9,8 @@ from discord.ext import commands, tasks
 from ctfbot.errors import RepositoryError, ServiceError
 from ctfbot.features.sudo.models import SudoGrant
 from ctfbot.helpers import (
+    format_log_role,
+    format_log_user,
     log_audit,
     require_guild,
     resolve_messageable,
@@ -206,7 +208,8 @@ class Sudo(commands.Cog):
             )
         except RepositoryError:
             logger.exception(
-                "Failed to restore sudo grant after role assignment failure"
+                "Failed to restore sudo grant after role assignment failure: user=%s",
+                format_log_user(None, user_id),
             )
 
     @tasks.loop(minutes=1)
@@ -219,8 +222,8 @@ class Sudo(commands.Cog):
                     await self._revoke_expired_grant(grant, now_unix)
                 except Exception:
                     logger.exception(
-                        "Failed to process expired sudo grant for member %s",
-                        grant.user_id,
+                        "Failed to process expired sudo grant: user=%s",
+                        format_log_user(None, grant.user_id),
                     )
         except Exception:
             logger.exception("Error in revoke_expired_grants")
@@ -259,13 +262,18 @@ class Sudo(commands.Cog):
                     pass
                 except discord.Forbidden, discord.HTTPException:
                     logger.warning(
-                        "Failed to revoke sudo role from member %s",
-                        grant.user_id,
+                        "Failed to revoke sudo role: user=%s role=%s",
+                        format_log_user(member),
+                        format_log_role(role),
                     )
                     return
 
             await asyncio.to_thread(self.db.delete_sudo_grant, grant.user_id)
-            logger.info("Expired sudo grant revoked: user_id=%s", grant.user_id)
+            logger.info(
+                "Expired sudo grant revoked: user=%s role=%s",
+                format_log_user(member),
+                format_log_role(role, grant.role_id),
+            )
 
         channel = await resolve_messageable(self.bot, self.settings.bot_channel_id)
         if channel is not None:

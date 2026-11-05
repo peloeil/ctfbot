@@ -8,7 +8,14 @@ from discord.ext import commands
 from ctfbot.cogs_loader import DEFAULT_EXTENSIONS, load_cogs
 from ctfbot.config import Settings, load_settings
 from ctfbot.db import Database
-from ctfbot.helpers import resolve_messageable, send_interaction, send_safely
+from ctfbot.helpers import (
+    format_log_channel,
+    format_log_guild,
+    format_log_user,
+    resolve_messageable,
+    send_interaction,
+    send_safely,
+)
 from ctfbot.log import configure_logging, logger
 from ctfbot.runtime import BotRuntime
 
@@ -35,7 +42,11 @@ class CTFBot(commands.Bot):
         guild = discord.Object(id=self.runtime.settings.guild_id)
         self.tree.copy_global_to(guild=guild)
         synced = await self.tree.sync(guild=guild)
-        logger.info("Synced %s command(s) to guild %s", len(synced), guild.id)
+        logger.info(
+            "Synced %s command(s) to guild: guild=%s",
+            len(synced),
+            format_log_guild(self.get_guild(guild.id), guild.id),
+        )
 
     async def on_ready(self) -> None:
         logger.info("%s has connected to Discord!", self.user)
@@ -51,14 +62,11 @@ class CTFBot(commands.Bot):
         interaction: discord.Interaction,
         command: discord.app_commands.Command | discord.app_commands.ContextMenu,
     ) -> None:
-        channel_name = getattr(interaction.channel, "name", None)
         logger.info(
-            "Application command completed: command=/%s user=%s(%s) channel=%s(%s)",
+            "Application command completed: command=/%s user=%s channel=%s",
             command.qualified_name,
-            interaction.user.name,
-            interaction.user.id,
-            f"#{channel_name}" if channel_name else "unknown",
-            interaction.channel_id,
+            format_log_user(interaction.user),
+            format_log_channel(interaction.channel, interaction.channel_id),
         )
 
     async def on_command_error(
@@ -115,7 +123,14 @@ def create_bot(
             )
             return
         name = interaction.command.name if interaction.command else "<unknown>"
-        logger.error("Unhandled error in /%s: %s", name, error, exc_info=error)
+        logger.error(
+            "Unhandled error in /%s: user=%s channel=%s error=%s",
+            name,
+            format_log_user(interaction.user),
+            format_log_channel(interaction.channel, interaction.channel_id),
+            error,
+            exc_info=error,
+        )
         await send_interaction(interaction, "コマンド実行中にエラーが発生しました。")
 
     return bot

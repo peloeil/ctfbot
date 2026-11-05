@@ -25,6 +25,8 @@ from ctfbot.features.tts.service import (
 from ctfbot.features.tts.voicevox import VoicevoxClient
 from ctfbot.helpers import (
     MAX_MESSAGE_CONTENT_LENGTH,
+    format_log_channel,
+    format_log_user,
     log_audit,
     require_guild,
     send_interaction,
@@ -263,6 +265,22 @@ class TTS(commands.Cog):
             return f"ID {speaker_id}"
         return f"{voice.label}（{voice.credit}）"
 
+    def _log_user_ref(self, user_id: int) -> str:
+        guild = self.bot.get_guild(self.guild_id)
+        member = guild.get_member(user_id) if guild is not None else None
+        return format_log_user(member, user_id)
+
+    def _log_channel_ref(self, channel_id: int) -> str:
+        guild = self.bot.get_guild(self.guild_id)
+        channel = guild.get_channel(channel_id) if guild is not None else None
+        return format_log_channel(channel, channel_id)
+
+    def _log_item_context(self, session: _Session, item: SpeechItem) -> tuple[str, str]:
+        return (
+            self._log_user_ref(item.author_id),
+            self._log_channel_ref(session.channel_id),
+        )
+
     def _is_current(self, session: _Session) -> bool:
         return self.session is session
 
@@ -288,7 +306,10 @@ class TTS(commands.Cog):
         try:
             await voice_client.disconnect(force=True)
         except Exception:
-            logger.exception("Failed to disconnect from voice channel")
+            logger.exception(
+                "Failed to disconnect from voice channel: channel=%s",
+                format_log_channel(getattr(voice_client, "channel", None)),
+            )
 
     def _schedule_leave(self, session: _Session) -> None:
         """Leave once nobody is opted in. The caller must hold the lock."""
@@ -315,7 +336,9 @@ class TTS(commands.Cog):
                 return
             except Exception:
                 logger.exception(
-                    "Unexpected TTS error for message id=%s", item.message_id
+                    "Unexpected TTS error: message_id=%s user=%s channel=%s",
+                    item.message_id,
+                    *self._log_item_context(session, item),
                 )
 
     async def _speak(self, session: _Session, item: SpeechItem) -> None:
@@ -325,7 +348,11 @@ class TTS(commands.Cog):
                 self.client.synthesize, item.text, item.speaker_id
             )
         except ExternalAPIError:
-            logger.warning("TTS synthesis failed for message id=%s", item.message_id)
+            logger.warning(
+                "TTS synthesis failed: message_id=%s user=%s channel=%s",
+                item.message_id,
+                *self._log_item_context(session, item),
+            )
             return
         if not self._is_current(session) or session.epoch != epoch:
             return
@@ -351,7 +378,11 @@ class TTS(commands.Cog):
             )
             session.voice_client.play(source, after=after)
         except discord.ClientException:
-            logger.warning("TTS playback failed for message id=%s", item.message_id)
+            logger.warning(
+                "TTS playback failed: message_id=%s user=%s channel=%s",
+                item.message_id,
+                *self._log_item_context(session, item),
+            )
             if source is not None:
                 source.cleanup()
             return
@@ -361,7 +392,11 @@ class TTS(commands.Cog):
             raise
         error = await finished
         if error is not None:
-            logger.warning("TTS playback error for message id=%s", item.message_id)
+            logger.warning(
+                "TTS playback error: message_id=%s user=%s channel=%s",
+                item.message_id,
+                *self._log_item_context(session, item),
+            )
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
@@ -399,8 +434,11 @@ class TTS(commands.Cog):
             )
         except asyncio.QueueFull:
             logger.warning(
-                "TTS queue is full; dropped message id=%s chars=%s",
+                "TTS queue is full; dropped message: message_id=%s user=%s "
+                "channel=%s chars=%s",
                 message.id,
+                format_log_user(message.author),
+                format_log_channel(message.channel),
                 len(text),
             )
 
@@ -431,7 +469,10 @@ class TTS(commands.Cog):
                     SpeechItem(0, 0, text, self._effective_pool()[0])
                 )
             except asyncio.QueueFull:
-                logger.warning("TTS queue is full; dropped join announcement")
+                logger.warning(
+                    "TTS queue is full; dropped join announcement: channel=%s",
+                    self._log_channel_ref(session.channel_id),
+                )
         if member.id not in session.opted_in:
             return
         if after.channel is not None and after.channel.id == session.channel_id:
@@ -454,7 +495,11 @@ class TTS(commands.Cog):
         # connection and only changes its channel). Reconnecting is not attempted.
         async with self.lock:
             if self._is_current(session):
-                logger.info("Voice channel changed externally; ending the TTS session")
+                logger.info(
+                    "Voice channel changed externally; ending the TTS session: "
+                    "channel=%s",
+                    self._log_channel_ref(session.channel_id),
+                )
                 await self._teardown(session)
 
     @read.command(
@@ -498,7 +543,10 @@ class TTS(commands.Cog):
             try:
                 banned = await asyncio.to_thread(self.db.is_tts_banned, user_id)
             except RepositoryError:
-                logger.exception("Failed to read the TTS ban")
+                logger.exception(
+                    "Failed to read the TTS ban: user=%s",
+                    format_log_user(interaction.user),
+                )
                 raise ServiceError("読み上げの設定を確認できませんでした。") from None
             if banned:
                 raise ServiceError("読み上げを禁止されているため参加できません。")
@@ -531,7 +579,10 @@ class TTS(commands.Cog):
         try:
             saved = await asyncio.to_thread(self.db.find_tts_voice, user_id)
         except RepositoryError:
-            logger.exception("Failed to read the TTS voice preference")
+            logger.exception(
+                "Failed to read the TTS voice preference: user=%s",
+                self._log_user_ref(user_id),
+            )
             saved = None
             notes = ["声の設定を読み込めなかったため、自動の声を使います。"]
         else:
@@ -576,7 +627,10 @@ class TTS(commands.Cog):
             discord.opus.OpusNotLoaded,
             RuntimeError,
         ):
-            logger.exception("Failed to connect to voice channel %s", channel.id)
+            logger.exception(
+                "Failed to connect to voice channel: channel=%s",
+                format_log_channel(channel),
+            )
             if guild.voice_client is not None:
                 await self._force_disconnect(guild.voice_client)
             raise ServiceError("ボイスチャンネルに接続できませんでした。") from None
@@ -699,7 +753,11 @@ class TTS(commands.Cog):
                     self.db.add_tts_ban, member.id, int(time.time())
                 )
             except RepositoryError:
-                logger.exception("Failed to save the TTS ban")
+                logger.exception(
+                    "Failed to save the TTS ban: user=%s target=%s",
+                    format_log_user(interaction.user),
+                    format_log_user(member),
+                )
                 raise ServiceError("読み上げの禁止を保存できませんでした。") from None
             if not added:
                 raise ServiceError("既に読み上げを禁止しています。")
@@ -748,7 +806,11 @@ class TTS(commands.Cog):
         try:
             deleted = await asyncio.to_thread(self.db.delete_tts_ban, member.id)
         except RepositoryError:
-            logger.exception("Failed to delete the TTS ban")
+            logger.exception(
+                "Failed to delete the TTS ban: user=%s target=%s",
+                format_log_user(interaction.user),
+                format_log_user(member),
+            )
             raise ServiceError("読み上げの禁止を解除できませんでした。") from None
         if not deleted:
             raise ServiceError("読み上げを禁止していません。")
@@ -824,7 +886,10 @@ class TTS(commands.Cog):
         try:
             saved = await asyncio.to_thread(self.db.find_tts_voice, user_id)
         except RepositoryError:
-            logger.exception("Failed to read the TTS voice preference")
+            logger.exception(
+                "Failed to read the TTS voice preference: user=%s",
+                format_log_user(interaction.user),
+            )
             raise ServiceError("声の設定を読み込めませんでした。") from None
         # No await from here on, so both values are read at one instant
         session = self.session
@@ -912,7 +977,10 @@ class TTS(commands.Cog):
                     self.db.upsert_tts_voice, user_id, chosen.style_id, int(time.time())
                 )
             except RepositoryError:
-                logger.exception("Failed to save the TTS voice preference")
+                logger.exception(
+                    "Failed to save the TTS voice preference: user=%s",
+                    format_log_user(interaction.user),
+                )
                 raise ServiceError("声の設定を保存できませんでした。") from None
             session = self.session
             current = session.voices.get(user_id) if session is not None else None
@@ -953,7 +1021,10 @@ class TTS(commands.Cog):
             try:
                 deleted = await asyncio.to_thread(self.db.delete_tts_voice, user_id)
             except RepositoryError:
-                logger.exception("Failed to delete the TTS voice preference")
+                logger.exception(
+                    "Failed to delete the TTS voice preference: user=%s",
+                    format_log_user(interaction.user),
+                )
                 raise ServiceError("声の設定を戻せませんでした。") from None
             if not deleted:
                 return "声は既に自動です。"

@@ -15,6 +15,10 @@ from ctfbot.features.ctfteam.models import (
 )
 from ctfbot.helpers import (
     fetch_member,
+    format_log_channel,
+    format_log_guild,
+    format_log_role,
+    format_log_user,
     format_timestamp_with_relative,
     log_audit,
     require_guild,
@@ -231,7 +235,12 @@ class CTFTeamCampaigns(
             await send_interaction(interaction, str(exc))
             return
         except Exception:
-            logger.exception("Failed to create campaign: %s", ctf_name)
+            logger.exception(
+                "Failed to create campaign: campaign=%s user=%s channel=%s",
+                ctf_name,
+                format_log_user(interaction.user),
+                format_log_channel(interaction.channel, interaction.channel_id),
+            )
             await discord_ops.cleanup_resources(
                 message=recruit_msg, role=role, discussion=discussion, voice=voice
             )
@@ -246,7 +255,13 @@ class CTFTeamCampaigns(
             try:
                 await creator.add_roles(role)
             except discord.Forbidden, discord.HTTPException:
-                logger.warning("Failed to add creator role for campaign %s", created.id)
+                logger.warning(
+                    "Failed to add creator role for campaign: "
+                    "campaign_id=%s campaign=%s user=%s",
+                    created.id,
+                    created.ctf_name,
+                    format_log_user(interaction.user),
+                )
                 role_assignment_failed = True
 
         if campaign.is_started(created):
@@ -254,8 +269,11 @@ class CTFTeamCampaigns(
                 await self._send_start_if_claimed(discussion, role, created)
             except Exception:
                 logger.exception(
-                    "Failed to send immediate start announcement for campaign %s",
+                    "Failed to send immediate start announcement for campaign: "
+                    "campaign_id=%s campaign=%s channel=%s",
                     created.id,
+                    created.ctf_name,
+                    format_log_channel(discussion),
                 )
 
         response = f"**{draft.ctf_name}** の募集を作成しました。"
@@ -271,7 +289,13 @@ class CTFTeamCampaigns(
             command_name="ctfteam open",
             details=[f"CTF名: {draft.ctf_name}"],
         )
-        logger.info("Campaign created: campaign_id=%s", created.id)
+        logger.info(
+            "Campaign created: campaign_id=%s campaign=%s user=%s channel=%s",
+            created.id,
+            created.ctf_name,
+            format_log_user(interaction.user),
+            format_log_channel(discussion),
+        )
 
     @app_commands.command(
         name="list",
@@ -444,19 +468,31 @@ class CTFTeamCampaigns(
         try:
             await member.add_roles(role)
         except discord.Forbidden, discord.HTTPException:
-            logger.warning("Failed to add role to member %s", payload.user_id)
+            logger.warning(
+                "Failed to add role to member: campaign_id=%s campaign=%s "
+                "user=%s role=%s",
+                found.id,
+                found.ctf_name,
+                format_log_user(member),
+                format_log_role(role),
+            )
             return
-        logger.info(
-            "Campaign role added: campaign_id=%s user_id=%s",
-            found.id,
-            payload.user_id,
+        disc_ch = (
+            guild.get_channel(found.discussion_channel_id)
+            if found.discussion_channel_id is not None
+            else None
         )
-        if found.discussion_channel_id is not None:
-            disc_ch = guild.get_channel(found.discussion_channel_id)
-            if isinstance(disc_ch, discord.TextChannel):
-                await discord_ops.send_join_announcement(
-                    disc_ch, member, found.ctf_name
-                )
+        logger.info(
+            "Campaign role added: campaign_id=%s campaign=%s user=%s role=%s "
+            "channel=%s",
+            found.id,
+            found.ctf_name,
+            format_log_user(member),
+            format_log_role(role),
+            format_log_channel(disc_ch),
+        )
+        if isinstance(disc_ch, discord.TextChannel):
+            await discord_ops.send_join_announcement(disc_ch, member, found.ctf_name)
 
     @tasks.loop(minutes=1)
     async def start_due_campaigns(self) -> None:
@@ -467,8 +503,8 @@ class CTFTeamCampaigns(
             if guild is None:
                 if due:
                     logger.warning(
-                        "Guild %s not found; start notifications pending",
-                        self.settings.guild_id,
+                        "Guild not found; start notifications pending: guild=%s",
+                        format_log_guild(None, self.settings.guild_id),
                     )
                 return
             for item in due:
@@ -480,8 +516,12 @@ class CTFTeamCampaigns(
                 role = guild.get_role(item.role_id)
                 if not isinstance(disc_ch, discord.TextChannel) or role is None:
                     logger.warning(
-                        "Failed to resolve discussion channel or role for campaign %s",
+                        "Failed to resolve discussion channel or role for campaign: "
+                        "campaign_id=%s campaign=%s channel=%s role=%s",
                         item.id,
+                        item.ctf_name,
+                        format_log_channel(disc_ch, item.discussion_channel_id),
+                        format_log_role(role, item.role_id),
                     )
                     continue
                 await self._send_start_if_claimed(disc_ch, role, item)
@@ -567,10 +607,19 @@ class CTFTeamCampaigns(
             )
             if not success:
                 logger.warning(
-                    "Failed to send start announcement for campaign %s", item.id
+                    "Failed to send start announcement for campaign: "
+                    "campaign_id=%s campaign=%s channel=%s",
+                    item.id,
+                    item.ctf_name,
+                    format_log_channel(discussion),
                 )
             else:
-                logger.info("Campaign started: campaign_id=%s", item.id)
+                logger.info(
+                    "Campaign started: campaign_id=%s campaign=%s channel=%s",
+                    item.id,
+                    item.ctf_name,
+                    format_log_channel(discussion),
+                )
 
     async def _close_campaign_resources(
         self, guild: discord.Guild, item: ActiveCampaign
@@ -588,7 +637,14 @@ class CTFTeamCampaigns(
             and ok
         )
         if not ok:
-            logger.warning("Failed to close Discord resources for campaign %s", item.id)
+            logger.warning(
+                "Failed to close Discord resources for campaign: "
+                "campaign_id=%s campaign=%s recruit_channel=%s voice_channel=%s",
+                item.id,
+                item.ctf_name,
+                format_log_channel(recruit_ch, item.channel_id),
+                format_log_channel(None, item.voice_channel_id),
+            )
             return None
 
         was_closed = await asyncio.to_thread(
@@ -606,7 +662,11 @@ class CTFTeamCampaigns(
         if isinstance(disc_ch, discord.TextChannel) and role is not None:
             await discord_ops.send_close_snapshot(disc_ch, item.ctf_name, role)
         logger.info(
-            "Campaign closed: campaign_id=%s archive_at=%s", item.id, archive_at
+            "Campaign closed: campaign_id=%s campaign=%s channel=%s archive_at=%s",
+            item.id,
+            item.ctf_name,
+            format_log_channel(disc_ch, item.discussion_channel_id),
+            archive_at,
         )
         return archive_at
 
@@ -620,8 +680,8 @@ class CTFTeamCampaigns(
         archive_category = guild.get_channel(archive_category_id)
         if not isinstance(archive_category, discord.CategoryChannel):
             logger.warning(
-                "Archive category %s not found",
-                archive_category_id,
+                "Archive category not found: category=%s",
+                format_log_channel(None, archive_category_id),
             )
             return False
 
@@ -648,11 +708,15 @@ class CTFTeamCampaigns(
             except discord.NotFound:
                 pass
             except discord.Forbidden, discord.HTTPException:
-                logger.warning("Failed to delete role %s", item.role_id)
+                logger.warning("Failed to delete role: role=%s", format_log_role(role))
                 ok = False
         if not ok:
             logger.warning(
-                "Failed to archive Discord resources for campaign %s", item.id
+                "Failed to archive Discord resources for campaign: "
+                "campaign_id=%s campaign=%s channel=%s",
+                item.id,
+                item.ctf_name,
+                format_log_channel(disc_ch, item.discussion_channel_id),
             )
             return False
         claimed = await asyncio.to_thread(
@@ -666,7 +730,12 @@ class CTFTeamCampaigns(
                 "📦 このチャンネルは archive カテゴリに移動されました。",
             )
         if claimed:
-            logger.info("Campaign archived: campaign_id=%s", item.id)
+            logger.info(
+                "Campaign archived: campaign_id=%s campaign=%s channel=%s",
+                item.id,
+                item.ctf_name,
+                format_log_channel(disc_ch, item.discussion_channel_id),
+            )
         return True
 
 

@@ -45,6 +45,12 @@ AI チャットの返信は回答内と返信先のメンション通知を抑�
 
 [Discord 監査ログ保存](features/audit-log.md) は Discord の操作イベントを DB に保存する機能で、このコマンド実行記録とは独立している。正確な文面は `helpers.py` を参照する。
 
+## 標準出力ログ
+
+標準出力にユーザー・メンバー・チャンネル・ロール・guild を出すときは `name(id)` 形式に統一する。チャンネルは `#name(id)`、名前を解決できない場合は `unknown(id)` とする。名前は変更され重複もあり得るため、DB や監査記録と突き合わせられるよう ID を残す。変換は `helpers.py` の `format_log_user`・`format_log_channel`・`format_log_role`・`format_log_guild` を使う。
+
+コマンド完了ログは `command=/<name> user=<name>(<id>) channel=#<name>(<id>)` を出す。
+
 ## 接続状態通知
 
 `BOT_CHANNEL_ID` へ接続・停止時刻を付けて通知する。

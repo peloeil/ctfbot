@@ -7,7 +7,11 @@ import requests
 from discord.ext import commands
 
 from ctfbot.errors import ExternalAPIError, RepositoryError
-from ctfbot.helpers import MAX_MESSAGE_CONTENT_LENGTH
+from ctfbot.helpers import (
+    MAX_MESSAGE_CONTENT_LENGTH,
+    format_log_channel,
+    format_log_user,
+)
 from ctfbot.log import logger
 from ctfbot.runtime import get_runtime
 
@@ -93,6 +97,13 @@ class AIChat(commands.Cog):
         if self.client is None:
             logger.info("AI chat disabled (no API key configured)")
 
+    @staticmethod
+    def _log_context(message: discord.Message) -> tuple[str, str]:
+        return (
+            format_log_user(message.author),
+            format_log_channel(message.channel),
+        )
+
     async def _reply(self, message: discord.Message, text: str) -> None:
         try:
             await message.reply(
@@ -101,7 +112,11 @@ class AIChat(commands.Cog):
                 mention_author=False,
             )
         except discord.HTTPException:
-            logger.exception("Failed to reply to AI chat message id=%s", message.id)
+            logger.exception(
+                "Failed to reply to AI chat: message_id=%s user=%s channel=%s",
+                message.id,
+                *self._log_context(message),
+            )
 
     def _current_period(self) -> str:
         return datetime.datetime.now(self.tzinfo).strftime("%Y-%m")
@@ -162,7 +177,9 @@ class AIChat(commands.Cog):
                         answer = await asyncio.to_thread(self.client.complete, prompt)
                 except ExternalAPIError:
                     logger.warning(
-                        "AI chat request failed for message id=%s", message.id
+                        "AI chat request failed: message_id=%s user=%s channel=%s",
+                        message.id,
+                        *self._log_context(message),
                     )
                     await self._reply(message, "AI の応答を取得できませんでした。")
                 else:
@@ -172,8 +189,10 @@ class AIChat(commands.Cog):
                         )
                     except RepositoryError:
                         logger.exception(
-                            "Failed to record AI chat usage for message id=%s",
+                            "Failed to record AI chat usage: message_id=%s "
+                            "user=%s channel=%s",
                             message.id,
+                            *self._log_context(message),
                         )
                     if len(answer) > MAX_MESSAGE_CONTENT_LENGTH:
                         answer = answer[: MAX_MESSAGE_CONTENT_LENGTH - 3] + "..."
@@ -181,7 +200,11 @@ class AIChat(commands.Cog):
             finally:
                 self.active_users.remove(message.author.id)
         except Exception:
-            logger.exception("Unexpected AI chat error for message id=%s", message.id)
+            logger.exception(
+                "Unexpected AI chat error: message_id=%s user=%s channel=%s",
+                message.id,
+                *self._log_context(message),
+            )
 
 
 async def setup(bot: commands.Bot) -> None:

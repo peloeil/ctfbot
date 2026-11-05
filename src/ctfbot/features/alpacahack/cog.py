@@ -18,6 +18,9 @@ from ctfbot.features.alpacahack.service import (
 )
 from ctfbot.helpers import (
     fetch_member,
+    format_log_channel,
+    format_log_guild,
+    format_log_user,
     is_markdown_link_safe,
     log_audit,
     resolve_messageable,
@@ -177,7 +180,10 @@ class Alpacahack(
             return "", discord.AllowedMentions.none()
         guild = self.bot.get_guild(self.settings.guild_id)
         if guild is None:
-            logger.warning("Failed to resolve AlpacaHack daily mention guild")
+            logger.warning(
+                "Failed to resolve AlpacaHack daily mention guild: guild=%s",
+                format_log_guild(None, self.settings.guild_id),
+            )
             return "", discord.AllowedMentions.none()
         role = guild.get_role(mention_id)
         if role is not None:
@@ -193,7 +199,8 @@ class Alpacahack(
                 roles=False,
             )
         logger.warning(
-            "Failed to resolve AlpacaHack daily mention target %s", mention_id
+            "Failed to resolve AlpacaHack daily mention target: target=%s",
+            format_log_user(None, mention_id),
         )
         return "", discord.AllowedMentions.none()
 
@@ -221,7 +228,10 @@ class Alpacahack(
                     allowed_mentions=allowed_mentions,
                 )
                 if sent is not None:
-                    logger.info("Daily AlpacaHack challenge notification sent")
+                    logger.info(
+                        "Daily AlpacaHack challenge notification sent: channel=%s",
+                        format_log_channel(channel),
+                    )
         except Exception:
             logger.exception("Error in daily_challenge_report")
 
@@ -251,7 +261,9 @@ class Alpacahack(
             ):
                 log = logger.warning if summary.failed_users else logger.info
                 log(
-                    "Weekly AlpacaHack report sent: users=%s failed_users=%s",
+                    "Weekly AlpacaHack report sent: channel=%s users=%s "
+                    "failed_users=%s",
+                    format_log_channel(channel),
                     summary.total_users,
                     len(summary.failed_users),
                 )
@@ -398,7 +410,12 @@ class Alpacahack(
         try:
             challenge = await asyncio.to_thread(self.client.fetch_daily_challenge)
         except ExternalAPIError as exc:
-            logger.warning("Manual AlpacaHack daily fetch failed: %s", exc)
+            logger.warning(
+                "Manual AlpacaHack daily fetch failed: user=%s channel=%s error=%s",
+                format_log_user(interaction.user),
+                format_log_channel(interaction.channel, interaction.channel_id),
+                exc,
+            )
             await send_interaction(
                 interaction,
                 "AlpacaHack からの取得に失敗しました。",
