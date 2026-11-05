@@ -19,6 +19,7 @@ from ctfbot.features.tts.service import (
     build_speech_text,
     filter_voices,
     mentions_user,
+    normalize_text,
     resolve_voice,
 )
 from ctfbot.features.tts.voicevox import VoicevoxClient
@@ -129,6 +130,7 @@ class TTS(commands.Cog):
             "参加者ごとに声が変わり、"
             "声は `/read voice` で選べます。"
             "参加者と声は `/read members` で確認できます。\n"
+            "同じ VC に人が入ると、名前と入室を読み上げます。\n"
             "VOICEVOX を使用しています。"
             "クレジットは `/read voice show` で確認できます。"
         },
@@ -415,6 +417,21 @@ class TTS(commands.Cog):
         if self.bot.user is not None and member.id == self.bot.user.id:
             await self._on_bot_voice_state(session, before, after)
             return
+        if (
+            not member.bot
+            and after.channel is not None
+            and after.channel.id == session.channel_id
+            and (before.channel is None or before.channel.id != session.channel_id)
+        ):
+            name = normalize_text(member.display_name) or "誰か"
+            text = f"{name}さんが参加しました。"[: self.max_chars]
+            try:
+                # System announcements have no source message or opted-in author.
+                session.queue.put_nowait(
+                    SpeechItem(0, 0, text, self._effective_pool()[0])
+                )
+            except asyncio.QueueFull:
+                logger.warning("TTS queue is full; dropped join announcement")
         if member.id not in session.opted_in:
             return
         if after.channel is not None and after.channel.id == session.channel_id:

@@ -245,7 +245,97 @@ class TTSTestCase(unittest.IsolatedAsyncioTestCase):
         member = mock.Mock()
         member.id = user_id
         member.guild.id = GUILD_ID
+        member.bot = user_id == BOT_ID
+        member.display_name = self.names.get(user_id, f"user{user_id}")
         return member
+
+
+class JoinAnnouncementTest(TTSTestCase):
+    async def test_entry_and_move_are_announced_without_opting_in(self) -> None:
+        await self.join(ALICE)
+        self.names[BOB] = "ボブ"
+        for before in (None, CHANNEL_B):
+            with self.subTest(before=before):
+                await self.cog.on_voice_state_update(
+                    self.member(BOB),
+                    self.voice_state(before),
+                    self.voice_state(CHANNEL_A),
+                )
+                assert self.cog.session is not None
+                item = self.cog.session.queue.get_nowait()
+                self.assertEqual(item.text, "ボブさんが参加しました。")
+                self.assertEqual(item.speaker_id, POOL[0])
+                self.assertNotIn(BOB, self.cog.session.opted_in)
+
+    async def test_announcement_uses_existing_playback(self) -> None:
+        await self.join(ALICE)
+        await self.cog.on_voice_state_update(
+            self.member(BOB), self.voice_state(None), self.voice_state(CHANNEL_A)
+        )
+        await wait_until(lambda: self.voice_client.play_calls == 1)
+        self.client.synthesize.assert_called_once_with(
+            "user2さんが参加しました。", POOL[0]
+        )
+
+    async def test_unrelated_voice_events_are_not_announced(self) -> None:
+        await self.join(ALICE)
+        other_bot = self.member(BOB)
+        other_bot.bot = True
+        other_guild = self.member(BOB)
+        other_guild.guild.id = GUILD_ID + 1
+        for member, before, after in (
+            (self.member(BOB), CHANNEL_A, CHANNEL_A),
+            (self.member(BOB), CHANNEL_A, None),
+            (self.member(BOB), None, CHANNEL_B),
+            (other_bot, None, CHANNEL_A),
+            (other_guild, None, CHANNEL_A),
+            (self.member(BOT_ID), None, CHANNEL_A),
+        ):
+            with self.subTest(member=member, before=before, after=after):
+                await self.cog.on_voice_state_update(
+                    member, self.voice_state(before), self.voice_state(after)
+                )
+                self.assertEqual(self.queued(), 0)
+
+    async def test_no_session_does_not_announce(self) -> None:
+        await self.cog.on_voice_state_update(
+            self.member(BOB), self.voice_state(None), self.voice_state(CHANNEL_A)
+        )
+        self.client.synthesize.assert_not_called()
+
+    async def test_name_is_normalized_and_announcement_is_bounded(self) -> None:
+        await self.join(ALICE)
+        for name, expected in (
+            ("**ボブ**\n<@123>", "ボブさんが参加しました。"),
+            ("<@123>", "誰かさんが参加しました。"),
+            ("あいうえお" * 100, ("あいうえお" * 100)[: self.cog.max_chars]),
+        ):
+            with self.subTest(name=name):
+                self.names[BOB] = name
+                await self.cog.on_voice_state_update(
+                    self.member(BOB),
+                    self.voice_state(None),
+                    self.voice_state(CHANNEL_A),
+                )
+                assert self.cog.session is not None
+                self.assertEqual(self.cog.session.queue.get_nowait().text, expected)
+
+    async def test_full_queue_drops_announcement_without_replacing_posts(self) -> None:
+        await self.join(ALICE)
+        for message_id in range(MAX_QUEUE_SIZE):
+            await self.cog.on_message(self.message(ALICE, message_id=message_id))
+        with self.assertLogs("ctfbot", level="WARNING"):
+            await self.cog.on_voice_state_update(
+                self.member(BOB), self.voice_state(None), self.voice_state(CHANNEL_A)
+            )
+        assert self.cog.session is not None
+        self.assertEqual(
+            [
+                self.cog.session.queue.get_nowait().message_id
+                for _ in range(MAX_QUEUE_SIZE)
+            ],
+            list(range(MAX_QUEUE_SIZE)),
+        )
 
 
 class JoinTest(TTSTestCase):
