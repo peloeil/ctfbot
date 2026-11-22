@@ -1,5 +1,6 @@
 import asyncio
 import unittest
+from collections.abc import Callable
 from typing import Any, cast
 from unittest import mock
 
@@ -86,24 +87,31 @@ class EngineTestCase(unittest.IsolatedAsyncioTestCase):
     def actions(self) -> list[str]:
         return [call[1] for call in self.podman_calls]
 
-    async def settle(self) -> None:
-        for _ in range(20):
-            await asyncio.sleep(0)
+    async def wait_until(self, condition: Callable[[], bool]) -> None:
+        async with asyncio.timeout(5):
+            while not condition():
+                await asyncio.sleep(0)
 
     async def let_idle_pass(self) -> None:
-        # The fake sleep jumps the clock, so one settle runs the whole timer
-        await self.settle()
+        # The fake sleep jumps the clock, so the watcher runs to its end: it
+        # either stops the container or gives up because the server is in use
+        task = self.engine.idle_task
+        assert task is not None
+        async with asyncio.timeout(5):
+            await asyncio.wait({task})
 
     async def test_first_call_starts_container_and_waits_for_ready(self) -> None:
-        self.client.check_version.side_effect = [
-            ExternalAPIError("down"),
-            ExternalAPIError("down"),
-            None,
-        ]
+        ready_at = self.clock.now + 0.5
+
+        def check_version() -> None:
+            if self.clock.now < ready_at:
+                raise ExternalAPIError("down")
+
+        self.client.check_version.side_effect = check_version
         result = await self.engine.call(self.client.synthesize, "a", 1)
         self.assertEqual(result, b"RIFFdata")
         self.assertEqual(self.podman_calls, [("podman", "start", CONTAINER)])
-        self.assertEqual(self.client.check_version.call_count, 3)
+        self.assertGreaterEqual(self.clock.now, ready_at)
 
     async def test_running_engine_is_not_started_again(self) -> None:
         await self.engine.call(self.client.synthesize, "a", 1)
@@ -210,7 +218,7 @@ class EngineTestCase(unittest.IsolatedAsyncioTestCase):
         task = asyncio.create_task(self.engine.call(blocking))
         await started.wait()
         self.clock.now += IDLE * 10
-        await self.settle()
+        await self.let_idle_pass()
         self.assertEqual(self.actions(), ["start"])
         release.set()
         await task
@@ -220,24 +228,26 @@ class EngineTestCase(unittest.IsolatedAsyncioTestCase):
     async def test_call_during_stop_waits_and_starts_again(self) -> None:
         await self.engine.call(self.client.synthesize, "a", 1)
         self.podman_gate = asyncio.Event()
-        await self.settle()
-        self.assertEqual(self.actions(), ["start", "stop"])
+        await self.wait_until(lambda: self.actions() == ["start", "stop"])
         call = asyncio.create_task(self.engine.call(self.client.synthesize, "b", 1))
-        await self.settle()
+        # The call is parked behind the unfinished stop, so it cannot have run
+        self.client.synthesize.reset_mock()
+        await asyncio.sleep(0)
         self.assertFalse(call.done())
-        self.assertEqual(self.actions(), ["start", "stop"])
         self.podman_gate.set()
         await call
+        self.client.synthesize.assert_called_once_with("b", 1)
         self.assertEqual(self.actions(), ["start", "stop", "start"])
 
-    async def test_call_arriving_while_stop_waits_for_the_lock_cancels_it(
-        self,
-    ) -> None:
+    async def test_call_arriving_after_idle_expiry_prevents_the_stop(self) -> None:
         await self.engine.call(self.client.synthesize, "a", 1)
+        # Reproduces a call landing while the stop waits for the start/stop
+        # lock; no public path holds that lock while the server is up, so the
+        # lock and counter are driven directly.
         async with self.engine.lock:
-            await self.settle()
+            await asyncio.sleep(0)
             self.engine.active += 1
-        await self.settle()
+        await self.let_idle_pass()
         self.engine.active -= 1
         self.assertEqual(self.actions(), ["start"])
 

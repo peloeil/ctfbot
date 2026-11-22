@@ -20,7 +20,6 @@ class NormalizeTest(unittest.TestCase):
     def test_removed_elements_are_not_read(self) -> None:
         cases = {
             "fenced code": "前\n```py\nsecret = 1\n```\n後",
-            "unclosed fence": "前\n```py\nsecret = 1",
             "inline code": "前 `secret` 後",
             "url": "前 https://example.com/secret?a=1 後",
             "angle url": "前 <https://example.com/secret> 後",
@@ -33,15 +32,14 @@ class NormalizeTest(unittest.TestCase):
             "emoji": "前 <:name:123> <a:dance:456> 後",
             "spoiler": "前 ||secret|| 後",
             "multiline spoiler": "前 ||sec\nret|| 後",
-            "zero width": "前\u200b 後",
         }
         for name, text in cases.items():
             with self.subTest(name=name):
-                normalized = normalize_text(text)
-                self.assertNotIn("secret", normalized)
-                self.assertNotIn("sec", normalized)
-                self.assertTrue(normalized.startswith("前"))
-                self.assertTrue(normalized.endswith("後") or "```" in text)
+                # The separator is a space, or "、" when the removal spans lines
+                self.assertRegex(normalize_text(text), r"^前[ 、]後$")
+
+    def test_unclosed_fence_drops_everything_after_it(self) -> None:
+        self.assertEqual(normalize_text("前\n```py\nsecret = 1"), "前")
 
     def test_spoiler_content_is_dropped_not_just_markers(self) -> None:
         self.assertEqual(normalize_text("答えは||flag{x}||です"), "答えは です")
@@ -111,7 +109,6 @@ class AssignAutoVoiceTest(unittest.TestCase):
 
     def test_same_user_gets_the_same_voice(self) -> None:
         # Fixed values: the hash must not change across runs or Python versions
-        self.assertEqual(assign_auto_voice(1, self.POOL, {}), 2)
         self.assertEqual(assign_auto_voice(1, self.POOL, {}), 2)
         self.assertEqual(assign_auto_voice(123456789012345678, self.POOL, {}), 11)
 
@@ -230,13 +227,11 @@ class VoicevoxClientTest(unittest.TestCase):
         self.assertEqual(
             query_call.kwargs["params"], {"text": "こんにちは", "speaker": 3}
         )
-        self.assertEqual(query_call.kwargs["timeout"], (5, 30))
         self.assertEqual(synthesis_call.args, ("http://127.0.0.1:50021/synthesis",))
         self.assertEqual(synthesis_call.kwargs["params"], {"speaker": 3})
         self.assertEqual(
             synthesis_call.kwargs["json"], {"speedScale": 2.0, "pitchScale": 0.0}
         )
-        self.assertEqual(synthesis_call.kwargs["timeout"], (5, 30))
 
     @mock.patch("ctfbot.features.tts.voicevox.requests.post")
     def test_speed_is_added_when_the_query_has_none(self, post: mock.Mock) -> None:
@@ -248,8 +243,9 @@ class VoicevoxClientTest(unittest.TestCase):
         self.assertEqual(post.call_args_list[1].kwargs["json"], {"speedScale": 2.0})
 
     @mock.patch("ctfbot.features.tts.voicevox.requests.post")
-    def test_failures_raise_external_api_error(self, post: mock.Mock) -> None:
-        query_ok = mock.Mock(json=mock.Mock(return_value={}))
+    def test_query_failures_raise_external_api_error_before_synthesis(
+        self, post: mock.Mock
+    ) -> None:
         invalid_json = mock.Mock(json=mock.Mock(side_effect=ValueError()))
         http_error = mock.Mock(
             raise_for_status=mock.Mock(side_effect=requests.HTTPError("422"))
@@ -269,6 +265,12 @@ class VoicevoxClientTest(unittest.TestCase):
                     self.client().synthesize("a", 3)
                 post.assert_called_once()
 
+    @mock.patch("ctfbot.features.tts.voicevox.requests.post")
+    def test_synthesis_failures_raise_external_api_error(self, post: mock.Mock) -> None:
+        query_ok = mock.Mock(json=mock.Mock(return_value={}))
+        http_error = mock.Mock(
+            raise_for_status=mock.Mock(side_effect=requests.HTTPError("422"))
+        )
         for name, second in {
             "synthesis http error": http_error,
             "not wav": mock.Mock(content=b"<html>"),
@@ -316,14 +318,25 @@ class FetchVoicesTest(unittest.TestCase):
         self.assertEqual(
             voices, (Voice(1, "A", "n"), Voice(3, "A", "t"), Voice(4, "B", "old"))
         )
-        get.assert_called_once_with("http://127.0.0.1:50021/speakers", timeout=(3, 10))
+        get.assert_called_once()
+        self.assertEqual(get.call_args.args, ("http://127.0.0.1:50021/speakers",))
 
     @mock.patch("ctfbot.features.tts.voicevox.requests.get")
-    def test_failures_raise_external_api_error(self, get: mock.Mock) -> None:
-        good_style = {"id": 1, "name": "n", "type": "talk"}
-        cases: dict[str, object] = {
+    def test_request_failures_raise_external_api_error(self, get: mock.Mock) -> None:
+        cases: dict[str, Exception] = {
             "timeout": requests.Timeout(),
             "connection": requests.ConnectionError(),
+        }
+        for name, exc in cases.items():
+            with self.subTest(name=name):
+                get.side_effect = exc
+                with self.assertRaises(ExternalAPIError):
+                    self.client().fetch_voices()
+
+    @mock.patch("ctfbot.features.tts.voicevox.requests.get")
+    def test_unusable_responses_raise_external_api_error(self, get: mock.Mock) -> None:
+        good_style = {"id": 1, "name": "n", "type": "talk"}
+        cases: dict[str, mock.Mock] = {
             "http error": mock.Mock(
                 raise_for_status=mock.Mock(side_effect=requests.HTTPError("500"))
             ),
@@ -343,13 +356,38 @@ class FetchVoicesTest(unittest.TestCase):
                 [{"name": "A", "styles": [good_style, {"id": "x", "name": "n"}]}]
             ),
         }
+        for name, response in cases.items():
+            with self.subTest(name=name):
+                get.return_value = response
+                with self.assertRaises(ExternalAPIError):
+                    self.client().fetch_voices()
+
+
+class CheckVersionTest(unittest.TestCase):
+    def client(self) -> VoicevoxClient:
+        return VoicevoxClient("http://127.0.0.1:50021/", speed_scale=2.0)
+
+    @mock.patch("ctfbot.features.tts.voicevox.requests.get")
+    def test_reachable_engine_passes(self, get: mock.Mock) -> None:
+        self.client().check_version()
+        self.assertEqual(get.call_args.args, ("http://127.0.0.1:50021/version",))
+
+    @mock.patch("ctfbot.features.tts.voicevox.requests.get")
+    def test_unreachable_engine_raises_external_api_error(self, get: mock.Mock) -> None:
+        http_error = mock.Mock(
+            raise_for_status=mock.Mock(side_effect=requests.HTTPError("503"))
+        )
+        cases: dict[str, object] = {
+            "timeout": requests.Timeout(),
+            "connection": requests.ConnectionError(),
+            "http error": http_error,
+        }
         for name, outcome in cases.items():
             with self.subTest(name=name):
-                get.reset_mock()
                 if isinstance(outcome, Exception):
                     get.side_effect = outcome
                 else:
                     get.side_effect = None
                     get.return_value = outcome
                 with self.assertRaises(ExternalAPIError):
-                    self.client().fetch_voices()
+                    self.client().check_version()

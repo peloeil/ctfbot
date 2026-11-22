@@ -232,9 +232,23 @@ class TTSTestCase(unittest.IsolatedAsyncioTestCase):
         message.content = content
         return message
 
-    def queued(self) -> int:
-        assert self.cog.session is not None
-        return self.cog.session.queue.qsize()
+    def spoken(self) -> list[str]:
+        """Texts handed to synthesis so far, in order."""
+        return [call.args[0] for call in self.client.synthesize.call_args_list]
+
+    def played_audio(self) -> list[bytes]:
+        return [call.args[0].read() for call in self.ffmpeg.call_args_list]
+
+    async def pump(self, until: Callable[[], bool]) -> None:
+        """Finish each playback as it starts, until the condition holds."""
+        async with asyncio.timeout(2):
+            while not until():
+                if self.voice_client.playing:
+                    self.voice_client.finish()
+                await asyncio.sleep(0.005)
+
+    async def pump_until_spoken(self, count: int) -> None:
+        await self.pump(lambda: len(self.spoken()) >= count)
 
     def voice_state(self, channel_id: int | None) -> mock.Mock:
         state = mock.Mock()
@@ -254,17 +268,19 @@ class JoinAnnouncementTest(TTSTestCase):
     async def test_entry_and_move_are_announced_without_opting_in(self) -> None:
         await self.join(ALICE)
         self.names[BOB] = "ボブ"
-        for before in (None, CHANNEL_B):
+        for count, before in enumerate((None, CHANNEL_B), start=1):
             with self.subTest(before=before):
                 await self.cog.on_voice_state_update(
                     self.member(BOB),
                     self.voice_state(before),
                     self.voice_state(CHANNEL_A),
                 )
+                await self.pump_until_spoken(count)
+                self.assertEqual(
+                    self.client.synthesize.call_args.args,
+                    ("ボブさんが参加しました。", POOL[0]),
+                )
                 assert self.cog.session is not None
-                item = self.cog.session.queue.get_nowait()
-                self.assertEqual(item.text, "ボブさんが参加しました。")
-                self.assertEqual(item.speaker_id, POOL[0])
                 self.assertNotIn(BOB, self.cog.session.opted_in)
 
     async def test_announcement_uses_existing_playback(self) -> None:
@@ -295,7 +311,12 @@ class JoinAnnouncementTest(TTSTestCase):
                 await self.cog.on_voice_state_update(
                     member, self.voice_state(before), self.voice_state(after)
                 )
-                self.assertEqual(self.queued(), 0)
+        # Only the real entry below is read, so nothing above was queued
+        await self.cog.on_voice_state_update(
+            self.member(CAROL), self.voice_state(None), self.voice_state(CHANNEL_A)
+        )
+        await self.pump_until_spoken(1)
+        self.assertEqual(self.spoken(), ["user4さんが参加しました。"])
 
     async def test_no_session_does_not_announce(self) -> None:
         await self.cog.on_voice_state_update(
@@ -305,10 +326,13 @@ class JoinAnnouncementTest(TTSTestCase):
 
     async def test_name_is_normalized_and_announcement_is_bounded(self) -> None:
         await self.join(ALICE)
-        for name, expected in (
-            ("**ボブ**\n<@123>", "ボブさんが参加しました。"),
-            ("<@123>", "誰かさんが参加しました。"),
-            ("あいうえお" * 100, ("あいうえお" * 100)[: self.cog.max_chars]),
+        for count, (name, expected) in enumerate(
+            (
+                ("**ボブ**\n<@123>", "ボブさんが参加しました。"),
+                ("<@123>", "誰かさんが参加しました。"),
+                ("あいうえお" * 100, ("あいうえお" * 100)[: self.cog.max_chars]),
+            ),
+            start=1,
         ):
             with self.subTest(name=name):
                 self.names[BOB] = name
@@ -317,24 +341,29 @@ class JoinAnnouncementTest(TTSTestCase):
                     self.voice_state(None),
                     self.voice_state(CHANNEL_A),
                 )
-                assert self.cog.session is not None
-                self.assertEqual(self.cog.session.queue.get_nowait().text, expected)
+                await self.pump_until_spoken(count)
+                self.assertEqual(self.spoken()[-1], expected)
 
     async def test_full_queue_drops_announcement_without_replacing_posts(self) -> None:
         await self.join(ALICE)
         for message_id in range(MAX_QUEUE_SIZE):
-            await self.cog.on_message(self.message(ALICE, message_id=message_id))
+            await self.cog.on_message(
+                self.message(ALICE, f"投稿{message_id}", message_id=message_id)
+            )
         with self.assertLogs("ctfbot", level="WARNING"):
             await self.cog.on_voice_state_update(
                 self.member(BOB), self.voice_state(None), self.voice_state(CHANNEL_A)
             )
-        assert self.cog.session is not None
+        await self.pump_until_spoken(MAX_QUEUE_SIZE)
+        # Had the dropped announcement been queued, it would precede this one
+        await self.cog.on_voice_state_update(
+            self.member(CAROL), self.voice_state(None), self.voice_state(CHANNEL_A)
+        )
+        await self.pump_until_spoken(MAX_QUEUE_SIZE + 1)
         self.assertEqual(
-            [
-                self.cog.session.queue.get_nowait().message_id
-                for _ in range(MAX_QUEUE_SIZE)
-            ],
-            list(range(MAX_QUEUE_SIZE)),
+            self.spoken(),
+            [f"投稿{index}" for index in range(MAX_QUEUE_SIZE)]
+            + ["user4さんが参加しました。"],
         )
 
 
@@ -342,6 +371,9 @@ class JoinTest(TTSTestCase):
     async def test_requires_a_voice_channel(self) -> None:
         reply = await self.run_command(self.cog.join, self.interaction(ALICE, None))
         self.assertIn("ボイスチャンネルに参加", reply)
+        self.assertIsNone(self.cog.session)
+
+    async def test_stage_channel_is_not_a_target(self) -> None:
         stage = mock.Mock(spec=discord.StageChannel)
         interaction = self.interaction(BOB)
         interaction.user.voice = SimpleNamespace(channel=stage)
@@ -510,9 +542,21 @@ class BanTest(TTSTestCase):
                     reply = await self.run_member_command(command, actor, BOB)
                     self.assertIn("`/sudo` で昇格してから", reply)
         self.assertFalse(self.db.is_tts_banned(BOB))
+
+    async def test_manager_can_ban(self) -> None:
         reply = await self.ban(BOB)
         self.assertIn("禁止しました", reply)
         self.assertTrue(self.db.is_tts_banned(BOB))
+
+    async def test_ban_lookup_failure_rejects_join_without_connecting(self) -> None:
+        with (
+            mock.patch.object(self.db, "is_tts_banned", side_effect=RepositoryError),
+            self.assertLogs("ctfbot", "ERROR"),
+        ):
+            reply = await self.join(ALICE)
+        self.assertEqual(reply, "読み上げの設定を確認できませんでした。")
+        self.channels[CHANNEL_A].connect.assert_not_awaited()
+        self.assertIsNone(self.cog.session)
 
     async def test_banned_member_cannot_join_until_unbanned(self) -> None:
         await self.ban(ALICE)
@@ -532,20 +576,22 @@ class BanTest(TTSTestCase):
         )
         await self.join(ALICE)
         await self.join(BOB)
-        await self.cog.on_message(self.message(ALICE, message_id=1))
+        await self.cog.on_message(self.message(ALICE, "A1", message_id=1))
         await wait_until(lambda: self.client.synthesize.call_count == 1)
-        await self.cog.on_message(self.message(BOB, message_id=2))
-        await self.cog.on_message(self.message(ALICE, message_id=3))
-        await self.cog.on_message(self.message(BOB, message_id=4))
+        await self.cog.on_message(self.message(BOB, "B2", message_id=2))
+        await self.cog.on_message(self.message(ALICE, "A3", message_id=3))
+        await self.cog.on_message(self.message(BOB, "B4", message_id=4))
 
         await self.ban(BOB)
 
         session = self.cog.session
         assert session is not None
         self.assertEqual(set(session.opted_in), {ALICE})
-        self.assertEqual(self.queued(), 1)
-        self.assertEqual(session.queue.get_nowait().message_id, 3)
         self.voice_client.disconnect.assert_not_awaited()
+        release.set()
+        await self.cog.on_message(self.message(ALICE, "A5", message_id=5))
+        await self.pump_until_spoken(3)
+        self.assertEqual(self.spoken(), ["A1", "A3", "A5"])
 
     async def test_banning_the_last_member_disconnects(self) -> None:
         await self.join(ALICE)
@@ -577,18 +623,18 @@ class MessageTest(TTSTestCase):
         self.release.set()
         await super().asyncTearDown()
 
-    async def feed(self, message: mock.Mock) -> int:
-        before = self.queued()
-        await self.cog.on_message(message)
-        return self.queued() - before
-
-    async def test_opted_in_member_in_the_voice_channel_is_queued(self) -> None:
-        await self.cog.on_message(self.message(ALICE, message_id=1))
+    async def test_opted_in_members_in_the_voice_channel_are_read_in_order(
+        self,
+    ) -> None:
+        await self.cog.on_message(self.message(ALICE, "一人目", message_id=1))
         await wait_until(lambda: self.client.synthesize.call_count == 1)
-        self.assertEqual(self.client.synthesize.call_args.args[0], "こんにちは")
-        self.assertEqual(await self.feed(self.message(BOB, message_id=2)), 1)
+        await self.cog.on_message(self.message(BOB, "二人目", message_id=2))
+        self.release.set()
+        await self.pump_until_spoken(2)
+        self.assertEqual(self.spoken(), ["一人目", "二人目"])
 
     async def test_ignored_messages(self) -> None:
+        self.release.set()
         self.voice_of[ADMIN] = self.channels[CHANNEL_A]
         variants: dict[str, Callable[[], mock.Mock]] = {
             "other channel": lambda: self.message(ALICE, channel_id=999),
@@ -605,8 +651,12 @@ class MessageTest(TTSTestCase):
         }
         for name, build in variants.items():
             with self.subTest(name=name):
-                self.assertEqual(await self.feed(build()), 0)
-        self.assertEqual(self.client.synthesize.call_count, 0)
+                await self.cog.on_message(build())
+        # Messages are read in order, so a read sentinel being first proves
+        # that none of the ignored ones were queued before it
+        await self.cog.on_message(self.message(ALICE, "番兵", message_id=1))
+        await self.pump_until_spoken(1)
+        self.assertEqual(self.spoken(), ["番兵"])
 
     def bot_message(self) -> mock.Mock:
         message = self.message(ALICE)
@@ -639,15 +689,26 @@ class MessageTest(TTSTestCase):
         message.mentions = [self.bot.user]
         await self.cog.on_message(message)
         await wait_until(lambda: self.client.synthesize.call_count == 1)
+        self.assertEqual(self.spoken(), ["返信です"])
 
     async def test_full_queue_drops_new_messages(self) -> None:
-        await self.cog.on_message(self.message(ALICE, message_id=0))
+        await self.cog.on_message(self.message(ALICE, "先頭", message_id=0))
         await wait_until(lambda: self.client.synthesize.call_count == 1)
         for index in range(MAX_QUEUE_SIZE):
-            self.assertEqual(await self.feed(self.message(ALICE, message_id=index)), 1)
+            await self.cog.on_message(
+                self.message(ALICE, f"投稿{index}", message_id=index)
+            )
         with self.assertLogs("ctfbot", "WARNING"):
-            self.assertEqual(await self.feed(self.message(ALICE, message_id=99)), 0)
-        self.assertEqual(self.queued(), MAX_QUEUE_SIZE)
+            await self.cog.on_message(self.message(ALICE, "溢れ", message_id=99))
+        self.release.set()
+        await self.pump_until_spoken(MAX_QUEUE_SIZE + 1)
+        # Had the overflowing post been queued, it would precede the sentinel
+        await self.cog.on_message(self.message(ALICE, "番兵", message_id=100))
+        await self.pump_until_spoken(MAX_QUEUE_SIZE + 2)
+        self.assertEqual(
+            self.spoken(),
+            ["先頭"] + [f"投稿{index}" for index in range(MAX_QUEUE_SIZE)] + ["番兵"],
+        )
 
 
 class PlaybackTest(TTSTestCase):
@@ -662,21 +723,26 @@ class PlaybackTest(TTSTestCase):
 
     async def test_next_item_waits_for_playback_to_finish(self) -> None:
         await self.join(ALICE)
-        await self.cog.on_message(self.message(ALICE, message_id=1))
-        await self.cog.on_message(self.message(ALICE, message_id=2))
+        await self.cog.on_message(self.message(ALICE, "一つ目", message_id=1))
+        await self.cog.on_message(self.message(ALICE, "二つ目", message_id=2))
         await wait_until(lambda: self.voice_client.play_calls == 1)
-        await asyncio.sleep(0.05)
-        self.assertEqual(self.voice_client.play_calls, 1)
+        # The worker is parked on the first playback, so it has not started
+        # the second item
+        self.assertEqual(self.spoken(), ["一つ目"])
         self.voice_client.finish()
         await wait_until(lambda: self.voice_client.play_calls == 2)
+        self.assertEqual(self.spoken(), ["一つ目", "二つ目"])
         self.voice_client.finish()
 
     async def test_synthesis_failure_skips_only_that_item(self) -> None:
-        self.client.synthesize.side_effect = [ExternalAPIError("down"), b"RIFFdata"]
+        self.client.synthesize.side_effect = [ExternalAPIError("down"), b"RIFFsecond"]
         await self.join(ALICE)
-        await self.cog.on_message(self.message(ALICE, message_id=1))
-        await self.cog.on_message(self.message(ALICE, message_id=2))
-        await wait_until(lambda: self.voice_client.play_calls == 1)
+        await self.cog.on_message(self.message(ALICE, "失敗", message_id=1))
+        await self.cog.on_message(self.message(ALICE, "成功", message_id=2))
+        with self.assertLogs("ctfbot", "WARNING"):
+            await wait_until(lambda: self.voice_client.play_calls == 1)
+        self.assertEqual(self.spoken(), ["失敗", "成功"])
+        self.assertEqual(self.played_audio(), [b"RIFFsecond"])
         self.voice_client.finish()
 
     async def test_after_called_twice_is_harmless(self) -> None:
@@ -685,19 +751,25 @@ class PlaybackTest(TTSTestCase):
         await wait_until(lambda: self.voice_client.play_calls == 1)
         after = self.voice_client.after
         assert after is not None
-        after(None)
-        after(None)
-        await asyncio.sleep(0.02)
+        with self.assertNoLogs("asyncio"):
+            after(None)
+            after(None)
+            # The worker must still be alive and take the next post
+            await self.cog.on_message(self.message(ALICE, "次", message_id=2))
+            await wait_until(lambda: self.voice_client.play_calls == 2)
+        self.assertEqual(self.spoken(), ["こんにちは", "次"])
+        self.voice_client.finish()
 
     async def test_play_client_exception_moves_to_next_item(self) -> None:
         await self.join(ALICE)
         self.voice_client.play_error = discord.ClientException("reconnecting")
-        await self.cog.on_message(self.message(ALICE, message_id=1))
-        await wait_until(lambda: self.client.synthesize.call_count == 1)
-        await asyncio.sleep(0.02)
+        await self.cog.on_message(self.message(ALICE, "失敗", message_id=1))
+        # The failed source is cleaned up once the item has been given up on
+        await wait_until(lambda: self.ffmpeg.return_value.cleanup.call_count == 1)
         self.voice_client.play_error = None
-        await self.cog.on_message(self.message(ALICE, message_id=2))
+        await self.cog.on_message(self.message(ALICE, "成功", message_id=2))
         await wait_until(lambda: self.voice_client.play_calls == 1)
+        self.assertEqual(self.spoken(), ["失敗", "成功"])
         self.voice_client.finish()
 
     async def test_opus_not_loaded_ends_the_session(self) -> None:
@@ -714,11 +786,11 @@ class PlaybackTest(TTSTestCase):
         def slow(text: str, speaker_id: int) -> bytes:
             started.set()
             release.wait(2)
-            return b"RIFFdata"
+            return b"RIFF" + text.encode()
 
         self.client.synthesize.side_effect = slow
         await self.join(ALICE)
-        await self.cog.on_message(self.message(ALICE))
+        await self.cog.on_message(self.message(ALICE, "古い", message_id=1))
         await wait_until(started.is_set)
         await self.run_command(self.cog.leave, self.interaction(ALICE))
         self.assertIsNone(self.cog.session)
@@ -727,9 +799,12 @@ class PlaybackTest(TTSTestCase):
         self.channels[CHANNEL_A].connect.return_value = new_client
         await self.join(ALICE)
         release.set()
-        await asyncio.sleep(0.1)
+        await self.cog.on_message(self.message(ALICE, "新しい", message_id=2))
+        await wait_until(lambda: new_client.play_calls == 1)
+        # The old post finished synthesizing first but never reached playback
+        self.assertEqual(self.played_audio(), [b"RIFF" + "新しい".encode()])
         self.assertEqual(self.voice_client.play_calls, 0)
-        self.assertEqual(new_client.play_calls, 0)
+        new_client.finish()
 
 
 class ControlTest(TTSTestCase):
@@ -788,19 +863,26 @@ class ControlTest(TTSTestCase):
         self.assertFalse(self.voice_client.playing)
 
     async def test_stop_clears_queue_keeps_connection(self) -> None:
+        self.client.synthesize.side_effect = lambda text, speaker_id: (
+            self.release.wait(2) and b"RIFF" + text.encode()
+        )
         await self.join(ALICE)
         for index in range(3):
-            await self.cog.on_message(self.message(ALICE, message_id=index))
+            await self.cog.on_message(
+                self.message(ALICE, f"投稿{index}", message_id=index)
+            )
         await wait_until(lambda: self.client.synthesize.call_count == 1)
-        self.assertEqual(self.queued(), 2)
         reply = await self.run_command(self.cog.stop, self.interaction(ALICE))
         self.assertIn("停止", reply)
-        self.assertEqual(self.queued(), 0)
         self.voice_client.disconnect.assert_not_awaited()
         self.assertIsNotNone(self.cog.session)
         self.release.set()
-        await asyncio.sleep(0.05)
-        self.assertEqual(self.voice_client.play_calls, 0)
+        await self.cog.on_message(self.message(ALICE, "停止後", message_id=10))
+        await wait_until(lambda: self.voice_client.play_calls == 1)
+        # Neither the in-flight post nor the queued ones were played or spoken
+        self.assertEqual(self.played_audio(), [b"RIFF" + "停止後".encode()])
+        self.assertEqual(self.spoken(), ["投稿0", "停止後"])
+        self.voice_client.finish()
 
 
 class LifecycleTest(TTSTestCase):
@@ -841,16 +923,10 @@ class LifecycleTest(TTSTestCase):
         await asyncio.sleep(self.grace_seconds * 3)
         self.assertIsNotNone(self.cog.session)
         self.voice_client.disconnect.assert_not_awaited()
-
-    async def test_grace_leave_is_skipped_when_a_new_user_opted_in(self) -> None:
-        await self.join(ALICE)
-        await self.cog.on_voice_state_update(
-            self.member(ALICE), self.voice_state(CHANNEL_A), self.voice_state(None)
-        )
-        assert self.cog.session is not None
-        self.cog.session.voices[BOB] = 8
-        await asyncio.sleep(self.grace_seconds * 3)
-        self.assertIsNotNone(self.cog.session)
+        await self.cog.on_message(self.message(BOB, "続行", message_id=1))
+        await wait_until(lambda: self.voice_client.play_calls == 1)
+        self.assertEqual(self.spoken(), ["続行"])
+        self.voice_client.finish()
 
     async def test_bot_moved_to_another_channel_discards_state(self) -> None:
         await self.join(ALICE)
@@ -1089,11 +1165,15 @@ class VoiceAssignmentTest(VoiceTestCase):
     async def test_saved_voice_missing_from_catalog_falls_back_and_keeps_the_row(
         self,
     ) -> None:
-        self.save(ALICE, 99)
-        reply = await self.join(ALICE)
+        # With none of the pool in the catalog the pool is used as is, so a
+        # pool ID can still be absent from the catalog
+        self.client.fetch_voices.return_value = (Voice(50, "他", "ノーマル"),)
+        self.save(ALICE, 11)
+        with self.assertLogs("ctfbot", "ERROR"):
+            reply = await self.join(ALICE)
         self.assertIn(self.session_voice(ALICE), POOL)
-        self.assertIn("ID 99", reply)
-        self.assertEqual(self.saved(ALICE), 99)
+        self.assertIn("設定した声（ID 11）が見つからないため", reply)
+        self.assertEqual(self.saved(ALICE), 11)
 
     async def test_saved_voice_outside_pool_falls_back_and_keeps_the_row(
         self,
@@ -1137,8 +1217,9 @@ class VoiceAssignmentTest(VoiceTestCase):
         await self.cog.on_voice_state_update(
             self.member(ALICE), self.voice_state(CHANNEL_A), self.voice_state(CHANNEL_B)
         )
-        assert self.cog.session is not None
-        self.assertNotIn(ALICE, self.cog.session.voices)
+        reply = await self.run_command(self.cog.members, self.interaction(BOB))
+        self.assertIn("（1 人）", reply)
+        self.assertNotIn("user1:", reply)
 
 
 class VoiceSetTest(VoiceTestCase):
@@ -1339,7 +1420,6 @@ class VoiceResetShowTest(VoiceTestCase):
     async def test_show_auto_and_saved(self) -> None:
         self.assertIn("自動（通常は", await self.vshow(ALICE))
         self.save(ALICE, 11)
-        await self.cog._refresh_catalog()
         reply = await self.vshow(ALICE)
         self.assertIn("声の設定: キャラ11（ノーマル）（VOICEVOX:キャラ11）", reply)
         self.assertNotIn("現在の読み上げ", reply)
@@ -1351,7 +1431,6 @@ class VoiceResetShowTest(VoiceTestCase):
 
     async def test_show_explains_a_saved_voice_outside_the_pool(self) -> None:
         self.save(ALICE, 4)
-        await self.cog._refresh_catalog()
         reply = await self.vshow(ALICE)
         self.assertIn("自動", reply)
         self.assertIn("保存されている ID 4", reply)
@@ -1383,31 +1462,32 @@ class VoiceResetShowTest(VoiceTestCase):
 
 
 class CatalogTest(VoiceTestCase):
-    async def test_concurrent_refreshes_fetch_once(self) -> None:
-        await asyncio.gather(*(self.cog._refresh_catalog() for _ in range(5)))
+    async def test_concurrent_requests_fetch_the_catalog_once(self) -> None:
+        await asyncio.gather(*(self.vshow(ALICE) for _ in range(5)))
         self.assertEqual(self.client.fetch_voices.call_count, 1)
 
     async def test_failure_backs_off_and_keeps_the_stale_catalog(self) -> None:
         now = [0.0]
         self.cog.clock = lambda: now[0]
-        await self.cog._refresh_catalog()
+        self.save(ALICE, 11)
+        await self.vshow(ALICE)
         self.client.fetch_voices.side_effect = ExternalAPIError("down")
         now[0] = CATALOG_TTL_SECONDS + 1
         with self.assertLogs("ctfbot", "WARNING"):
-            await self.cog._refresh_catalog()
-        self.assertEqual(self.cog.catalog, VOICES)
+            reply = await self.vshow(ALICE)
+        self.assertIn("キャラ11", reply)
         calls = self.client.fetch_voices.call_count
         now[0] += CATALOG_RETRY_SECONDS - 1
-        await self.cog._refresh_catalog()
+        await self.vshow(ALICE)
         self.assertEqual(self.client.fetch_voices.call_count, calls)
         now[0] += 2
         with self.assertLogs("ctfbot", "WARNING"):
-            await self.cog._refresh_catalog()
+            await self.vshow(ALICE)
         self.assertEqual(self.client.fetch_voices.call_count, calls + 1)
 
     async def test_fresh_catalog_is_reused(self) -> None:
-        await self.cog._refresh_catalog()
-        await self.cog._refresh_catalog()
+        await self.vshow(ALICE)
+        await self.vshow(ALICE)
         self.assertEqual(self.client.fetch_voices.call_count, 1)
 
     async def test_autocomplete_answers_from_memory_and_starts_a_refresh(self) -> None:
@@ -1464,7 +1544,7 @@ class CatalogTest(VoiceTestCase):
         release = threading.Event()
         self.addCleanup(release.set)
         self.client.fetch_voices.side_effect = lambda: release.wait(2)
-        self.cog._start_catalog_refresh()
+        await cast(Any, self.cog).voice_set_autocomplete(self.interaction(ALICE), "")
         task = self.cog.catalog_task
         assert task is not None
         await self.cog.cog_unload()
@@ -1501,7 +1581,7 @@ class SetupTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(bot.get_cog("TTS"))
         self.assertEqual(bot.tree.get_commands(), [])
 
-    async def test_enabled_registers_commands_with_help(self) -> None:
+    async def enable(self) -> tuple[commands.Bot, list[str]]:
         bot = self.bot("http://127.0.0.1:50021")
         process = mock.Mock(returncode=0)
         process.communicate = mock.AsyncMock(return_value=(b"", b""))
@@ -1518,34 +1598,58 @@ class SetupTest(unittest.IsolatedAsyncioTestCase):
             self.assertLogs("ctfbot", "ERROR") as logs,
         ):
             await tts_cog.setup(bot)
-        self.assertIn("Message Content Intent", logs.output[0])
+        self.addAsyncCleanup(bot.remove_cog, "TTS")
+        return bot, logs.output
+
+    def read_group(self, bot: commands.Bot) -> app_commands.Group:
         groups = {command.name: command for command in bot.tree.get_commands()}
         self.assertEqual(set(groups), {"read"})
-        read_group = groups["read"]
-        assert isinstance(read_group, app_commands.Group)
-        self.assertIn("help", read_group.extras)
-        commands_by_name = {command.name: command for command in read_group.commands}
+        group = groups["read"]
+        assert isinstance(group, app_commands.Group)
+        return group
+
+    async def test_enabled_warns_when_message_content_intent_is_missing(self) -> None:
+        _, output = await self.enable()
+        self.assertIn("Message Content Intent", output[0])
+
+    async def test_enabled_registers_the_read_group_with_help(self) -> None:
+        bot, _ = await self.enable()
+        self.assertIn("help", self.read_group(bot).extras)
+
+    async def test_read_subcommands_are_registered_with_help(self) -> None:
+        bot, _ = await self.enable()
+        commands_by_name = {c.name: c for c in self.read_group(bot).commands}
         self.assertEqual(
             set(commands_by_name),
             {"join", "leave", "skip", "stop", "ban", "unban", "members", "voice"},
         )
         for command in commands_by_name.values():
-            self.assertIn("help", command.extras)
-        voice_group = commands_by_name["voice"]
+            with self.subTest(command=command.name):
+                self.assertIn("help", command.extras)
+
+    async def test_voice_subcommands_are_registered_with_help(self) -> None:
+        bot, _ = await self.enable()
+        voice_group = next(
+            c for c in self.read_group(bot).commands if c.name == "voice"
+        )
         assert isinstance(voice_group, app_commands.Group)
-        voice_commands = {command.name: command for command in voice_group.commands}
+        voice_commands = {c.name: c for c in voice_group.commands}
         self.assertEqual(set(voice_commands), {"show", "set", "reset"})
         for command in voice_commands.values():
-            self.assertIn("help", command.extras)
-        set_command = voice_commands["set"]
+            with self.subTest(command=command.name):
+                self.assertIn("help", command.extras)
+
+    async def test_voice_set_offers_autocomplete(self) -> None:
+        bot, _ = await self.enable()
+        voice_group = next(
+            c for c in self.read_group(bot).commands if c.name == "voice"
+        )
+        assert isinstance(voice_group, app_commands.Group)
+        set_command = next(c for c in voice_group.commands if c.name == "set")
         assert isinstance(set_command, app_commands.Command)
         parameter = set_command.get_parameter("voice")
         assert parameter is not None
         self.assertIsNotNone(parameter.autocomplete)
-        cog = bot.get_cog("TTS")
-        assert isinstance(cog, TTS)
-        self.assertEqual(cast(Any, cog.client).speed_scale, 1.5)
-        await bot.remove_cog("TTS")
 
 
 class OnDemandEngineTest(TTSTestCase):
@@ -1569,11 +1673,38 @@ class OnDemandEngineTest(TTSTestCase):
         self.engine = PodmanEngine(self.client.check_version, "voicevox", "VOICEVOX")
         self.cog.engine = self.engine
 
-    async def test_session_holds_the_engine_until_it_ends(self) -> None:
+    async def test_engine_stays_up_during_a_session_and_stops_after_it(self) -> None:
+        now = [1000.0]
+
+        async def sleep(seconds: float) -> None:
+            now[0] += seconds
+            await asyncio.sleep(0)
+
+        self.engine = PodmanEngine(
+            self.client.check_version,
+            "voicevox",
+            "VOICEVOX",
+            idle_seconds=300.0,
+            clock=lambda: now[0],
+            sleep=sleep,
+        )
+        self.cog.engine = self.engine
+        # A catalog fetch before the session starts would run the idle timer
+        # while nothing holds the engine yet
+        self.cog.catalog = VOICES
+        self.cog.catalog_fetched_at = self.cog.clock()
         await self.join(ALICE)
-        self.assertEqual(self.engine.holds, 1)
+        await self.cog.on_message(self.message(ALICE))
+        await wait_until(lambda: self.voice_client.play_calls == 1)
+        self.voice_client.finish()
+        task = self.engine.idle_task
+        assert task is not None
+        # The idle timer runs to its end at once; it must not stop the engine
+        await asyncio.wait({task})
+        self.assertNotIn(("podman", "stop", "voicevox"), self.podman)
+
         await self.run_command(self.cog.leave, self.interaction(ALICE))
-        self.assertEqual(self.engine.holds, 0)
+        await wait_until(lambda: ("podman", "stop", "voicevox") in self.podman)
 
     async def test_synthesis_starts_the_engine_first(self) -> None:
         await self.join(ALICE)
@@ -1583,19 +1714,21 @@ class OnDemandEngineTest(TTSTestCase):
         self.voice_client.finish()
 
     async def test_start_failure_skips_the_post_and_keeps_the_queue_going(self) -> None:
+        # The first synthesis failing means the engine was stopped from outside
+        self.client.synthesize.side_effect = [ExternalAPIError("gone"), b"RIFFdata"]
         await self.join(ALICE)
-        # The join above started it; simulate an external stop
-        self.engine.running = False
-        self.podman.clear()
-        self.podman_exit = 1
         with self.assertLogs("ctfbot", "WARNING"):
-            await self.cog.on_message(self.message(ALICE, message_id=1))
+            await self.cog.on_message(self.message(ALICE, "一つ目", message_id=1))
+            await wait_until(lambda: self.client.synthesize.call_count == 1)
+            self.podman.clear()
+            self.podman_exit = 1
+            await self.cog.on_message(self.message(ALICE, "二つ目", message_id=2))
             await wait_until(lambda: len(self.podman) == 1)
-            await asyncio.sleep(0.02)
-        self.client.synthesize.assert_not_called()
         self.podman_exit = 0
-        await self.cog.on_message(self.message(ALICE, message_id=2))
+        await self.cog.on_message(self.message(ALICE, "三つ目", message_id=3))
         await wait_until(lambda: self.voice_client.play_calls == 1)
+        # The post whose start failed never reached synthesis
+        self.assertEqual(self.spoken(), ["一つ目", "三つ目"])
         self.voice_client.finish()
 
     async def test_load_does_not_start_the_engine_and_unload_stops_it(self) -> None:
