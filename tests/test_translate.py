@@ -1,6 +1,6 @@
 import asyncio
 import unittest
-from typing import Any
+from typing import Any, cast
 from unittest import mock
 
 import discord
@@ -87,7 +87,9 @@ class ClientTest(unittest.TestCase):
         self.assertEqual(kwargs["json"]["stop"], ["<|plamo:tag|>", "<|plamo:bos|>"])
 
     @mock.patch("ctfbot.features.translate.requests.post")
-    def test_errors_do_not_retry(self, post: mock.Mock) -> None:
+    def test_failures_become_external_api_error_after_one_attempt(
+        self, post: mock.Mock
+    ) -> None:
         for response in (
             None,
             {},
@@ -146,44 +148,68 @@ class CogTest(unittest.IsolatedAsyncioTestCase):
 
         self.interaction.response.defer = mock.AsyncMock(side_effect=defer)
 
+    async def _translate(self, text: str, target: str = "auto") -> None:
+        callback = cast(Any, self.cog.translate_text.callback)
+        await callback(self.cog, self.interaction, text, target)
+
     async def test_translates_to_english_for_japanese_and_is_ephemeral(self) -> None:
         self.engine.call.return_value = "translated"
 
-        await self.cog._translate(self.interaction, "こんにちは")
+        await self._translate("こんにちは")
 
         self.engine.call.assert_awaited_once_with(
             self.client.translate, "こんにちは", "en", "ja"
-        )
-        self.interaction.response.defer.assert_awaited_once_with(
-            ephemeral=True, thinking=True
         )
         args, kwargs = self.interaction.followup.send.await_args
         self.assertEqual(args[0], "translated")
         self.assertTrue(kwargs["ephemeral"])
 
-    async def test_explicit_target_overrides_detection(self) -> None:
+    async def test_request_is_deferred_as_ephemeral_thinking(self) -> None:
         self.engine.call.return_value = "translated"
 
-        await self.cog._translate(self.interaction, "Hello", "ja")
+        await self._translate("hello")
+
+        self.interaction.response.defer.assert_awaited_once_with(
+            ephemeral=True, thinking=True
+        )
+
+    async def test_auto_target_is_detected_from_text(self) -> None:
+        self.engine.call.return_value = "translated"
+
+        await self._translate("Hello", "auto")
 
         self.engine.call.assert_awaited_once_with(
             self.client.translate, "Hello", "ja", None
         )
 
-    async def test_limit_is_lower_when_translating_to_english(self) -> None:
-        self.cog.max_chars = 2000
+    async def test_explicit_target_overrides_detection(self) -> None:
         self.engine.call.return_value = "translated"
 
-        await self.cog._translate(self.interaction, "あ" * 601)
+        await self._translate("こんにちは", "ja")
+
+        self.engine.call.assert_awaited_once_with(
+            self.client.translate, "こんにちは", "ja", None
+        )
+
+    async def test_text_over_limit_to_english_is_rejected(self) -> None:
+        self.cog.max_chars = 2000
+
+        await self._translate("あ" * 601)
+
         self.engine.call.assert_not_awaited()
         args, _ = self.interaction.response.send_message.await_args
         self.assertEqual(args[0], "翻訳できるのは 600 文字までです。")
 
-        await self.cog._translate(self.interaction, "a" * 2000)
+    async def test_limit_is_higher_when_translating_to_japanese(self) -> None:
+        self.cog.max_chars = 2000
+        self.engine.call.return_value = "translated"
+
+        await self._translate("a" * 2000)
+
         self.engine.call.assert_awaited_once()
 
     async def test_validation_failure_does_not_defer(self) -> None:
-        await self.cog._translate(self.interaction, "   ")
+        await self._translate("   ")
 
         self.interaction.response.defer.assert_not_awaited()
         self.engine.call.assert_not_awaited()
@@ -191,24 +217,29 @@ class CogTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(args[0], "翻訳するテキストを指定してください。")
         self.assertTrue(kwargs["ephemeral"])
 
-    async def test_engine_failure_reports_without_retry(self) -> None:
+    async def test_engine_failure_is_reported_once_without_retry(self) -> None:
         self.engine.call.side_effect = ExternalAPIError("down")
 
         with self.assertLogs("ctfbot", "WARNING"):
-            await self.cog._translate(self.interaction, "hello")
+            await self._translate("hello")
 
         self.engine.call.assert_awaited_once()
         args, _ = self.interaction.followup.send.await_args
         self.assertEqual(args[0], "翻訳結果を取得できませんでした。")
 
-    async def test_rejects_when_two_requests_are_active(self) -> None:
-        self.cog.active_requests = 2
+    async def test_unexpected_error_is_reported_and_next_request_is_accepted(
+        self,
+    ) -> None:
+        self.engine.call.side_effect = [RuntimeError("boom"), "translated"]
 
-        await self.cog._translate(self.interaction, "hello")
+        with self.assertLogs("ctfbot", "ERROR"):
+            await self._translate("hello")
+        args, _ = self.interaction.followup.send.await_args
+        self.assertEqual(args[0], "翻訳中にエラーが発生しました。")
 
-        self.interaction.response.defer.assert_not_awaited()
-        args, _ = self.interaction.response.send_message.await_args
-        self.assertIn("混雑", args[0])
+        await self._translate("hello")
+        args, _ = self.interaction.followup.send.await_args
+        self.assertEqual(args[0], "translated")
 
     async def test_requests_waiting_on_defer_count_toward_the_limit(self) -> None:
         gate = asyncio.Event()
@@ -219,25 +250,24 @@ class CogTest(unittest.IsolatedAsyncioTestCase):
 
         self.interaction.response.defer.side_effect = slow_defer
         self.engine.call.return_value = "translated"
-        pending = [
-            asyncio.create_task(self.cog._translate(self.interaction, "hello"))
-            for _ in range(2)
-        ]
+        pending = [asyncio.create_task(self._translate("hello")) for _ in range(2)]
         await asyncio.sleep(0)
 
-        await self.cog._translate(self.interaction, "hello")
+        await self._translate("hello")
 
         args, _ = self.interaction.response.send_message.await_args
         self.assertIn("混雑", args[0])
         gate.set()
         await asyncio.gather(*pending)
         self.assertEqual(self.engine.call.await_count, 2)
-        self.assertEqual(self.cog.active_requests, 0)
+
+        await self._translate("hello")
+        self.assertEqual(self.engine.call.await_count, 3)
 
     async def test_truncates_long_translation(self) -> None:
         self.engine.call.return_value = "a" * 2000
 
-        await self.cog._translate(self.interaction, "hello")
+        await self._translate("hello")
 
         args, _ = self.interaction.followup.send.await_args
         self.assertEqual(len(args[0]), 1900)

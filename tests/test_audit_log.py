@@ -1,6 +1,10 @@
 import datetime
 import json
+import os
+import sqlite3
+import tempfile
 import unittest
+from contextlib import suppress
 from types import SimpleNamespace
 from typing import cast
 from unittest import mock
@@ -9,7 +13,7 @@ import discord
 from discord.ext import commands
 
 from ctfbot.config import Settings
-from ctfbot.errors import RepositoryError
+from ctfbot.db import Database
 from ctfbot.features.audit_log import AuditLog
 from ctfbot.runtime import BotRuntime
 
@@ -34,23 +38,70 @@ class DiffStub(dict):
             raise AttributeError(item) from exc
 
 
+ADMIN_ROLE_ID = 10
+BOT_CHANNEL_ID = 900
+
+
 class AuditLogTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
-        self.db = mock.Mock()
+        fd, self.path = tempfile.mkstemp()
+        os.close(fd)
+        os.unlink(self.path)
+        self.addCleanup(self.remove_database)
+        self.db = Database(self.path)
         self.settings = mock.Mock(spec=Settings)
-        self.settings.admin_role_id = 10
+        self.settings.admin_role_id = ADMIN_ROLE_ID
+        self.settings.bot_channel_id = BOT_CHANNEL_ID
+        self.channel = mock.Mock(spec=discord.TextChannel)
+        self.channel.send = mock.AsyncMock()
         self.bot = cast(
             commands.Bot,
             SimpleNamespace(
-                runtime=BotRuntime(settings=cast(Settings, self.settings), db=self.db)
+                runtime=BotRuntime(settings=cast(Settings, self.settings), db=self.db),
+                get_channel=lambda channel_id: (
+                    self.channel if channel_id == BOT_CHANNEL_ID else None
+                ),
             ),
         )
         self.cog = AuditLog(self.bot)
+
+    def remove_database(self) -> None:
+        for suffix in ("", "-wal", "-shm"):
+            with suppress(FileNotFoundError):
+                os.unlink(self.path + suffix)
+
+    def rows(self) -> list[dict[str, object]]:
+        conn = sqlite3.connect(self.path)
+        conn.row_factory = sqlite3.Row
+        try:
+            return [
+                dict(row)
+                for row in conn.execute("SELECT * FROM audit_log_entry ORDER BY id")
+            ]
+        finally:
+            conn.close()
+
+    @staticmethod
+    def make_guild(member: object | None = None) -> SimpleNamespace:
+        return SimpleNamespace(
+            id=200,
+            get_member=lambda user_id: member,
+            fetch_member=mock.AsyncMock(
+                side_effect=discord.NotFound(
+                    mock.Mock(status=404, reason="Not Found"), "unknown member"
+                )
+            ),
+        )
+
+    @staticmethod
+    def admin_member() -> SimpleNamespace:
+        return SimpleNamespace(roles=[SimpleNamespace(id=ADMIN_ROLE_ID)])
 
     @staticmethod
     def make_entry(
         before_object: object | None = None,
         *,
+        entry_id: int = 100,
         user_id: int | None = None,
         target_id: int | None = 300,
         target_type: str | None = "user",
@@ -58,6 +109,7 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
         reason: str | None = "理由",
         changes: object | None = None,
         extra: object | None = None,
+        member: object | None = None,
     ) -> discord.AuditLogEntry:
         if before_object is None:
             before_object = StringValue()
@@ -73,8 +125,8 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
         return cast(
             discord.AuditLogEntry,
             SimpleNamespace(
-                id=100,
-                guild=SimpleNamespace(id=200),
+                id=entry_id,
+                guild=AuditLogTest.make_guild(member),
                 action=SimpleNamespace(name="member_ban_add", target_type=target_type),
                 user_id=user_id,
                 target=target,
@@ -85,64 +137,59 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
             ),
         )
 
-    async def run_entry(
-        self,
-        entry: discord.AuditLogEntry,
-        *,
-        inserted: bool = True,
-        member: object | None = None,
-        insert_error: Exception | None = None,
-    ) -> tuple[mock.AsyncMock, mock.AsyncMock, mock.AsyncMock]:
-        to_thread = mock.AsyncMock(return_value=inserted, side_effect=insert_error)
-        fetch_member = mock.AsyncMock(return_value=member)
-        send_audit_message = mock.AsyncMock()
-        with (
-            mock.patch("ctfbot.features.audit_log.asyncio.to_thread", new=to_thread),
-            mock.patch("ctfbot.features.audit_log.fetch_member", new=fetch_member),
-            mock.patch(
-                "ctfbot.features.audit_log.send_audit_message",
-                new=send_audit_message,
-            ),
-        ):
-            await self.cog.on_audit_log_entry_create(entry)
-        return to_thread, fetch_member, send_audit_message
+    def sent_lines(self) -> list[str]:
+        self.channel.send.assert_awaited_once()
+        return self.channel.send.await_args.args[0].split("\n")
 
-    async def test_event_serializes_and_inserts_entry(self) -> None:
+    async def test_event_stores_entry_with_serialized_changes(self) -> None:
         entry = self.make_entry()
-        to_thread, _, _ = await self.run_entry(entry)
+        await self.cog.on_audit_log_entry_create(entry)
 
-        to_thread.assert_awaited_once_with(
-            self.db.insert_audit_log_entry,
-            entry_id=100,
-            guild_id=200,
-            action="member_ban_add",
-            user_id=None,
-            target_id=300,
-            reason="理由",
-            changes_json=json.dumps(
-                {
-                    "before": {"name": "以前", "object": "string value"},
-                    "after": {"name": "以後"},
-                },
-                ensure_ascii=False,
-            ),
-            extra_text="string value",
-            created_at_unix=int(entry.created_at.timestamp()),
+        (row,) = self.rows()
+        changes_json = cast(str, row.pop("changes_json"))
+        self.assertEqual(
+            json.loads(changes_json),
+            {
+                "before": {"name": "以前", "object": "string value"},
+                "after": {"name": "以後"},
+            },
+        )
+        self.assertEqual(
+            row,
+            {
+                "id": 1,
+                "entry_id": 100,
+                "guild_id": 200,
+                "action": "member_ban_add",
+                "user_id": None,
+                "target_id": 300,
+                "reason": "理由",
+                "extra_text": "string value",
+                "created_at_unix": int(entry.created_at.timestamp()),
+            },
         )
 
     async def test_new_admin_entry_notifies_with_target_and_reason(self) -> None:
-        entry = self.make_entry(user_id=400)
-        member = SimpleNamespace(roles=[SimpleNamespace(id=10)])
-        _, fetch_member, send_audit_message = await self.run_entry(entry, member=member)
+        entry = self.make_entry(user_id=400, member=self.admin_member())
+        await self.cog.on_audit_log_entry_create(entry)
 
-        fetch_member.assert_awaited_once_with(entry.guild, 400)
-        send_audit_message.assert_awaited_once_with(
-            self.bot,
+        self.assertEqual(
+            self.sent_lines(),
             [
                 "🛡️ <@400> が管理者操作 `member_ban_add` を実行しました。",
                 "- 対象: <@300>",
                 "- 理由: 理由",
             ],
+        )
+
+    async def test_notification_does_not_ping_anyone(self) -> None:
+        await self.cog.on_audit_log_entry_create(
+            self.make_entry(user_id=400, member=self.admin_member())
+        )
+
+        allowed_mentions = self.channel.send.await_args.kwargs["allowed_mentions"]
+        self.assertEqual(
+            allowed_mentions.to_dict(), discord.AllowedMentions.none().to_dict()
         )
 
     async def test_admin_entry_formats_target_by_target_type(self) -> None:
@@ -154,46 +201,54 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
             ("sticker", "- 対象 ID: 300"),
             (None, "- 対象 ID: 300"),
         ]
-        member = SimpleNamespace(roles=[SimpleNamespace(id=10)])
-        for target_type, expected in cases:
+        for index, (target_type, expected) in enumerate(cases):
             with self.subTest(target_type=target_type):
-                entry = self.make_entry(user_id=400, target_type=target_type)
-                _, _, send_audit_message = await self.run_entry(entry, member=member)
+                self.channel.send.reset_mock()
+                entry = self.make_entry(
+                    entry_id=index,
+                    user_id=400,
+                    target_type=target_type,
+                    member=self.admin_member(),
+                )
+                await self.cog.on_audit_log_entry_create(entry)
 
-                call = send_audit_message.await_args
-                assert call is not None
-                self.assertEqual(call.args[1][1], expected)
+                self.assertEqual(self.sent_lines()[1], expected)
 
     async def test_admin_entry_formats_target_name_when_not_mentionable(self) -> None:
+        member = self.admin_member()
         cases = [
             # emoji はキャッシュ済み target の name を :name: 形式で表示する
             (
                 self.make_entry(
-                    user_id=400, target_type="emoji", target_name="party_blob"
+                    entry_id=1,
+                    user_id=400,
+                    target_type="emoji",
+                    target_name="party_blob",
+                    member=member,
                 ),
                 "- 対象: :party_blob:",
             ),
             # 削除済みでも changes に残る name を表示し、sanitize を適用する
             (
                 self.make_entry(
+                    entry_id=2,
                     user_id=400,
                     target_type="sticker",
                     changes=SimpleNamespace(
                         before=DiffStub({"name": " <@1>  スタンプ "}),
                         after=DiffStub({}),
                     ),
+                    member=member,
                 ),
                 "- 対象: <@\u200b1> スタンプ",
             ),
         ]
-        member = SimpleNamespace(roles=[SimpleNamespace(id=10)])
         for entry, expected in cases:
             with self.subTest(expected=expected):
-                _, _, send_audit_message = await self.run_entry(entry, member=member)
+                self.channel.send.reset_mock()
+                await self.cog.on_audit_log_entry_create(entry)
 
-                call = send_audit_message.await_args
-                assert call is not None
-                self.assertEqual(call.args[1][1], expected)
+                self.assertEqual(self.sent_lines()[1], expected)
 
     async def test_admin_pin_entry_appends_message_link(self) -> None:
         entry = self.make_entry(
@@ -201,12 +256,12 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
             target_id=None,
             target_type="message",
             extra=SimpleNamespace(channel=SimpleNamespace(id=500), message_id=600),
+            member=self.admin_member(),
         )
-        member = SimpleNamespace(roles=[SimpleNamespace(id=10)])
-        _, _, send_audit_message = await self.run_entry(entry, member=member)
+        await self.cog.on_audit_log_entry_create(entry)
 
-        send_audit_message.assert_awaited_once_with(
-            self.bot,
+        self.assertEqual(
+            self.sent_lines(),
             [
                 "🛡️ <@400> が管理者操作 `member_ban_add` を実行しました。",
                 "- メッセージ: https://discord.com/channels/200/500/600",
@@ -215,86 +270,84 @@ class AuditLogTest(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_new_admin_entry_omits_missing_target_and_reason(self) -> None:
-        entry = self.make_entry(user_id=400, target_id=None, reason=None)
-        member = SimpleNamespace(roles=[SimpleNamespace(id=10)])
-        _, _, send_audit_message = await self.run_entry(entry, member=member)
+        entry = self.make_entry(
+            user_id=400, target_id=None, reason=None, member=self.admin_member()
+        )
+        await self.cog.on_audit_log_entry_create(entry)
 
-        send_audit_message.assert_awaited_once_with(
-            self.bot,
+        self.assertEqual(
+            self.sent_lines(),
             ["🛡️ <@400> が管理者操作 `member_ban_add` を実行しました。"],
         )
 
-    async def test_new_non_admin_entry_does_not_notify(self) -> None:
-        entry = self.make_entry(user_id=400)
+    async def test_new_non_admin_entry_is_stored_without_notification(self) -> None:
         member = SimpleNamespace(roles=[SimpleNamespace(id=11)])
-        to_thread, _, send_audit_message = await self.run_entry(entry, member=member)
+        await self.cog.on_audit_log_entry_create(
+            self.make_entry(user_id=400, member=member)
+        )
 
-        to_thread.assert_awaited_once()
-        send_audit_message.assert_not_awaited()
+        self.assertEqual(len(self.rows()), 1)
+        self.channel.send.assert_not_awaited()
 
-    async def test_entry_without_user_does_not_resolve_member_or_notify(self) -> None:
-        entry = self.make_entry(user_id=None)
-        to_thread, fetch_member, send_audit_message = await self.run_entry(entry)
+    async def test_entry_without_user_is_stored_without_notification(self) -> None:
+        await self.cog.on_audit_log_entry_create(self.make_entry(user_id=None))
 
-        to_thread.assert_awaited_once()
-        fetch_member.assert_not_awaited()
-        send_audit_message.assert_not_awaited()
+        self.assertEqual(len(self.rows()), 1)
+        self.channel.send.assert_not_awaited()
 
     async def test_entry_without_configured_admin_role_does_not_notify(self) -> None:
         self.settings.admin_role_id = None
-        entry = self.make_entry(user_id=400)
-        to_thread, fetch_member, send_audit_message = await self.run_entry(entry)
+        await self.cog.on_audit_log_entry_create(
+            self.make_entry(user_id=400, member=self.admin_member())
+        )
 
-        to_thread.assert_awaited_once()
-        fetch_member.assert_not_awaited()
-        send_audit_message.assert_not_awaited()
+        self.assertEqual(len(self.rows()), 1)
+        self.channel.send.assert_not_awaited()
 
     async def test_entry_with_unresolved_member_does_not_notify(self) -> None:
-        entry = self.make_entry(user_id=400)
-        to_thread, _, send_audit_message = await self.run_entry(entry)
+        await self.cog.on_audit_log_entry_create(self.make_entry(user_id=400))
 
-        to_thread.assert_awaited_once()
-        send_audit_message.assert_not_awaited()
+        self.assertEqual(len(self.rows()), 1)
+        self.channel.send.assert_not_awaited()
 
-    async def test_duplicate_entry_does_not_resolve_member_or_notify(self) -> None:
-        entry = self.make_entry(user_id=400)
-        to_thread, fetch_member, send_audit_message = await self.run_entry(
-            entry, inserted=False
-        )
+    async def test_duplicate_entry_is_stored_once_and_notified_once(self) -> None:
+        for _ in range(2):
+            await self.cog.on_audit_log_entry_create(
+                self.make_entry(user_id=400, member=self.admin_member())
+            )
 
-        to_thread.assert_awaited_once()
-        fetch_member.assert_not_awaited()
-        send_audit_message.assert_not_awaited()
+        self.assertEqual(len(self.rows()), 1)
+        self.channel.send.assert_awaited_once()
 
-    async def test_repository_error_does_not_notify(self) -> None:
-        entry = self.make_entry(user_id=400)
-        error = RepositoryError("database unavailable")
-        with mock.patch("ctfbot.features.audit_log.logger.exception") as log_error:
-            _, _, send_audit_message = await self.run_entry(entry, insert_error=error)
+    async def test_repository_error_is_logged_and_does_not_notify(self) -> None:
+        conn = sqlite3.connect(self.path)
+        conn.execute("DROP TABLE audit_log_entry")
+        conn.close()
 
-        send_audit_message.assert_not_awaited()
-        log_error.assert_called_once_with(
-            "Failed to save audit log entry %s: %s", entry.id, error
-        )
+        with self.assertLogs("ctfbot", level="ERROR") as logs:
+            await self.cog.on_audit_log_entry_create(
+                self.make_entry(user_id=400, member=self.admin_member())
+            )
+
+        self.assertIn("Failed to save audit log entry 100", logs.output[0])
+        self.channel.send.assert_not_awaited()
 
     async def test_admin_entry_sanitizes_reason_before_notification(self) -> None:
-        entry = self.make_entry(user_id=400, reason="  <@123>\n  複数   空白  ")
-        member = SimpleNamespace(roles=[SimpleNamespace(id=10)])
-        _, _, send_audit_message = await self.run_entry(entry, member=member)
+        entry = self.make_entry(
+            user_id=400, reason="  <@123>\n  複数   空白  ", member=self.admin_member()
+        )
+        await self.cog.on_audit_log_entry_create(entry)
 
-        call = send_audit_message.await_args
-        assert call is not None
-        self.assertEqual(call.args[1][-1], "- 理由: <@\u200b123> 複数 空白")
+        self.assertEqual(self.sent_lines()[-1], "- 理由: <@\u200b123> 複数 空白")
 
     async def test_event_with_unserializable_value_is_logged_and_suppressed(
         self,
     ) -> None:
-        entry = self.make_entry(UnserializableValue())
-        with mock.patch("ctfbot.features.audit_log.logger.exception") as log_error:
+        entry = self.make_entry(UnserializableValue(), user_id=400)
+        with self.assertLogs("ctfbot", level="ERROR") as logs:
             await self.cog.on_audit_log_entry_create(entry)
 
-        error = log_error.call_args.args[2]
-        self.assertIsInstance(error, ValueError)
-        log_error.assert_called_once_with(
-            "Failed to save audit log entry %s: %s", entry.id, error
-        )
+        self.assertIn("Failed to save audit log entry 100", logs.output[0])
+        self.assertIn("cannot stringify", logs.output[0])
+        self.assertEqual(self.rows(), [])
+        self.channel.send.assert_not_awaited()

@@ -5,12 +5,7 @@ from unittest import mock
 import discord
 from discord import app_commands
 
-from ctfbot.features.utility import (
-    UtilityCommands,
-    _format_permissions,
-    _guild_permissions_for,
-    _permission_pages,
-)
+from ctfbot.features.utility import UtilityCommands
 from ctfbot.helpers import MAX_MESSAGE_CONTENT_LENGTH
 
 
@@ -30,7 +25,15 @@ class UtilityCommandsTest(unittest.IsolatedAsyncioTestCase):
         self.interaction.guild = mock.Mock(spec=discord.Guild)
         self.interaction.response = mock.Mock()
         self.interaction.response.is_done.return_value = False
-        self.interaction.response.send_message = mock.AsyncMock()
+
+        async def send_message(*args: Any, **kwargs: Any) -> None:
+            self.interaction.response.is_done.return_value = True
+
+        self.interaction.response.send_message = mock.AsyncMock(
+            side_effect=send_message
+        )
+        self.interaction.followup = mock.Mock()
+        self.interaction.followup.send = mock.AsyncMock()
 
     async def invoke_help(self, command: str | None = None) -> None:
         callback = cast(Any, self.cog.help_command.callback)
@@ -139,7 +142,7 @@ class UtilityCommandsTest(unittest.IsolatedAsyncioTestCase):
         args, _ = self.interaction.response.send_message.await_args
         self.assertEqual(args[0], "**/ping**\n接続確認\n\n使い方: `/ping`\n引数: なし")
 
-    async def test_help_group_lists_children_and_resolves_nested_command(self) -> None:
+    def register_nested_commands(self) -> None:
         group = app_commands.Group(name="admin", description="管理")
         subgroup = app_commands.Group(name="users", description="ユーザー管理")
         subgroup.add_command(make_command("list", "一覧"))
@@ -147,11 +150,17 @@ class UtilityCommandsTest(unittest.IsolatedAsyncioTestCase):
         group.add_command(subgroup)
         self.bot.tree.get_commands.return_value = [group]
 
+    async def test_help_group_lists_sorted_children(self) -> None:
+        self.register_nested_commands()
+
         await self.invoke_help("admin users")
 
         args, _ = self.interaction.response.send_message.await_args
         self.assertIn("**/admin users**\nユーザー管理", args[0])
         self.assertIn("/admin users add — 登録\n/admin users list — 一覧", args[0])
+
+    async def test_help_resolves_nested_command(self) -> None:
+        self.register_nested_commands()
 
         await self.invoke_help("admin users add")
 
@@ -200,7 +209,8 @@ class UtilityCommandsTest(unittest.IsolatedAsyncioTestCase):
             mock.Mock(status=500, reason="Internal Server Error"), "boom"
         )
 
-        await self.invoke_help()
+        with self.assertLogs("ctfbot", level="ERROR"):
+            await self.invoke_help()
 
         self.interaction.response.send_message.assert_awaited_once()
 
@@ -255,45 +265,79 @@ class UtilityCommandsTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Channel 追加 ✅ send_messages", args[0])
         self.assertIn("Channel 削除 ❌ manage_roles", args[0])
 
-
-class PermissionFormattingTest(unittest.TestCase):
-    def test_format_permissions_lists_every_permission_once(self) -> None:
-        permissions = discord.Permissions(manage_roles=True, send_messages=True)
-
-        enabled, disabled = _format_permissions("Guild", permissions)
-
-        self.assertEqual(enabled, "Guild ✅ send_messages、manage_roles")
-        disabled_names = disabled.removeprefix("Guild ❌ ").split("、")
-        self.assertIn("administrator", disabled_names)
-        self.assertNotIn("send_messages", disabled_names)
-        self.assertNotIn("manage_roles", disabled_names)
-
-    def test_guild_permissions_expand_administrator(self) -> None:
-        guild = mock.Mock(spec=discord.Guild)
-        guild.default_role.permissions = discord.Permissions.none()
+    def setup_perms_target(
+        self, role_permissions: discord.Permissions, mention: str = "<@&789>"
+    ) -> tuple[mock.Mock, mock.Mock]:
+        self.interaction.guild.me = mock.Mock(spec=discord.Member)
+        self.interaction.guild.default_role.permissions = discord.Permissions.none()
         role = mock.Mock(spec=discord.Role)
-        role.permissions = discord.Permissions(administrator=True)
+        role.id = 789
+        role.mention = mention
+        role.position = 4
+        role.permissions = role_permissions
+        channel = mock.Mock(spec=discord.TextChannel)
+        channel.id = 456
+        channel.mention = "<#456>"
+        channel.permissions_for.return_value = role_permissions
+        return role, channel
 
-        permissions = _guild_permissions_for(guild, role)
+    def guild_permission_names(self, content: str) -> tuple[set[str], set[str]]:
+        enabled, disabled = (
+            next(
+                line.removeprefix(prefix).split("、")
+                for line in content.split("\n")
+                if line.startswith(prefix)
+            )
+            for prefix in ("Guild ✅ ", "Guild ❌ ")
+        )
+        return set(enabled), set(disabled)
 
-        self.assertEqual(permissions.value, discord.Permissions.all().value)
-
-    def test_permission_pages_split_before_message_limit(self) -> None:
-        header = ["x" * 300]
-
-        pages = _permission_pages(
-            header, discord.Permissions.none(), discord.Permissions.all()
+    async def test_perms_puts_each_guild_permission_in_exactly_one_group(
+        self,
+    ) -> None:
+        role, channel = self.setup_perms_target(
+            discord.Permissions(manage_roles=True, send_messages=True)
         )
 
-        self.assertEqual(len(pages), 2)
-        self.assertTrue(all(len(page) <= MAX_MESSAGE_CONTENT_LENGTH for page in pages))
-        self.assertTrue(pages[0].startswith(header[0]))
-        self.assertTrue(pages[1].startswith("Channel 追加 ✅"))
+        await self.invoke_perms(channel, role)
 
-    def test_permission_pages_report_no_channel_difference(self) -> None:
-        permissions = discord.Permissions(view_channel=True, send_messages=True)
+        args, _ = self.interaction.response.send_message.await_args
+        enabled, disabled = self.guild_permission_names(args[0])
+        self.assertEqual(enabled, {"send_messages", "manage_roles"})
+        self.assertEqual(enabled & disabled, set())
+        self.assertIn("administrator", disabled)
 
-        pages = _permission_pages(["対象"], permissions, permissions)
+    async def test_perms_of_administrator_role_shows_every_permission_enabled(
+        self,
+    ) -> None:
+        role, channel = self.setup_perms_target(discord.Permissions(administrator=True))
 
-        self.assertEqual(len(pages), 1)
-        self.assertTrue(pages[0].endswith("Channel 差分なし"))
+        await self.invoke_perms(channel, role)
+
+        args, _ = self.interaction.response.send_message.await_args
+        self.assertIn("Guild ❌ なし", args[0])
+
+    async def test_perms_reports_no_channel_difference(self) -> None:
+        role, channel = self.setup_perms_target(
+            discord.Permissions(view_channel=True, send_messages=True)
+        )
+
+        await self.invoke_perms(channel, role)
+
+        args, _ = self.interaction.response.send_message.await_args
+        self.assertTrue(args[0].endswith("Channel 差分なし"))
+
+    async def test_perms_splits_into_two_pages_before_message_limit(self) -> None:
+        role, channel = self.setup_perms_target(
+            discord.Permissions.none(), mention="x" * 300
+        )
+        channel.permissions_for.return_value = discord.Permissions.all()
+
+        await self.invoke_perms(channel, role)
+
+        first = self.interaction.response.send_message.await_args.args[0]
+        second = self.interaction.followup.send.await_args.args[0]
+        self.assertTrue(first.startswith("対象: " + "x" * 300))
+        self.assertTrue(second.startswith("Channel 追加 ✅"))
+        self.assertLessEqual(len(first), MAX_MESSAGE_CONTENT_LENGTH)
+        self.assertLessEqual(len(second), MAX_MESSAGE_CONTENT_LENGTH)

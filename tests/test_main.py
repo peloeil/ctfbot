@@ -24,7 +24,7 @@ def module_level_imports(path: Path) -> set[str]:
 class EnsureProjectVenvTest(unittest.TestCase):
     def test_accepts_interpreter_inside_project_venv(self) -> None:
         with mock.patch.object(sys, "prefix", str(PROJECT_VENV)):
-            main.ensure_project_venv()
+            self.assertIsNone(main.ensure_project_venv())
 
     def test_exits_when_interpreter_is_outside_project_venv(self) -> None:
         with (
