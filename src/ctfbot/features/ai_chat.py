@@ -183,6 +183,12 @@ class AIChat(commands.Cog):
                     )
                     await self._reply(message, "AI の応答を取得できませんでした。")
                 else:
+                    # 質問文は個人情報を含みうるため、利用者とチャンネルだけ残す。
+                    logger.info(
+                        "AI chat answered: message_id=%s user=%s channel=%s",
+                        message.id,
+                        *self._log_context(message),
+                    )
                     try:
                         await asyncio.to_thread(
                             self.db.record_ai_chat_request, message.author.id, period

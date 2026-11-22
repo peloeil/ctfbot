@@ -276,6 +276,16 @@ class ChatTest(unittest.IsolatedAsyncioTestCase):
         await self.chat.on_message(cast(Any, self.message))
         self.db.record_ai_chat_request.assert_not_called()
 
+    async def test_answered_request_is_logged_without_prompt_text(self) -> None:
+        self.chat.client = mock.Mock()
+        self.chat.client.complete.return_value = "回答"
+        with self.assertLogs("ctfbot", level="INFO") as logs:
+            await self.chat.on_message(cast(Any, self.message))
+        output = "\n".join(logs.output)
+        self.assertIn("AI chat answered", output)
+        self.assertIn("message_id=5", output)
+        self.assertNotIn("質問", output)
+
     async def test_period_is_the_month_in_the_configured_timezone(self) -> None:
         self.chat.tzinfo = ZoneInfo("America/Los_Angeles")
         expected = datetime.datetime.now(self.chat.tzinfo).strftime("%Y-%m")
