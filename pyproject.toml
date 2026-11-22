@@ -27,4 +27,4 @@ select = ["E", "F", "I", "W", "N", "UP", "B", "C4", "SIM", "RUF"]
 allowed-confusables = ["（", "）"]
 
 [tool.ty.environment]
-root = ["./src"]
+root = ["./src", "."]
