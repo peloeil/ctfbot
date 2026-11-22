@@ -10,7 +10,6 @@ from ctfbot.config import Settings, load_settings
 from ctfbot.db import Database
 from ctfbot.helpers import (
     format_log_channel,
-    format_log_guild,
     format_log_user,
     resolve_messageable,
     send_interaction,
@@ -42,11 +41,8 @@ class CTFBot(commands.Bot):
         guild = discord.Object(id=self.runtime.settings.guild_id)
         self.tree.copy_global_to(guild=guild)
         synced = await self.tree.sync(guild=guild)
-        logger.info(
-            "Synced %s command(s) to guild: guild=%s",
-            len(synced),
-            format_log_guild(self.get_guild(guild.id), guild.id),
-        )
+        # setup_hook は接続前で guild キャッシュが空のため、名前は引けず ID のみ出す。
+        logger.info("Synced %s command(s) to guild: guild_id=%s", len(synced), guild.id)
 
     async def on_ready(self) -> None:
         logger.info("%s has connected to Discord!", self.user)
