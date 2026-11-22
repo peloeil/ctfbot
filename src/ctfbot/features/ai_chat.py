@@ -51,8 +51,8 @@ class ChatCompletionClient:
                         {"role": "system", "content": SYSTEM_PROMPT},
                         {"role": "user", "content": prompt},
                     ],
-                    # Not reasoning_effort alone: Gemma 4 ignores it and only
-                    # thinks when enable_thinking is set.
+                    # Not reasoning_effort alone: some models ignore it and
+                    # only think when enable_thinking is set.
                     # No max_tokens: reasoning tokens count against it and can
                     # leave content empty, and the reply is truncated to fit
                     # Discord anyway.

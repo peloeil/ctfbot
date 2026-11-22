@@ -46,7 +46,7 @@
 | `CTFTIME_USER_AGENT` | CTFtime API リクエストの User-Agent | `str` | — | `ctfbot/2.0 (+discord)` | デフォルト付き文字列 |
 | `AI_CHAT_API_KEY` | OpenAI 互換チャット補完 API の Bearer キー | `str \| None` | — | なし（機能無効） | strip 後に空なら `None`。ログへ記録しない |
 | `AI_CHAT_API_URL` | チャット補完の完全な URL | `str` | — | `https://api.ai.sakura.ad.jp/v1/chat/completions` | デフォルト付き文字列。接続先変更時に指定 |
-| `AI_CHAT_MODEL` | チャット補完のモデル | `str` | — | `preview/gemma-4-31B-it` | デフォルト付き文字列。接続先変更時に指定 |
+| `AI_CHAT_MODEL` | チャット補完のモデル | `str` | — | `preview/DeepSeek-V4.1-Flash-1017` | デフォルト付き文字列。接続先変更時に指定 |
 | `TRANSLATE_API_URL` | 翻訳サーバーのベース URL（`None` で翻訳無効）。`/health` と `/v1/completions` を呼ぶ | `str \| None` | — | なし（機能無効） | strip 後に空なら `None` |
 | `TRANSLATE_CONTAINER` | bot が `podman start`/`stop` する翻訳サーバーのコンテナ名。`TRANSLATE_API_URL` が未設定なら使わない | `str` | — | `plamo-translate` | 未設定・空文字・空白のみはデフォルト。コンテナは運用者が事前に作成する |
 | `TRANSLATE_MODEL` | `/v1/completions` に渡すモデル名 | `str` | — | `plamo-3-translate` | デフォルト付き文字列。llama.cpp は値を使わないが vLLM などでは必要 |

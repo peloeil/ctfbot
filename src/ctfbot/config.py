@@ -251,8 +251,10 @@ def load_settings(
             "AI_CHAT_API_URL", "https://api.ai.sakura.ad.jp/v1/chat/completions"
         ).strip()
         or "https://api.ai.sakura.ad.jp/v1/chat/completions",
-        ai_chat_model=env.get("AI_CHAT_MODEL", "preview/gemma-4-31B-it").strip()
-        or "preview/gemma-4-31B-it",
+        ai_chat_model=env.get(
+            "AI_CHAT_MODEL", "preview/DeepSeek-V4.1-Flash-1017"
+        ).strip()
+        or "preview/DeepSeek-V4.1-Flash-1017",
         translate_api_url=env.get("TRANSLATE_API_URL", "").strip() or None,
         translate_container=env.get("TRANSLATE_CONTAINER", "").strip()
         or "plamo-translate",

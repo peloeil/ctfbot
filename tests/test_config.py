@@ -52,7 +52,7 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(
             settings.ai_chat_api_url, "https://api.ai.sakura.ad.jp/v1/chat/completions"
         )
-        self.assertEqual(settings.ai_chat_model, "preview/gemma-4-31B-it")
+        self.assertEqual(settings.ai_chat_model, "preview/DeepSeek-V4.1-Flash-1017")
         self.assertIsNone(settings.translate_api_url)
         self.assertEqual(settings.translate_container, "plamo-translate")
         self.assertEqual(settings.translate_model, "plamo-3-translate")
@@ -164,7 +164,7 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(settings.ai_chat_model, "custom")
         self.assertEqual(
             load_settings(environ=self.env(AI_CHAT_MODEL=" ")).ai_chat_model,
-            "preview/gemma-4-31B-it",
+            "preview/DeepSeek-V4.1-Flash-1017",
         )
 
     def test_translate_configuration(self) -> None:
