@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from ctfbot.config import _read_clock_time, load_settings
+from ctfbot.config import load_settings
 from ctfbot.errors import ConfigurationError
 
 
@@ -20,34 +20,41 @@ class ConfigTest(unittest.TestCase):
         base.update(overrides)
         return base
 
-    def test_load_settings_with_required_values(self) -> None:
+    def test_common_settings_default_when_only_required_values_are_given(self) -> None:
         settings = load_settings(environ=self.env())
         self.assertEqual(settings.discord_token, "token")
         self.assertEqual(settings.guild_id, 999)
         self.assertEqual(settings.ctfteam_category_id, 123)
         self.assertEqual(settings.ctfteam_archive_category_id, 456)
         self.assertEqual(settings.ctfteam_role_channel_id, 789)
-        self.assertEqual(settings.tzinfo.key, "Asia/Tokyo")
         self.assertEqual(settings.tzinfo, ZoneInfo("Asia/Tokyo"))
         self.assertEqual(settings.log_level, "INFO")
         self.assertEqual(settings.database_path, "ctfbot.db")
+
+    def test_scheduled_times_default_in_configured_timezone(self) -> None:
+        settings = load_settings(environ=self.env())
+        tzinfo = settings.tzinfo
         self.assertEqual(
-            settings.alpacahack_daily_time,
-            datetime.time(0, 5, tzinfo=settings.tzinfo),
+            settings.alpacahack_daily_time, datetime.time(0, 5, tzinfo=tzinfo)
         )
         self.assertEqual(
-            settings.alpacahack_solve_time, datetime.time(23, 0, tzinfo=settings.tzinfo)
+            settings.alpacahack_solve_time, datetime.time(23, 0, tzinfo=tzinfo)
         )
         self.assertEqual(
-            settings.ctftime_notification_time,
-            datetime.time(9, 0, tzinfo=settings.tzinfo),
+            settings.ctftime_notification_time, datetime.time(9, 0, tzinfo=tzinfo)
         )
+
+    def test_ctftime_and_sudo_settings_have_documented_defaults(self) -> None:
+        settings = load_settings(environ=self.env())
         self.assertEqual(settings.ctftime_window_days, 14)
         self.assertEqual(settings.ctftime_event_limit, 20)
         self.assertEqual(settings.ctftime_user_agent, "ctfbot/2.0 (+discord)")
         self.assertIsNone(settings.admin_role_id)
         self.assertIsNone(settings.sudoer_role_id)
         self.assertEqual(settings.sudo_duration_minutes, 30)
+
+    def test_ai_chat_and_translate_settings_have_documented_defaults(self) -> None:
+        settings = load_settings(environ=self.env())
         self.assertIsNone(settings.ai_chat_api_key)
         self.assertEqual(
             settings.ai_chat_api_url, "https://api.ai.sakura.ad.jp/v1/chat/completions"
@@ -57,6 +64,9 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(settings.translate_container, "plamo-translate")
         self.assertEqual(settings.translate_model, "plamo-3-translate")
         self.assertEqual(settings.translate_max_chars, 2000)
+
+    def test_tts_settings_have_documented_defaults_and_are_disabled(self) -> None:
+        settings = load_settings(environ=self.env())
         self.assertIsNone(settings.tts_voicevox_url)
         self.assertFalse(settings.tts_enabled)
         self.assertEqual(settings.tts_speaker_ids, (3, 13, 2, 46, 8, 10))
@@ -64,7 +74,7 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(settings.tts_speed_scale, 1.5)
         self.assertEqual(settings.tts_voicevox_container, "voicevox")
 
-    def test_tts_voicevox_container(self) -> None:
+    def test_tts_voicevox_container_is_trimmed_and_defaults_when_blank(self) -> None:
         for raw, expected in (
             ("", "voicevox"),
             ("  ", "voicevox"),
@@ -74,7 +84,7 @@ class ConfigTest(unittest.TestCase):
                 settings = load_settings(environ=self.env(TTS_VOICEVOX_CONTAINER=raw))
                 self.assertEqual(settings.tts_voicevox_container, expected)
 
-    def test_tts_speed_scale(self) -> None:
+    def test_tts_speed_scale_accepts_range_and_defaults_when_blank(self) -> None:
         for raw, expected in (
             ("", 1.5),
             ("  ", 1.5),
@@ -87,32 +97,47 @@ class ConfigTest(unittest.TestCase):
                 settings = load_settings(environ=self.env(TTS_SPEED_SCALE=raw))
                 self.assertEqual(settings.tts_speed_scale, expected)
 
-    def test_tts_configuration(self) -> None:
+    def test_tts_is_disabled_when_voicevox_url_is_blank(self) -> None:
         for blank in ("", "  "):
-            settings = load_settings(environ=self.env(TTS_VOICEVOX_URL=blank))
-            self.assertIsNone(settings.tts_voicevox_url)
-            self.assertFalse(settings.tts_enabled)
+            with self.subTest(blank=blank):
+                settings = load_settings(environ=self.env(TTS_VOICEVOX_URL=blank))
+                self.assertIsNone(settings.tts_voicevox_url)
+                self.assertFalse(settings.tts_enabled)
+
+    def test_tts_is_enabled_with_trimmed_voicevox_url(self) -> None:
         settings = load_settings(
-            environ=self.env(
-                TTS_VOICEVOX_URL=" http://127.0.0.1:50021 ",
-                TTS_SPEAKER_IDS=" 5 , 0,5, 7 ",
-                TTS_MAX_CHARS="1000",
-            )
+            environ=self.env(TTS_VOICEVOX_URL=" http://127.0.0.1:50021 ")
         )
         self.assertEqual(settings.tts_voicevox_url, "http://127.0.0.1:50021")
         self.assertTrue(settings.tts_enabled)
+
+    def test_tts_speaker_ids_are_trimmed_and_deduplicated_in_first_seen_order(
+        self,
+    ) -> None:
+        settings = load_settings(environ=self.env(TTS_SPEAKER_IDS=" 5 , 0,5, 7 "))
         self.assertEqual(settings.tts_speaker_ids, (5, 0, 7))
+
+    def test_tts_speaker_ids_accept_a_single_id(self) -> None:
+        settings = load_settings(environ=self.env(TTS_SPEAKER_IDS="1"))
+        self.assertEqual(settings.tts_speaker_ids, (1,))
+
+    def test_tts_max_chars_accepts_upper_bound(self) -> None:
+        settings = load_settings(environ=self.env(TTS_MAX_CHARS="1000"))
         self.assertEqual(settings.tts_max_chars, 1000)
+
+    def test_blank_tts_speaker_ids_fall_back_to_defaults(self) -> None:
         for blank in ("", "  "):
-            defaults = load_settings(
-                environ=self.env(TTS_SPEAKER_IDS=blank, TTS_MAX_CHARS="")
-            )
-            self.assertEqual(
-                (defaults.tts_speaker_ids, defaults.tts_max_chars),
-                ((3, 13, 2, 46, 8, 10), 100),
-            )
-        single = load_settings(environ=self.env(TTS_SPEAKER_IDS="1"))
-        self.assertEqual(single.tts_speaker_ids, (1,))
+            with self.subTest(blank=blank):
+                settings = load_settings(environ=self.env(TTS_SPEAKER_IDS=blank))
+                self.assertEqual(settings.tts_speaker_ids, (3, 13, 2, 46, 8, 10))
+
+    def test_empty_tts_max_chars_falls_back_to_default(self) -> None:
+        settings = load_settings(environ=self.env(TTS_MAX_CHARS=""))
+        self.assertEqual(settings.tts_max_chars, 100)
+
+    def test_whitespace_only_integer_is_rejected(self) -> None:
+        with self.assertRaises(ConfigurationError):
+            load_settings(environ=self.env(TTS_MAX_CHARS="  "))
 
     def test_invalid_tts_numbers_are_rejected(self) -> None:
         for name, value in (
@@ -146,10 +171,11 @@ class ConfigTest(unittest.TestCase):
             ):
                 load_settings(environ=self.env(**{name: value}))
 
-    def test_ai_chat_configuration(self) -> None:
-        self.assertIsNone(
-            load_settings(environ=self.env(AI_CHAT_API_KEY="  ")).ai_chat_api_key
-        )
+    def test_blank_ai_chat_api_key_disables_ai_chat(self) -> None:
+        settings = load_settings(environ=self.env(AI_CHAT_API_KEY="  "))
+        self.assertIsNone(settings.ai_chat_api_key)
+
+    def test_ai_chat_values_are_trimmed(self) -> None:
         settings = load_settings(
             environ=self.env(
                 AI_CHAT_API_KEY=" secret ",
@@ -162,18 +188,18 @@ class ConfigTest(unittest.TestCase):
             settings.ai_chat_api_url, "https://example.test/v1/chat/completions"
         )
         self.assertEqual(settings.ai_chat_model, "custom")
-        self.assertEqual(
-            load_settings(environ=self.env(AI_CHAT_MODEL=" ")).ai_chat_model,
-            "preview/DeepSeek-V4.1-Flash-1017",
-        )
 
-    def test_translate_configuration(self) -> None:
+    def test_blank_ai_chat_model_falls_back_to_default(self) -> None:
+        settings = load_settings(environ=self.env(AI_CHAT_MODEL=" "))
+        self.assertEqual(settings.ai_chat_model, "preview/DeepSeek-V4.1-Flash-1017")
+
+    def test_blank_translate_api_url_disables_translation(self) -> None:
         for blank in ("", "  "):
-            self.assertIsNone(
-                load_settings(
-                    environ=self.env(TRANSLATE_API_URL=blank)
-                ).translate_api_url
-            )
+            with self.subTest(blank=blank):
+                settings = load_settings(environ=self.env(TRANSLATE_API_URL=blank))
+                self.assertIsNone(settings.translate_api_url)
+
+    def test_translate_values_are_trimmed(self) -> None:
         settings = load_settings(
             environ=self.env(
                 TRANSLATE_API_URL=" http://127.0.0.1:8080 ",
@@ -186,15 +212,14 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(settings.translate_container, "plamo")
         self.assertEqual(settings.translate_model, "custom")
         self.assertEqual(settings.translate_max_chars, 500)
-        for name, value in (
-            ("TRANSLATE_MAX_CHARS", "0"),
-            ("TRANSLATE_MAX_CHARS", "2001"),
-        ):
+
+    def test_translate_max_chars_outside_range_is_rejected(self) -> None:
+        for value in ("0", "2001"):
             with (
-                self.subTest(name=name, value=value),
+                self.subTest(value=value),
                 self.assertRaises(ConfigurationError),
             ):
-                load_settings(environ=self.env(**{name: value}))
+                load_settings(environ=self.env(TRANSLATE_MAX_CHARS=value))
 
     def test_optional_channel_ids_default_to_none(self) -> None:
         env = self.env()
@@ -279,33 +304,43 @@ class ConfigTest(unittest.TestCase):
             settings = load_settings(environ=self.env(DATABASE_PATH=db_path))
         self.assertEqual(settings.database_path, db_path)
 
-    def test_clock_time_reader(self) -> None:
-        tzinfo = ZoneInfo("Asia/Tokyo")
-        self.assertEqual(
-            _read_clock_time({"RUN_AT": "01:23"}, "RUN_AT", "23:00", tzinfo=tzinfo),
-            datetime.time(1, 23, tzinfo=tzinfo),
+    def test_clock_time_is_read_in_configured_timezone(self) -> None:
+        settings = load_settings(
+            environ=self.env(ALPACAHACK_DAILY_TIME=" 01:23 ", TIMEZONE="UTC")
         )
         self.assertEqual(
-            _read_clock_time({}, "RUN_AT", "23:00", tzinfo=tzinfo),
-            datetime.time(23, 0, tzinfo=tzinfo),
+            settings.alpacahack_daily_time,
+            datetime.time(1, 23, tzinfo=ZoneInfo("UTC")),
         )
-        with self.assertRaises(ConfigurationError):
-            _read_clock_time({"RUN_AT": "25:99"}, "RUN_AT", "23:00", tzinfo=tzinfo)
 
-    def test_positive_numeric_settings(self) -> None:
-        with self.assertRaises(ConfigurationError):
-            load_settings(environ=self.env(CTFTIME_WINDOW_DAYS="0"))
-        with self.assertRaises(ConfigurationError):
-            load_settings(environ=self.env(CTFTIME_EVENT_LIMIT="0"))
-        with self.assertRaises(ConfigurationError):
-            load_settings(environ=self.env(SUDO_DURATION_MINUTES="0"))
+    def test_every_clock_time_setting_rejects_invalid_values(self) -> None:
+        for name in (
+            "ALPACAHACK_DAILY_TIME",
+            "ALPACAHACK_SOLVE_TIME",
+            "CTFTIME_NOTIFICATION_TIME",
+        ):
+            for value in ("25:99", "", "  ", "9am"):
+                with (
+                    self.subTest(name=name, value=value),
+                    self.assertRaises(ConfigurationError),
+                ):
+                    load_settings(environ=self.env(**{name: value}))
+
+    def test_period_and_count_settings_must_be_positive(self) -> None:
+        for name in (
+            "CTFTIME_WINDOW_DAYS",
+            "CTFTIME_EVENT_LIMIT",
+            "SUDO_DURATION_MINUTES",
+        ):
+            with self.subTest(name=name), self.assertRaises(ConfigurationError):
+                load_settings(environ=self.env(**{name: "0"}))
 
     def test_sudo_role_ids_must_be_configured_together(self) -> None:
-        with self.assertRaises(ConfigurationError):
-            load_settings(environ=self.env(ADMIN_ROLE_ID="10"))
-        with self.assertRaises(ConfigurationError):
-            load_settings(environ=self.env(SUDOER_ROLE_ID="20"))
+        for name, value in (("ADMIN_ROLE_ID", "10"), ("SUDOER_ROLE_ID", "20")):
+            with self.subTest(name=name), self.assertRaises(ConfigurationError):
+                load_settings(environ=self.env(**{name: value}))
 
+    def test_sudo_settings_are_loaded_when_both_roles_are_configured(self) -> None:
         settings = load_settings(
             environ=self.env(
                 ADMIN_ROLE_ID="10",
@@ -322,7 +357,6 @@ class ConfigTest(unittest.TestCase):
             load_settings(environ=self.env(ADMIN_ROLE_ID="10", SUDOER_ROLE_ID="10"))
 
     def test_integer_settings_reject_negative_and_non_integer(self) -> None:
-        with self.assertRaises(ConfigurationError):
-            load_settings(environ=self.env(BOT_CHANNEL_ID="-1"))
-        with self.assertRaises(ConfigurationError):
-            load_settings(environ=self.env(BOT_CHANNEL_ID="not-an-int"))
+        for value in ("-1", "not-an-int"):
+            with self.subTest(value=value), self.assertRaises(ConfigurationError):
+                load_settings(environ=self.env(BOT_CHANNEL_ID=value))

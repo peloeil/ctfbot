@@ -1,8 +1,8 @@
 import datetime
-import os
+import logging
 import tempfile
 import unittest
-from contextlib import suppress
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest import mock
@@ -11,9 +11,10 @@ from zoneinfo import ZoneInfo
 
 import discord
 import requests
+from discord.ext import tasks
 
 from ctfbot.db import Database
-from ctfbot.errors import ConflictError, ExternalAPIError
+from ctfbot.errors import ExternalAPIError
 from ctfbot.features.alpacahack.cog import (
     Alpacahack,
     _build_daily_embed,
@@ -28,6 +29,7 @@ from ctfbot.features.alpacahack.service import (
     get_week_range,
     select_weekly_solves,
 )
+from ctfbot.runtime import BotRuntime
 
 
 class AlpacaHackTest(unittest.TestCase):
@@ -148,12 +150,16 @@ class AlpacaHackTest(unittest.TestCase):
         get.return_value = response
         client = AlpacaHackClient(timezone=self.tz)
         records = client.fetch_solve_records("alice", page_interval=0)
-        self.assertEqual(len(records), 1)
-        self.assertEqual(records[0].challenge_name, "Example")
         self.assertEqual(
-            records[0].challenge_url, "https://alpacahack.com/challenges/example"
+            records,
+            [
+                SolveRecord(
+                    "Example",
+                    "https://alpacahack.com/challenges/example",
+                    datetime.datetime(2026, 6, 15, 21, 34, 56, tzinfo=self.tz),
+                )
+            ],
         )
-        self.assertEqual(records[0].solved_at.hour, 21)
 
     @patch("ctfbot.features.alpacahack.service.requests.Session.get")
     def test_fetch_solve_records_decodes_utf8_without_charset(self, get: Mock) -> None:
@@ -230,38 +236,28 @@ class AlpacaHackTest(unittest.TestCase):
         self.assertEqual(get.call_count, 2)
 
     def test_collect_weekly_summary_mixes_success_and_failure(self) -> None:
-        fd, path = tempfile.mkstemp()
-        os.close(fd)
-        os.unlink(path)
-        try:
-            db = Database(path)
-            db.add_alpacahack_user("alice", max_users=50)
-            db.add_alpacahack_user("bob", max_users=50)
-            client = Mock()
-            client.fetch_solve_records.side_effect = [
-                [
-                    SolveRecord(
-                        "Example",
-                        None,
-                        datetime.datetime(2026, 6, 15, 12, tzinfo=self.tz),
-                    )
-                ],
-                ExternalAPIError("failed"),
-            ]
-            summary = collect_weekly_summary(
-                db,
-                client,
-                timezone=self.tz,
-                reference_date=datetime.date(2026, 6, 17),
-                request_interval=0,
-            )
-            self.assertEqual(summary.total_users, 2)
-            self.assertEqual(len(summary.weekly_solves["alice"]), 1)
-            self.assertEqual(summary.failed_users, ["bob"])
-        finally:
-            for suffix in ("", "-wal", "-shm"):
-                with suppress(FileNotFoundError):
-                    os.unlink(path + suffix)
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        db = Database(str(Path(tmp.name) / "test.db"))
+        db.add_alpacahack_user("alice", max_users=50)
+        db.add_alpacahack_user("bob", max_users=50)
+        solve = SolveRecord(
+            "Example", None, datetime.datetime(2026, 6, 15, 12, tzinfo=self.tz)
+        )
+        client = Mock()
+        client.fetch_solve_records.side_effect = [[solve], ExternalAPIError("failed")]
+
+        summary = collect_weekly_summary(
+            db,
+            client,
+            timezone=self.tz,
+            reference_date=datetime.date(2026, 6, 17),
+            request_interval=0,
+        )
+
+        self.assertEqual(summary.total_users, 2)
+        self.assertEqual(summary.weekly_solves, {"alice": [solve]})
+        self.assertEqual(summary.failed_users, ["bob"])
 
     def test_summary_embed_limits_fields(self) -> None:
         summary = WeeklySolveSummary(
@@ -272,8 +268,12 @@ class AlpacaHackTest(unittest.TestCase):
             failed_users=["failed"],
         )
         embed = _build_summary_embed(summary)
-        self.assertLessEqual(len(embed.fields), 25)
+        # 24 user fields plus one trailing field: Discord allows 25 per embed.
+        self.assertEqual(len(embed.fields), 25)
         self.assertEqual(embed.fields[-1].name, "その他 / 取得失敗")
+        self.assertEqual(
+            embed.fields[-1].value, "他 6 人は省略しました。\n取得失敗: failed"
+        )
 
     def test_summary_embed_stays_within_total_limit_and_reports_omitted_users(
         self,
@@ -299,14 +299,12 @@ class AlpacaHackTest(unittest.TestCase):
                 len(field.name or "") + len(field.value or "") for field in embed.fields
             )
         )
-        shown = len(embed.fields) - 1
 
         self.assertLessEqual(total, 6000)
+        # Each user field is truncated to ~1KB, so only 4 fit before the 6000 cap.
+        self.assertEqual(len(embed.fields), 5)
         self.assertEqual(embed.fields[-1].name, "その他")
-        self.assertEqual(
-            embed.fields[-1].value,
-            f"他 {len(weekly_solves) - shown} 人は省略しました。",
-        )
+        self.assertEqual(embed.fields[-1].value, "他 20 人は省略しました。")
 
     def test_summary_embed_renders_unsafe_challenge_name_without_link(self) -> None:
         summary = WeeklySolveSummary(
@@ -348,13 +346,14 @@ class AlpacaHackTest(unittest.TestCase):
         embed = _build_daily_embed(challenge)
 
         self.assertEqual(len(embed.description or ""), 3500)
+        fields = {field.name: field.value for field in embed.fields}
         self.assertEqual(
-            embed.fields[0].value,
+            fields["出題期間"],
             "<t:1781449200:f> 〜 <t:1781622000:f>\n終了 <t:1781622000:R>",
         )
-        self.assertEqual(embed.fields[1].value, "Pwn / Medium")
+        self.assertEqual(fields["カテゴリ / 難易度"], "Pwn / Medium")
         self.assertEqual(
-            embed.fields[3].value,
+            fields["添付ファイル"],
             "- [example file.tar.gz](https://alpacahack-prod.s3.ap-northeast-1."
             "amazonaws.com/id/example%20file.tar.gz)",
         )
@@ -378,17 +377,54 @@ class AlpacaHackTest(unittest.TestCase):
         self.assertTrue((embed.description or "").endswith("...||"))
 
 
+def make_challenge(url: str = "https://alpacahack.com/daily/challenges/example"):
+    return DailyChallenge(
+        title="Example",
+        url=url,
+        author="alice",
+        categories=("Misc",),
+        difficulty="Easy",
+        description="Recover the flag.",
+        attachment_urls=(),
+        starts_at=datetime.datetime(2026, 6, 15, tzinfo=datetime.UTC),
+        ends_at=datetime.datetime(2026, 6, 17, tzinfo=datetime.UTC),
+    )
+
+
 class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
-        self.cog: Any = object.__new__(Alpacahack)
-        self.cog.bot = Mock()
-        self.cog.db = Mock()
-        self.cog.client = Mock()
-        self.cog.settings = SimpleNamespace(
-            tzinfo=ZoneInfo("Asia/Tokyo"),
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.db = Database(str(Path(tmp.name) / "test.db"))
+        tzinfo = ZoneInfo("Asia/Tokyo")
+        self.settings = SimpleNamespace(
+            tzinfo=tzinfo,
             alpacahack_channel_id=10,
             alpacahack_mention_id=None,
+            alpacahack_daily_time=datetime.time(0, 5, tzinfo=tzinfo),
+            alpacahack_solve_time=datetime.time(23, 0, tzinfo=tzinfo),
             guild_id=1,
+        )
+        self.bot = Mock()
+        self.bot.runtime = BotRuntime(settings=cast(Any, self.settings), db=self.db)
+        # The cog starts its report loops on construction; they are driven by hand.
+        with (
+            patch.object(tasks.Loop, "start"),
+            patch("ctfbot.features.alpacahack.cog.AlpacaHackClient") as client_class,
+        ):
+            self.cog = Alpacahack(self.bot)
+        self.client = client_class.return_value
+        self.send_interaction = self.enterContext(
+            patch(
+                "ctfbot.features.alpacahack.cog.send_interaction",
+                new_callable=mock.AsyncMock,
+            )
+        )
+        self.log_audit = self.enterContext(
+            patch(
+                "ctfbot.features.alpacahack.cog.log_audit",
+                new_callable=mock.AsyncMock,
+            )
         )
         self.defer = mock.AsyncMock()
         self.followup_send = mock.AsyncMock()
@@ -405,264 +441,237 @@ class AlpacaHackCommandTest(unittest.IsolatedAsyncioTestCase):
         )
 
     async def invoke_add(self, username: str) -> None:
-        callback = self.cog.add_user.callback
+        callback = cast(Any, self.cog.add_user).callback
         await callback(self.cog, self.interaction, username)
 
-    async def test_daily_report_sends_only_after_new_challenge_is_reserved(
-        self,
-    ) -> None:
-        challenge = DailyChallenge(
-            title="Example",
-            url="https://alpacahack.com/daily/challenges/example",
-            author="alice",
-            categories=("Misc",),
-            difficulty="Easy",
-            description="Recover the flag.",
-            attachment_urls=(),
-            starts_at=datetime.datetime(2026, 6, 15, tzinfo=datetime.UTC),
-            ends_at=datetime.datetime(2026, 6, 17, tzinfo=datetime.UTC),
-        )
-        self.cog.client.fetch_daily_challenge.return_value = challenge
-        self.cog.db.reserve_alpacahack_daily_notification.side_effect = [True, False]
-        member = Mock(spec=discord.Member)
-        member.mention = "<@30>"
-        allowed_mentions = discord.AllowedMentions(
-            everyone=False, users=[member], roles=False
-        )
-        resolve_mention = mock.AsyncMock(
-            return_value=(member.mention, allowed_mentions)
-        )
-        channel = Mock()
-        with (
-            patch.object(self.cog, "_resolve_daily_mention", new=resolve_mention),
+    def patch_report_destination(self, channel: object) -> mock.AsyncMock:
+        """Patch channel lookup and sending; returns the send mock."""
+        self.enterContext(
             patch(
                 "ctfbot.features.alpacahack.cog.resolve_messageable",
                 new_callable=mock.AsyncMock,
                 return_value=channel,
-            ),
+            )
+        )
+        return self.enterContext(
             patch(
                 "ctfbot.features.alpacahack.cog.send_safely",
                 new_callable=mock.AsyncMock,
-            ) as send_safely,
-        ):
-            await self.cog.daily_challenge_report.coro(self.cog)
-            await self.cog.daily_challenge_report.coro(self.cog)
-
-        self.assertEqual(
-            self.cog.db.reserve_alpacahack_daily_notification.call_count, 2
+            )
         )
-        send_safely.assert_awaited_once()
-        call = send_safely.await_args
-        if call is None:
-            self.fail("send_safely was not awaited")
-        self.assertEqual(call.args, (channel,))
-        self.assertEqual(call.kwargs["content"], "<@30> 🦙 Daily AlpacaHack")
-        self.assertIs(call.kwargs["allowed_mentions"], allowed_mentions)
 
-    async def test_resolve_daily_mention_handles_roles_members_and_disabled(
+    async def test_daily_report_sends_only_after_new_challenge_is_reserved(
         self,
     ) -> None:
+        self.client.fetch_daily_challenge.return_value = make_challenge()
+        channel = Mock()
+        send_safely = self.patch_report_destination(channel)
+
+        await cast(Any, self.cog.daily_challenge_report).coro(self.cog)
+        await cast(Any, self.cog.daily_challenge_report).coro(self.cog)
+
+        send_safely.assert_awaited_once()
+        self.assertEqual(send_safely.await_args_list[-1].args, (channel,))
+        self.assertEqual(
+            send_safely.await_args_list[-1].kwargs["content"], "🦙 Daily AlpacaHack"
+        )
+
+    async def test_daily_report_mentions_configured_target(self) -> None:
         role = Mock(spec=discord.Role)
         role.mention = "<@&20>"
         member = Mock(spec=discord.Member)
         member.mention = "<@30>"
         cases = (
-            ("role", 20, role, None, role.mention, False, [role]),
-            ("member", 30, None, member, member.mention, [member], False),
+            ("role", 20, role, None, "<@&20>", False, [role]),
+            ("member", 30, None, member, "<@30>", [member], False),
             ("disabled", None, None, None, "", False, False),
         )
-        for (
+        for index, (
             name,
             mention_id,
             role_result,
             member_result,
-            expected,
+            mention,
             users,
             roles,
-        ) in cases:
-            with self.subTest(name=name):
-                self.cog.settings.alpacahack_mention_id = mention_id
+        ) in enumerate(cases):
+            with self.subTest(target=name):
+                self.settings.alpacahack_mention_id = mention_id
                 guild = Mock(spec=discord.Guild)
                 guild.get_role.return_value = role_result
                 guild.get_member.return_value = member_result
-                self.cog.bot.get_guild.return_value = guild
+                self.bot.get_guild.return_value = guild
+                self.client.fetch_daily_challenge.return_value = make_challenge(
+                    f"https://alpacahack.com/daily/challenges/{index}"
+                )
+                send_safely = self.patch_report_destination(Mock())
 
-                mention, allowed_mentions = await self.cog._resolve_daily_mention()
+                await cast(Any, self.cog.daily_challenge_report).coro(self.cog)
 
-                self.assertEqual(mention, expected)
-                self.assertEqual(allowed_mentions.users, users)
-                self.assertEqual(allowed_mentions.roles, roles)
+                kwargs = send_safely.await_args_list[-1].kwargs
+                self.assertEqual(
+                    kwargs["content"], f"{mention} 🦙 Daily AlpacaHack".lstrip()
+                )
+                self.assertEqual(kwargs["allowed_mentions"].users, users)
+                self.assertEqual(kwargs["allowed_mentions"].roles, roles)
+
+    async def test_daily_report_sends_without_mention_when_target_is_unresolvable(
+        self,
+    ) -> None:
+        self.settings.alpacahack_mention_id = 99
+        guild = Mock(spec=discord.Guild)
+        guild.get_role.return_value = None
+        guild.get_member.return_value = None
+        guild.fetch_member = mock.AsyncMock(
+            side_effect=discord.NotFound(Mock(status=404, reason="x"), "missing")
+        )
+        self.bot.get_guild.return_value = guild
+        self.client.fetch_daily_challenge.return_value = make_challenge()
+        send_safely = self.patch_report_destination(Mock())
+
+        with self.assertLogs("ctfbot", level="WARNING"):
+            await cast(Any, self.cog.daily_challenge_report).coro(self.cog)
+
+        kwargs = send_safely.await_args_list[-1].kwargs
+        self.assertEqual(kwargs["content"], "🦙 Daily AlpacaHack")
+        self.assertFalse(kwargs["allowed_mentions"].users)
+        self.assertFalse(kwargs["allowed_mentions"].roles)
+
+    async def weekly_report(self, *, weekday_date: datetime.datetime) -> mock.AsyncMock:
+        """Run the weekly report as if `weekday_date` were now."""
+        send_safely = self.patch_report_destination(
+            SimpleNamespace(name="alpaca", id=3)
+        )
+        # Replace only the cog module's `datetime`, not the stdlib class.
+        clock = SimpleNamespace(datetime=SimpleNamespace(now=lambda tz: weekday_date))
+        with (
+            patch("ctfbot.features.alpacahack.cog.datetime", clock),
+            patch("ctfbot.features.alpacahack.service.time"),
+        ):
+            await cast(Any, self.cog.weekly_solve_report).coro(self.cog)
+        return send_safely
+
+    SUNDAY = datetime.datetime(2026, 6, 21, tzinfo=datetime.UTC)
 
     async def test_weekly_report_logs_partial_failure_as_warning(self) -> None:
-        summary = WeeklySolveSummary(
-            week_start=datetime.date(2026, 6, 15),
-            week_end=datetime.date(2026, 6, 21),
-            total_users=2,
-            weekly_solves={},
-            failed_users=["alice"],
-        )
-        current = datetime.datetime(2026, 6, 21, tzinfo=datetime.UTC)
-        with (
-            patch("ctfbot.features.alpacahack.cog.datetime.datetime") as now,
-            patch(
-                "ctfbot.features.alpacahack.cog.resolve_messageable",
-                new_callable=mock.AsyncMock,
-                return_value=SimpleNamespace(name="alpaca", id=3),
-            ),
-            patch(
-                "ctfbot.features.alpacahack.cog.collect_weekly_summary",
-                return_value=summary,
-            ),
-            patch(
-                "ctfbot.features.alpacahack.cog.send_safely",
-                new_callable=mock.AsyncMock,
-            ),
-            patch("ctfbot.features.alpacahack.cog.logger.warning") as warning,
-        ):
-            now.now.return_value = current
-            await self.cog.weekly_solve_report.coro(self.cog)
+        self.db.add_alpacahack_user("alice", max_users=50)
+        self.db.add_alpacahack_user("bob", max_users=50)
+        self.client.fetch_solve_records.side_effect = [
+            ExternalAPIError("failed"),
+            [],
+        ]
 
-        warning.assert_called_once_with(
-            "Weekly AlpacaHack report sent: channel=%s users=%s failed_users=%s",
-            "#alpaca(3)",
-            2,
-            1,
+        with self.assertLogs("ctfbot", level="WARNING") as logs:
+            send_safely = await self.weekly_report(weekday_date=self.SUNDAY)
+
+        send_safely.assert_awaited_once()
+        embed = send_safely.await_args_list[-1].kwargs["embed"]
+        self.assertIn("取得失敗 1人", embed.description)
+        self.assertEqual(len(logs.records), 1)
+        self.assertEqual(logs.records[0].levelno, logging.WARNING)
+        self.assertIn("users=2 failed_users=1", logs.records[0].getMessage())
+
+    async def test_weekly_report_without_failures_does_not_warn(self) -> None:
+        self.db.add_alpacahack_user("alice", max_users=50)
+        self.client.fetch_solve_records.return_value = []
+
+        with self.assertNoLogs("ctfbot", level="WARNING"):
+            send_safely = await self.weekly_report(weekday_date=self.SUNDAY)
+
+        send_safely.assert_awaited_once()
+
+    async def test_weekly_report_is_skipped_except_on_sunday(self) -> None:
+        self.db.add_alpacahack_user("alice", max_users=50)
+
+        send_safely = await self.weekly_report(
+            weekday_date=datetime.datetime(2026, 6, 20, tzinfo=datetime.UTC)
         )
+
+        send_safely.assert_not_awaited()
+        self.client.fetch_solve_records.assert_not_called()
 
     async def test_daily_command_displays_current_challenge_without_reserving(
         self,
     ) -> None:
-        challenge = DailyChallenge(
-            title="Example",
-            url="https://alpacahack.com/daily/challenges/example",
-            author="alice",
-            categories=("Misc",),
-            difficulty="Easy",
-            description="Recover the flag.",
-            attachment_urls=(),
-            starts_at=datetime.datetime(2026, 6, 15, tzinfo=datetime.UTC),
-            ends_at=datetime.datetime(2026, 6, 17, tzinfo=datetime.UTC),
-        )
-        self.cog.client.fetch_daily_challenge.return_value = challenge
+        challenge = make_challenge()
+        self.client.fetch_daily_challenge.return_value = challenge
 
-        await self.cog.show_daily.callback(self.cog, self.interaction)
+        await cast(Any, self.cog.show_daily).callback(self.cog, self.interaction)
 
         self.defer.assert_awaited_once()
         self.followup_send.assert_awaited_once_with(embed=_build_daily_embed(challenge))
-        self.cog.db.reserve_alpacahack_daily_notification.assert_not_called()
+        self.assertTrue(self.db.reserve_alpacahack_daily_notification(challenge.url))
 
     async def test_daily_command_reports_when_no_challenge_is_active(self) -> None:
-        self.cog.client.fetch_daily_challenge.return_value = None
-        with patch(
-            "ctfbot.features.alpacahack.cog.send_interaction",
-            new_callable=mock.AsyncMock,
-        ) as send_interaction:
-            await self.cog.show_daily.callback(self.cog, self.interaction)
+        self.client.fetch_daily_challenge.return_value = None
 
-        send_interaction.assert_awaited_once_with(
+        await cast(Any, self.cog.show_daily).callback(self.cog, self.interaction)
+
+        self.send_interaction.assert_awaited_once_with(
             self.interaction,
             "公開中の Daily AlpacaHack 問題はありません。",
             ephemeral=False,
         )
-        self.cog.db.reserve_alpacahack_daily_notification.assert_not_called()
 
     async def test_daily_command_reports_fetch_failure(self) -> None:
-        self.cog.client.fetch_daily_challenge.side_effect = ExternalAPIError("failed")
-        with patch(
-            "ctfbot.features.alpacahack.cog.send_interaction",
-            new_callable=mock.AsyncMock,
-        ) as send_interaction:
-            await self.cog.show_daily.callback(self.cog, self.interaction)
+        self.client.fetch_daily_challenge.side_effect = ExternalAPIError("failed")
 
-        send_interaction.assert_awaited_once_with(
+        with self.assertLogs("ctfbot", level="WARNING"):
+            await cast(Any, self.cog.show_daily).callback(self.cog, self.interaction)
+
+        self.send_interaction.assert_awaited_once_with(
             self.interaction,
             "AlpacaHack からの取得に失敗しました。",
             ephemeral=False,
         )
 
     async def test_add_rejects_too_long_and_invalid_usernames(self) -> None:
-        invalid_names = ["a" * 33, "invalid/name", "日本語"]
-        with patch(
-            "ctfbot.features.alpacahack.cog.send_interaction",
-            new_callable=mock.AsyncMock,
-        ) as send_interaction:
-            for name in invalid_names:
-                with self.subTest(name=name):
-                    await self.invoke_add(name)
-                    send_interaction.assert_awaited_once_with(
-                        self.interaction,
-                        "ユーザー名は 32 文字以内の英数字と "
-                        "`-` `_` で入力してください。",
-                    )
-                    send_interaction.reset_mock()
-        self.cog.db.add_alpacahack_user.assert_not_called()
+        for name in ("a" * 33, "invalid/name", "日本語"):
+            with self.subTest(name=name):
+                self.send_interaction.reset_mock()
+
+                await self.invoke_add(name)
+
+                self.send_interaction.assert_awaited_once_with(
+                    self.interaction,
+                    "ユーザー名は 32 文字以内の英数字と `-` `_` で入力してください。",
+                )
+        self.assertEqual(self.db.list_alpacahack_users(), [])
 
     async def test_add_accepts_32_character_username_with_dash_and_underscore(
         self,
     ) -> None:
         name = "a" * 29 + "-_x"
-        self.cog.db.add_alpacahack_user.return_value = True
-        with (
-            patch(
-                "ctfbot.features.alpacahack.cog.send_interaction",
-                new_callable=mock.AsyncMock,
-            ) as send_interaction,
-            patch(
-                "ctfbot.features.alpacahack.cog.log_audit",
-                new_callable=mock.AsyncMock,
-            ),
-        ):
-            await self.invoke_add(name)
 
-        self.cog.db.add_alpacahack_user.assert_called_once_with(name, max_users=50)
-        send_interaction.assert_awaited_once_with(
+        await self.invoke_add(name)
+
+        self.assertEqual(self.db.list_alpacahack_users(), [name])
+        self.send_interaction.assert_awaited_once_with(
             self.interaction, f"`{name}` を登録しました。"
         )
+        self.log_audit.assert_awaited_once()
 
     async def test_add_rejects_new_user_when_registration_limit_is_reached(
         self,
     ) -> None:
-        self.cog.db.add_alpacahack_user.side_effect = ConflictError(
-            "AlpacaHack user limit reached."
-        )
-        with (
-            patch(
-                "ctfbot.features.alpacahack.cog.send_interaction",
-                new_callable=mock.AsyncMock,
-            ) as send_interaction,
-            patch(
-                "ctfbot.features.alpacahack.cog.log_audit",
-                new_callable=mock.AsyncMock,
-            ) as log_audit,
-        ):
-            await self.invoke_add("new_user")
+        for index in range(50):
+            self.db.add_alpacahack_user(f"user{index}", max_users=50)
 
-        send_interaction.assert_awaited_once_with(
+        await self.invoke_add("new_user")
+
+        self.send_interaction.assert_awaited_once_with(
             self.interaction, "登録数が上限(50人)に達しています。"
         )
-        self.cog.db.add_alpacahack_user.assert_called_once_with(
-            "new_user", max_users=50
-        )
-        log_audit.assert_not_awaited()
+        self.assertNotIn("new_user", self.db.list_alpacahack_users())
+        self.log_audit.assert_not_awaited()
 
-    async def test_add_reports_existing_user_when_registration_limit_is_reached(
-        self,
-    ) -> None:
-        self.cog.db.add_alpacahack_user.return_value = False
-        with (
-            patch(
-                "ctfbot.features.alpacahack.cog.send_interaction",
-                new_callable=mock.AsyncMock,
-            ) as send_interaction,
-            patch(
-                "ctfbot.features.alpacahack.cog.log_audit",
-                new_callable=mock.AsyncMock,
-            ) as log_audit,
-        ):
-            await self.invoke_add("alice")
+    async def test_add_reports_already_registered_user(self) -> None:
+        self.db.add_alpacahack_user("alice", max_users=50)
 
-        send_interaction.assert_awaited_once_with(
+        await self.invoke_add("alice")
+
+        self.send_interaction.assert_awaited_once_with(
             self.interaction, "`alice` は既に登録されています。"
         )
-        self.cog.db.add_alpacahack_user.assert_called_once_with("alice", max_users=50)
-        log_audit.assert_not_awaited()
+        self.assertEqual(self.db.list_alpacahack_users(), ["alice"])
+        self.log_audit.assert_not_awaited()

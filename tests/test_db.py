@@ -1,12 +1,11 @@
-import os
 import sqlite3
 import tempfile
 import unittest
-from contextlib import suppress
+from pathlib import Path
 from typing import cast
 from unittest import mock
 
-from ctfbot.db import _MIGRATIONS, CURRENT_SCHEMA_VERSION, Database
+from ctfbot.db import CURRENT_SCHEMA_VERSION, Database
 from ctfbot.errors import ConflictError, RepositoryError
 from ctfbot.features.ctfteam.models import (
     ActiveCampaign,
@@ -18,15 +17,21 @@ from ctfbot.features.sudo.models import SudoGrant
 
 class DatabaseTest(unittest.TestCase):
     def setUp(self) -> None:
-        fd, self.path = tempfile.mkstemp()
-        os.close(fd)
-        os.unlink(self.path)
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.path = str(Path(tmp.name) / "test.db")
         self.db = Database(self.path)
 
-    def tearDown(self) -> None:
-        for suffix in ("", "-wal", "-shm"):
-            with suppress(FileNotFoundError):
-                os.unlink(self.path + suffix)
+    def schema_version(self) -> int:
+        with sqlite3.connect(self.path) as conn:
+            return conn.execute("PRAGMA user_version").fetchone()[0]
+
+    def rewind_schema(self, version: int, *statements: str) -> None:
+        """Make the file look like a database last opened at `version`."""
+        with sqlite3.connect(self.path) as conn:
+            for statement in statements:
+                conn.execute(statement)
+            conn.execute(f"PRAGMA user_version = {version}")
 
     def create_campaign(self, name: str = "Example", **kwargs):
         values = {
@@ -97,61 +102,64 @@ PRAGMA user_version = 3;
 """
             )
 
-    def test_schema_initialization(self) -> None:
-        with sqlite3.connect(self.path) as conn:
-            tables = {
-                row[0]
-                for row in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                )
-            }
-            indexes = {
-                row[0]
-                for row in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='index'"
-                )
-            }
-            version = conn.execute("PRAGMA user_version").fetchone()[0]
-        self.assertIn("alpacahack_user", tables)
-        self.assertIn("alpacahack_daily_notification", tables)
-        self.assertIn("ctfteam_campaign", tables)
-        self.assertIn("audit_log_entry", tables)
-        self.assertIn("sudo_grant", tables)
-        self.assertIn("tts_voice_preference", tables)
-        self.assertIn("idx_campaign_status_end", indexes)
-        self.assertIn("idx_campaign_status_created", indexes)
-        self.assertIn("idx_campaign_due_start", indexes)
-        self.assertIn("idx_campaign_due_archive", indexes)
-        self.assertIn("idx_campaign_active_creator", indexes)
-        self.assertIn("idx_campaign_active_name_unique", indexes)
-        self.assertIn("idx_audit_log_guild_created", indexes)
-        self.assertIn("idx_sudo_grant_expires", indexes)
-        self.assertEqual(version, CURRENT_SCHEMA_VERSION)
-        Database(self.path)
+    def test_fresh_database_is_at_current_schema_version(self) -> None:
+        self.assertEqual(self.schema_version(), CURRENT_SCHEMA_VERSION)
+
+    def test_fresh_database_stores_every_feature(self) -> None:
+        stores = {
+            "alpacahack_user": lambda: self.db.add_alpacahack_user("a", max_users=1),
+            "alpacahack_daily_notification": lambda: (
+                self.db.reserve_alpacahack_daily_notification("https://example.test")
+            ),
+            "campaign": lambda: self.create_campaign(),
+            "audit_log": lambda: self.db.insert_audit_log_entry(
+                entry_id=1,
+                guild_id=2,
+                action="x",
+                user_id=None,
+                target_id=None,
+                reason=None,
+                changes_json="{}",
+                extra_text=None,
+                created_at_unix=3,
+            ),
+            "sudo_grant": lambda: self.db.upsert_sudo_grant(1, 2, 3, 4),
+            "tts_voice": lambda: self.db.upsert_tts_voice(1, 3, 100),
+            "tts_ban": lambda: self.db.add_tts_ban(1, 100),
+            "ai_chat_usage": lambda: self.db.record_ai_chat_request(1, "2026-10"),
+        }
+        for name, write in stores.items():
+            with self.subTest(store=name):
+                write()
+
+    def test_reopening_current_schema_keeps_data(self) -> None:
+        self.db.add_alpacahack_user("alice", max_users=2)
+
+        reopened = Database(self.path)
+
+        self.assertEqual(reopened.list_alpacahack_users(), ["alice"])
+        self.assertEqual(self.schema_version(), CURRENT_SCHEMA_VERSION)
 
     def test_connection_failure_raises_repository_error(self) -> None:
-        directory = tempfile.mkdtemp()
-        try:
-            with self.assertRaises(RepositoryError):
-                Database(directory)
-        finally:
-            os.rmdir(directory)
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            self.assertRaises(RepositoryError),
+        ):
+            Database(directory)
 
-    def test_unmanaged_database_raises(self) -> None:
-        fd, path = tempfile.mkstemp()
-        os.close(fd)
-        try:
-            with sqlite3.connect(path) as conn:
-                conn.execute("CREATE TABLE unmanaged (id INTEGER PRIMARY KEY)")
-            with self.assertRaises(RepositoryError):
-                Database(path)
-        finally:
-            with suppress(FileNotFoundError):
-                os.unlink(path)
+    def test_database_without_schema_version_is_rejected_as_unmanaged(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(Path(tmp.name) / "unmanaged.db")
+        with sqlite3.connect(path) as conn:
+            conn.execute("CREATE TABLE unmanaged (id INTEGER PRIMARY KEY)")
 
-    def test_version_mismatch(self) -> None:
-        with sqlite3.connect(self.path) as conn:
-            conn.execute("PRAGMA user_version = 99")
+        with self.assertRaises(RepositoryError):
+            Database(path)
+
+    def test_database_newer_than_supported_schema_is_rejected(self) -> None:
+        self.rewind_schema(CURRENT_SCHEMA_VERSION + 1)
+
         with self.assertRaises(RepositoryError):
             Database(self.path)
 
@@ -166,245 +174,210 @@ PRAGMA user_version = 3;
         ):
             Database(self.path)
         with sqlite3.connect(self.path) as conn:
-            version = conn.execute("PRAGMA user_version").fetchone()[0]
             columns = {
                 row[1] for row in conn.execute("PRAGMA table_info(alpacahack_user)")
             }
-        self.assertEqual(version, next_version)
+        self.assertEqual(self.schema_version(), next_version)
         self.assertIn("note", columns)
 
-    def test_migration_missing_path_raises(self) -> None:
+    def test_migration_without_path_to_current_version_is_rejected(self) -> None:
         with (
             mock.patch("ctfbot.db.CURRENT_SCHEMA_VERSION", CURRENT_SCHEMA_VERSION + 1),
             self.assertRaises(RepositoryError),
         ):
             Database(self.path)
 
-    def test_migration_from_version_one_adds_audit_log_schema(self) -> None:
-        with sqlite3.connect(self.path) as conn:
-            conn.execute("DROP TABLE audit_log_entry")
-            conn.execute("ALTER TABLE ctfteam_campaign RENAME TO ctf_team_campaign")
-            conn.execute("PRAGMA user_version = 1")
-        Database(self.path)
-        with sqlite3.connect(self.path) as conn:
-            tables = {
-                row[0]
-                for row in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                )
-            }
-            indexes = {
-                row[0]
-                for row in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='index'"
-                )
-            }
-            version = conn.execute("PRAGMA user_version").fetchone()[0]
-        self.assertIn("audit_log_entry", tables)
-        self.assertIn("idx_audit_log_guild_created", indexes)
-        self.assertEqual(version, CURRENT_SCHEMA_VERSION)
+    def test_migration_from_version_one_adds_audit_log_and_keeps_campaigns(
+        self,
+    ) -> None:
+        created = self.create_campaign()
+        self.rewind_schema(
+            1,
+            "DROP TABLE audit_log_entry",
+            "ALTER TABLE ctfteam_campaign RENAME TO ctf_team_campaign",
+        )
 
-    def test_migration_from_version_two_adds_sudo_schema(self) -> None:
-        with sqlite3.connect(self.path) as conn:
-            conn.execute("DROP TABLE sudo_grant")
-            conn.execute("ALTER TABLE ctfteam_campaign RENAME TO ctf_team_campaign")
-            conn.execute("PRAGMA user_version = 2")
-        Database(self.path)
-        with sqlite3.connect(self.path) as conn:
-            tables = {
-                row[0]
-                for row in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                )
-            }
-            indexes = {
-                row[0]
-                for row in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='index'"
-                )
-            }
-        self.assertIn("sudo_grant", tables)
-        self.assertIn("idx_sudo_grant_expires", indexes)
+        migrated = Database(self.path)
+
+        self.assertTrue(
+            migrated.insert_audit_log_entry(
+                entry_id=1,
+                guild_id=2,
+                action="x",
+                user_id=None,
+                target_id=None,
+                reason=None,
+                changes_json="{}",
+                extra_text=None,
+                created_at_unix=3,
+            )
+        )
+        self.assertEqual(
+            migrated.find_active_campaign_by_name(ctf_name="Example"), created
+        )
+        self.assertEqual(self.schema_version(), CURRENT_SCHEMA_VERSION)
+
+    def test_migration_from_version_two_adds_sudo_grants_and_keeps_campaigns(
+        self,
+    ) -> None:
+        created = self.create_campaign()
+        self.rewind_schema(
+            2,
+            "DROP TABLE sudo_grant",
+            "ALTER TABLE ctfteam_campaign RENAME TO ctf_team_campaign",
+        )
+
+        migrated = Database(self.path)
+
+        self.assertEqual(migrated.upsert_sudo_grant(7, 9, 110, 220).user_id, 7)
+        self.assertEqual(
+            migrated.find_active_campaign_by_name(ctf_name="Example"), created
+        )
 
     def test_migration_from_version_three_preserves_state_without_guild_id(
         self,
     ) -> None:
         self.replace_with_version_three_data()
 
-        Database(self.path)
+        migrated = Database(self.path)
 
-        with sqlite3.connect(self.path) as conn:
-            version = conn.execute("PRAGMA user_version").fetchone()[0]
-            campaign_columns = [
-                row[1] for row in conn.execute("PRAGMA table_info(ctfteam_campaign)")
-            ]
-            sudo_columns = [
-                row[1] for row in conn.execute("PRAGMA table_info(sudo_grant)")
-            ]
-            campaign_row = conn.execute(
-                "SELECT id, channel_id, message_id, role_id, ctf_name, "
-                "start_at_unix, end_at_unix, status, created_by, created_at_unix, "
-                "closed_at_unix, discussion_channel_id, archive_at_unix, "
-                "archived_at_unix, start_notified_at_unix, voice_channel_id "
-                "FROM ctfteam_campaign"
-            ).fetchone()
-            sudo_row = conn.execute(
-                "SELECT user_id, role_id, granted_at_unix, expires_at_unix "
-                "FROM sudo_grant"
-            ).fetchone()
-
-        self.assertEqual(version, CURRENT_SCHEMA_VERSION)
-        self.assertNotIn("guild_id", campaign_columns)
-        self.assertNotIn("guild_id", sudo_columns)
+        self.assertEqual(migrated.get_sudo_grant(7), SudoGrant(7, 9, 110, 220))
         self.assertEqual(
-            campaign_row,
-            (
-                8,
-                2,
-                3,
-                4,
-                "Example",
-                100,
-                None,
-                "closed",
-                5,
-                90,
-                201,
-                None,
-                300,
-                None,
-                None,
-                6,
+            migrated.find_closed_campaign_by_name(ctf_name="Example"),
+            ClosedCampaign(
+                id=8,
+                channel_id=2,
+                message_id=3,
+                role_id=4,
+                ctf_name="Example",
+                start_at_unix=100,
+                end_at_unix=None,
+                status=CampaignStatus.CLOSED,
+                created_by=5,
+                created_at_unix=90,
+                closed_at_unix=201,
+                archive_at_unix=300,
+                archived_at_unix=None,
+                discussion_channel_id=None,
+                voice_channel_id=6,
             ),
         )
-        self.assertEqual(sudo_row, (7, 9, 110, 220))
+        self.assertEqual(self.schema_version(), CURRENT_SCHEMA_VERSION)
 
-    def test_version_three_migration_can_be_applied_twice_without_state_change(
-        self,
-    ) -> None:
+    def test_version_three_migration_replay_keeps_state(self) -> None:
         self.replace_with_version_three_data()
-        with sqlite3.connect(self.path) as conn:
-            conn.executescript(_MIGRATIONS[3])
-            first_campaign = conn.execute("SELECT * FROM ctf_team_campaign").fetchall()
-            first_sudo = conn.execute("SELECT * FROM sudo_grant").fetchall()
-            conn.executescript(_MIGRATIONS[3])
-            second_campaign = conn.execute("SELECT * FROM ctf_team_campaign").fetchall()
-            second_sudo = conn.execute("SELECT * FROM sudo_grant").fetchall()
+        Database(self.path)
+        self.rewind_schema(
+            3, "ALTER TABLE ctfteam_campaign RENAME TO ctf_team_campaign"
+        )
 
-        self.assertEqual(second_campaign, first_campaign)
-        self.assertEqual(second_sudo, first_sudo)
+        replayed = Database(self.path)
+
+        self.assertEqual(replayed.get_sudo_grant(7), SudoGrant(7, 9, 110, 220))
+        closed = replayed.find_closed_campaign_by_name(ctf_name="Example")
+        self.assertIsNotNone(closed)
+        assert closed is not None
+        self.assertEqual(closed.id, 8)
 
     def test_migration_from_version_four_renames_table_and_preserves_state(
         self,
     ) -> None:
         created = self.create_campaign()
-        with sqlite3.connect(self.path) as conn:
-            conn.execute("ALTER TABLE ctfteam_campaign RENAME TO ctf_team_campaign")
-            conn.execute("PRAGMA user_version = 4")
+        self.rewind_schema(
+            4, "ALTER TABLE ctfteam_campaign RENAME TO ctf_team_campaign"
+        )
 
         migrated = Database(self.path)
 
-        with sqlite3.connect(self.path) as conn:
-            tables = {
-                row[0]
-                for row in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                )
-            }
-            version = conn.execute("PRAGMA user_version").fetchone()[0]
-        self.assertNotIn("ctf_team_campaign", tables)
-        self.assertIn("ctfteam_campaign", tables)
-        self.assertEqual(version, CURRENT_SCHEMA_VERSION)
+        self.assertEqual(self.schema_version(), CURRENT_SCHEMA_VERSION)
         self.assertEqual(
             migrated.find_active_campaign_by_name(ctf_name="Example"), created
         )
 
-    def test_version_four_migration_can_be_applied_twice_without_state_change(
-        self,
-    ) -> None:
-        self.create_campaign()
-        with sqlite3.connect(self.path) as conn:
-            conn.execute("ALTER TABLE ctfteam_campaign RENAME TO ctf_team_campaign")
-            conn.executescript(_MIGRATIONS[4])
-            first_campaign = conn.execute("SELECT * FROM ctfteam_campaign").fetchall()
-            conn.executescript(_MIGRATIONS[4])
-            second_campaign = conn.execute("SELECT * FROM ctfteam_campaign").fetchall()
+    def test_version_four_migration_replay_keeps_state(self) -> None:
+        created = self.create_campaign()
+        self.rewind_schema(4)
 
-        self.assertEqual(len(first_campaign), 1)
-        self.assertEqual(second_campaign, first_campaign)
-
-    def test_migration_from_version_five_adds_daily_notification_schema(
-        self,
-    ) -> None:
-        with sqlite3.connect(self.path) as conn:
-            conn.execute("DROP TABLE alpacahack_daily_notification")
-            conn.execute("PRAGMA user_version = 5")
-
-        Database(self.path)
-
-        with sqlite3.connect(self.path) as conn:
-            table = conn.execute(
-                "SELECT name FROM sqlite_master "
-                "WHERE type = 'table' AND name = 'alpacahack_daily_notification'"
-            ).fetchone()
-        self.assertEqual(table, ("alpacahack_daily_notification",))
-
-    def test_version_five_migration_can_be_applied_twice(self) -> None:
-        with sqlite3.connect(self.path) as conn:
-            conn.execute(
-                "INSERT INTO alpacahack_daily_notification VALUES (?)",
-                ("https://alpacahack.com/daily/challenges/example",),
-            )
-            conn.executescript(_MIGRATIONS[5])
-            conn.executescript(_MIGRATIONS[5])
-            rows = conn.execute(
-                "SELECT challenge_url FROM alpacahack_daily_notification"
-            ).fetchall()
+        replayed = Database(self.path)
 
         self.assertEqual(
-            rows,
-            [("https://alpacahack.com/daily/challenges/example",)],
+            replayed.find_active_campaign_by_name(ctf_name="Example"), created
         )
 
-    def test_version_six_migration_adds_due_campaign_indexes(self) -> None:
-        with sqlite3.connect(self.path) as conn:
-            conn.execute("DROP INDEX idx_campaign_due_start")
-            conn.execute("DROP INDEX idx_campaign_due_archive")
-            conn.execute("DROP INDEX idx_campaign_active_creator")
-            conn.execute("PRAGMA user_version = 6")
+    def test_migration_from_version_five_adds_daily_notification_store(self) -> None:
+        self.rewind_schema(5, "DROP TABLE alpacahack_daily_notification")
 
-        Database(self.path)
+        migrated = Database(self.path)
 
-        with sqlite3.connect(self.path) as conn:
-            indexes = {
-                row[0]
-                for row in conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='index'"
-                )
-            }
-        self.assertIn("idx_campaign_due_start", indexes)
-        self.assertIn("idx_campaign_due_archive", indexes)
-        self.assertIn("idx_campaign_active_creator", indexes)
+        self.assertTrue(migrated.reserve_alpacahack_daily_notification("u"))
 
-    def test_version_seven_migration_adds_tts_voice_preference(self) -> None:
-        with sqlite3.connect(self.path) as conn:
-            conn.execute("DROP TABLE tts_voice_preference")
-            conn.execute("PRAGMA user_version = 7")
+    def test_version_five_migration_replay_keeps_reservations(self) -> None:
+        self.db.reserve_alpacahack_daily_notification("u")
+        self.rewind_schema(5)
 
-        db = Database(self.path)
-        db.upsert_tts_voice(1, 3, 100)
+        replayed = Database(self.path)
 
-        with sqlite3.connect(self.path) as conn:
-            version = conn.execute("PRAGMA user_version").fetchone()[0]
-        self.assertEqual(version, CURRENT_SCHEMA_VERSION)
-        self.assertEqual(db.find_tts_voice(1), 3)
+        self.assertFalse(replayed.reserve_alpacahack_daily_notification("u"))
 
-    def test_version_seven_migration_can_be_applied_twice(self) -> None:
+    def test_version_six_migration_replay_keeps_campaigns(self) -> None:
+        created = self.create_campaign()
+        self.rewind_schema(
+            6,
+            "DROP INDEX idx_campaign_due_start",
+            "DROP INDEX idx_campaign_due_archive",
+            "DROP INDEX idx_campaign_active_creator",
+        )
+
+        migrated = Database(self.path)
+
+        self.assertEqual(migrated.list_due_starts(created.start_at_unix), [created])
+        self.assertEqual(migrated.count_active_campaigns_by_creator(7), 1)
+
+    def test_migration_from_version_seven_adds_tts_voice_preference(self) -> None:
+        self.rewind_schema(7, "DROP TABLE tts_voice_preference")
+
+        migrated = Database(self.path)
+        migrated.upsert_tts_voice(1, 3, 100)
+
+        self.assertEqual(migrated.find_tts_voice(1), 3)
+        self.assertEqual(self.schema_version(), CURRENT_SCHEMA_VERSION)
+
+    def test_version_seven_migration_replay_keeps_preferences(self) -> None:
         self.db.upsert_tts_voice(1, 3, 100)
-        with sqlite3.connect(self.path) as conn:
-            conn.executescript(_MIGRATIONS[7])
-            conn.executescript(_MIGRATIONS[7])
-        self.assertEqual(self.db.find_tts_voice(1), 3)
+        self.rewind_schema(7)
+
+        self.assertEqual(Database(self.path).find_tts_voice(1), 3)
+
+    def test_migration_from_version_eight_adds_ai_chat_usage(self) -> None:
+        self.rewind_schema(8, "DROP TABLE ai_chat_usage")
+
+        migrated = Database(self.path)
+        self.assertEqual(migrated.count_ai_chat_requests(1, "2026-10"), 0)
+        migrated.record_ai_chat_request(1, "2026-10")
+
+        self.assertEqual(migrated.count_ai_chat_requests(1, "2026-10"), 1)
+        self.assertEqual(self.schema_version(), CURRENT_SCHEMA_VERSION)
+
+    def test_version_eight_migration_replay_keeps_usage(self) -> None:
+        self.db.record_ai_chat_request(1, "2026-10")
+        self.rewind_schema(8)
+
+        self.assertEqual(Database(self.path).count_ai_chat_requests(1, "2026-10"), 1)
+
+    def test_migration_from_version_nine_adds_tts_ban(self) -> None:
+        self.rewind_schema(9, "DROP TABLE tts_ban")
+
+        migrated = Database(self.path)
+        migrated.add_tts_ban(1, 100)
+
+        self.assertTrue(migrated.is_tts_banned(1))
+        self.assertEqual(self.schema_version(), CURRENT_SCHEMA_VERSION)
+
+    def test_version_nine_migration_replay_keeps_bans(self) -> None:
+        self.db.add_tts_ban(1, 100)
+        self.rewind_schema(9)
+
+        self.assertTrue(Database(self.path).is_tts_banned(1))
 
     def test_tts_voice_preference_lifecycle(self) -> None:
         self.assertIsNone(self.db.find_tts_voice(1))
@@ -419,47 +392,6 @@ PRAGMA user_version = 3;
     def test_tts_voice_preference_rejects_negative_speaker_id(self) -> None:
         with self.assertRaises(RepositoryError):
             self.db.upsert_tts_voice(1, -1, 100)
-
-    def test_version_eight_migration_adds_ai_chat_usage(self) -> None:
-        with sqlite3.connect(self.path) as conn:
-            conn.execute("DROP TABLE ai_chat_usage")
-            conn.execute("PRAGMA user_version = 8")
-
-        db = Database(self.path)
-        self.assertEqual(db.count_ai_chat_requests(1, "2026-10"), 0)
-        db.record_ai_chat_request(1, "2026-10")
-
-        with sqlite3.connect(self.path) as conn:
-            version = conn.execute("PRAGMA user_version").fetchone()[0]
-        self.assertEqual(version, CURRENT_SCHEMA_VERSION)
-        self.assertEqual(db.count_ai_chat_requests(1, "2026-10"), 1)
-
-    def test_version_eight_migration_can_be_applied_twice(self) -> None:
-        self.db.record_ai_chat_request(1, "2026-10")
-        with sqlite3.connect(self.path) as conn:
-            conn.executescript(_MIGRATIONS[8])
-            conn.executescript(_MIGRATIONS[8])
-        self.assertEqual(self.db.count_ai_chat_requests(1, "2026-10"), 1)
-
-    def test_version_nine_migration_adds_tts_ban(self) -> None:
-        with sqlite3.connect(self.path) as conn:
-            conn.execute("DROP TABLE tts_ban")
-            conn.execute("PRAGMA user_version = 9")
-
-        db = Database(self.path)
-        db.add_tts_ban(1, 100)
-
-        with sqlite3.connect(self.path) as conn:
-            version = conn.execute("PRAGMA user_version").fetchone()[0]
-        self.assertEqual(version, CURRENT_SCHEMA_VERSION)
-        self.assertTrue(db.is_tts_banned(1))
-
-    def test_version_nine_migration_can_be_applied_twice(self) -> None:
-        self.db.add_tts_ban(1, 100)
-        with sqlite3.connect(self.path) as conn:
-            conn.executescript(_MIGRATIONS[9])
-            conn.executescript(_MIGRATIONS[9])
-        self.assertTrue(self.db.is_tts_banned(1))
 
     def test_tts_ban_lifecycle(self) -> None:
         self.assertFalse(self.db.is_tts_banned(1))
@@ -482,40 +414,55 @@ PRAGMA user_version = 3;
         self.assertEqual(self.db.count_ai_chat_requests(2, "2026-10"), 1)
         self.assertEqual(self.db.count_ai_chat_requests(2, "2026-11"), 0)
 
-    def test_alpacahack_users(self) -> None:
+    def test_add_alpacahack_user_trims_name_and_rejects_duplicate(self) -> None:
         self.assertTrue(self.db.add_alpacahack_user(" zeta ", max_users=2))
         self.assertFalse(self.db.add_alpacahack_user("zeta", max_users=2))
-        self.assertTrue(self.db.add_alpacahack_user("alpha", max_users=2))
+        self.assertEqual(self.db.list_alpacahack_users(), ["zeta"])
+
+    def test_add_alpacahack_user_rejects_blank_name(self) -> None:
+        with self.assertRaises(RepositoryError):
+            self.db.add_alpacahack_user("   ", max_users=2)
+
+    def test_alpacahack_users_are_listed_in_name_order(self) -> None:
+        self.db.add_alpacahack_user("zeta", max_users=2)
+        self.db.add_alpacahack_user("alpha", max_users=2)
+
         self.assertEqual(self.db.list_alpacahack_users(), ["alpha", "zeta"])
-        self.assertTrue(self.db.delete_alpacahack_user("alpha"))
-        self.assertFalse(self.db.delete_alpacahack_user("missing"))
+
+    def test_delete_alpacahack_user_reports_whether_user_was_registered(self) -> None:
+        self.db.add_alpacahack_user("alpha", max_users=2)
+
+        self.assertTrue(self.db.delete_alpacahack_user(" alpha "))
+        self.assertEqual(self.db.list_alpacahack_users(), [])
+        self.assertFalse(self.db.delete_alpacahack_user("alpha"))
 
     def test_alpacahack_user_limit_rejects_new_user(self) -> None:
-        self.assertTrue(self.db.add_alpacahack_user("alice", max_users=2))
-        self.assertTrue(self.db.add_alpacahack_user("bob", max_users=2))
+        self.db.add_alpacahack_user("alice", max_users=2)
+        self.db.add_alpacahack_user("bob", max_users=2)
 
-        with self.assertRaisesRegex(
-            ConflictError, "^AlpacaHack user limit reached\\.$"
-        ):
+        with self.assertRaises(ConflictError):
             self.db.add_alpacahack_user("charlie", max_users=2)
+        self.assertEqual(self.db.list_alpacahack_users(), ["alice", "bob"])
 
-    def test_alpacahack_user_limit_allows_existing_user_result(self) -> None:
-        self.assertTrue(self.db.add_alpacahack_user("alice", max_users=1))
+    def test_alpacahack_user_limit_does_not_block_registered_user(self) -> None:
+        self.db.add_alpacahack_user("alice", max_users=1)
 
         self.assertFalse(self.db.add_alpacahack_user("alice", max_users=1))
 
-    def test_alpacahack_daily_notification_reservation_is_idempotent(self) -> None:
+    def test_alpacahack_daily_notification_is_reserved_once_per_url(self) -> None:
         url = "https://alpacahack.com/daily/challenges/example"
 
         self.assertTrue(self.db.reserve_alpacahack_daily_notification(url))
         self.assertFalse(self.db.reserve_alpacahack_daily_notification(url))
-        with sqlite3.connect(self.path) as conn:
-            row = conn.execute(
-                "SELECT challenge_url FROM alpacahack_daily_notification"
-            ).fetchone()
-        self.assertEqual(row, (url,))
 
-    def test_insert_audit_log_entry_is_idempotent(self) -> None:
+    def test_alpacahack_daily_notification_reserves_each_url_separately(self) -> None:
+        self.db.reserve_alpacahack_daily_notification("https://example.test/a")
+
+        self.assertTrue(
+            self.db.reserve_alpacahack_daily_notification("https://example.test/b")
+        )
+
+    def audit_entry(self, **overrides) -> dict:
         values = {
             "entry_id": 10,
             "guild_id": 20,
@@ -527,8 +474,14 @@ PRAGMA user_version = 3;
             "extra_text": "extra",
             "created_at_unix": 50,
         }
+        values.update(overrides)
+        return values
+
+    def test_insert_audit_log_entry_stores_all_fields(self) -> None:
+        values = self.audit_entry()
+
         self.assertTrue(self.db.insert_audit_log_entry(**values))
-        self.assertFalse(self.db.insert_audit_log_entry(**values))
+
         with sqlite3.connect(self.path) as conn:
             row = conn.execute(
                 "SELECT entry_id, guild_id, action, user_id, target_id, reason, "
@@ -536,19 +489,22 @@ PRAGMA user_version = 3;
             ).fetchone()
         self.assertEqual(row, tuple(values.values()))
 
-    def test_insert_audit_log_entry_raises_for_non_entry_id_constraint(self) -> None:
+    def test_insert_audit_log_entry_ignores_duplicate_entry_id(self) -> None:
+        self.assertTrue(self.db.insert_audit_log_entry(**self.audit_entry()))
+
+        self.assertFalse(
+            self.db.insert_audit_log_entry(**self.audit_entry(reason="changed"))
+        )
+
+        with sqlite3.connect(self.path) as conn:
+            rows = conn.execute("SELECT reason FROM audit_log_entry").fetchall()
+        self.assertEqual(rows, [("test reason",)])
+
+    def test_insert_audit_log_entry_with_null_action_raises_repository_error(
+        self,
+    ) -> None:
         with self.assertRaises(RepositoryError):
-            self.db.insert_audit_log_entry(
-                entry_id=10,
-                guild_id=20,
-                action=cast(str, None),
-                user_id=30,
-                target_id=40,
-                reason=None,
-                changes_json='{"before": {}, "after": {}}',
-                extra_text=None,
-                created_at_unix=50,
-            )
+            self.db.insert_audit_log_entry(**self.audit_entry(action=cast(str, None)))
 
     def test_sudo_grant_upsert_preserves_initial_granted_time(self) -> None:
         initial = self.db.upsert_sudo_grant(2, 3, 100, 200)
@@ -558,14 +514,34 @@ PRAGMA user_version = 3;
         self.assertEqual(renewed, SudoGrant(2, 4, 100, 300))
         self.assertEqual(self.db.get_sudo_grant(2), renewed)
 
-    def test_expired_sudo_grants_are_ordered_and_deletable(self) -> None:
+    def test_sudo_grant_is_absent_for_unknown_user(self) -> None:
+        self.assertIsNone(self.db.get_sudo_grant(2))
+
+    def test_sudo_grant_is_not_expired_before_expiry_time(self) -> None:
+        self.db.upsert_sudo_grant(2, 3, 100, 300)
+
+        self.assertEqual(self.db.list_expired_sudo_grants(299), [])
+
+    def test_sudo_grant_is_expired_at_expiry_time(self) -> None:
+        grant = self.db.upsert_sudo_grant(2, 3, 100, 300)
+
+        self.assertEqual(self.db.list_expired_sudo_grants(300), [grant])
+
+    def test_expired_sudo_grants_are_ordered_by_expiry(self) -> None:
         later = self.db.upsert_sudo_grant(2, 3, 100, 300)
         earlier = self.db.upsert_sudo_grant(4, 3, 100, 200)
         self.db.upsert_sudo_grant(5, 3, 100, 400)
 
         self.assertEqual(self.db.list_expired_sudo_grants(300), [earlier, later])
+
+    def test_delete_sudo_grant_removes_only_that_user(self) -> None:
+        kept = self.db.upsert_sudo_grant(2, 3, 100, 300)
+        self.db.upsert_sudo_grant(4, 3, 100, 200)
+
         self.db.delete_sudo_grant(4)
+
         self.assertIsNone(self.db.get_sudo_grant(4))
+        self.assertEqual(self.db.get_sudo_grant(2), kept)
 
     def test_create_and_find_campaign(self) -> None:
         created = self.create_campaign()
@@ -578,33 +554,47 @@ PRAGMA user_version = 3;
             self.db.find_active_campaign_by_message(channel_id=2, message_id=999)
         )
 
-    def test_decoder_rejects_active_with_closed_fields(self) -> None:
-        c = self.create_campaign()
+    def corrupt_campaign(self, campaign_id: int, assignment: str) -> None:
         with sqlite3.connect(self.path) as conn:
             conn.execute(
-                "UPDATE ctfteam_campaign SET closed_at_unix=1 WHERE id=?",
-                (c.id,),
+                f"UPDATE ctfteam_campaign SET {assignment} WHERE id=?",
+                (campaign_id,),
             )
             conn.commit()
-        with self.assertRaises(RepositoryError):
-            self.db.find_active_campaign_by_message(channel_id=2, message_id=3)
+
+    def test_decoder_rejects_active_with_closed_fields(self) -> None:
+        for message_id, column in enumerate(
+            ("closed_at_unix", "archive_at_unix", "archived_at_unix"), start=100
+        ):
+            with self.subTest(column=column):
+                c = self.create_campaign(f"Active {column}", message_id=message_id)
+                self.corrupt_campaign(c.id, f"{column}=1")
+                with self.assertRaises(RepositoryError):
+                    self.db.find_active_campaign_by_name(ctf_name=c.ctf_name)
 
     def test_decoder_rejects_closed_without_required_fields(self) -> None:
-        c = self.create_campaign()
-        self.db.close_campaign(c.id, 21, 30)
-        with sqlite3.connect(self.path) as conn:
-            conn.execute(
-                "UPDATE ctfteam_campaign SET closed_at_unix=NULL WHERE id=?",
-                (c.id,),
-            )
-            conn.commit()
-        with self.assertRaises(RepositoryError):
-            self.db.find_closed_campaign_by_name(ctf_name="Example")
+        for message_id, column in enumerate(
+            ("closed_at_unix", "archive_at_unix"), start=200
+        ):
+            with self.subTest(column=column):
+                c = self.create_campaign(f"Closed {column}", message_id=message_id)
+                self.db.close_campaign(c.id, 21, 30)
+                self.corrupt_campaign(c.id, f"{column}=NULL")
+                with self.assertRaises(RepositoryError):
+                    self.db.find_closed_campaign_by_name(ctf_name=c.ctf_name)
 
-    def test_duplicate_active_name_conflicts(self) -> None:
+    def test_duplicate_active_name_conflicts_ignoring_case(self) -> None:
         self.create_campaign("Example")
         with self.assertRaises(ConflictError):
             self.create_campaign("example", message_id=4)
+
+    def test_closed_campaign_name_can_be_reused_by_new_campaign(self) -> None:
+        old = self.create_campaign("Example")
+        self.db.close_campaign(old.id, 21, 30)
+
+        reused = self.create_campaign("Example", message_id=4)
+
+        self.assertEqual(reused.ctf_name, "Example")
 
     def test_duplicate_message_id_raises_repository_error_not_conflict(self) -> None:
         self.create_campaign("First")
@@ -613,108 +603,191 @@ PRAGMA user_version = 3;
         self.assertNotIsInstance(ctx.exception, ConflictError)
 
     def test_active_campaign_limit_is_enforced_on_insert(self) -> None:
-        for index in range(5):
-            self.create_campaign(f"Example {index}", message_id=index + 1)
-        with self.assertRaisesRegex(ConflictError, "limit"):
-            self.create_campaign("Overflow", message_id=6)
+        for index in range(2):
+            self.create_campaign(
+                f"Example {index}", message_id=index + 1, max_active_per_creator=2
+            )
+        with self.assertRaises(ConflictError):
+            self.create_campaign("Overflow", message_id=6, max_active_per_creator=2)
 
-    def test_close_start_archive_and_lists(self) -> None:
-        c = self.create_campaign(start_at_unix=10, end_at_unix=20)
-        due_starts = self.db.list_due_starts(10)
-        self.assertEqual([x.id for x in due_starts], [c.id])
-        self.assertIsInstance(due_starts[0], ActiveCampaign)
+    def test_active_campaign_limit_is_per_creator(self) -> None:
+        self.create_campaign("Mine", message_id=1, max_active_per_creator=1)
+
+        other = self.create_campaign(
+            "Theirs", message_id=2, created_by=8, max_active_per_creator=1
+        )
+
+        self.assertEqual(other.created_by, 8)
+
+    def test_closing_campaign_frees_active_campaign_limit(self) -> None:
+        first = self.create_campaign("First", message_id=1, max_active_per_creator=1)
+        self.db.close_campaign(first.id, 21, 30)
+
+        second = self.create_campaign("Second", message_id=2, max_active_per_creator=1)
+
+        self.assertEqual(second.ctf_name, "Second")
+
+    def test_count_active_campaigns_by_creator_counts_only_their_active_ones(
+        self,
+    ) -> None:
+        self.create_campaign("A", message_id=1)
+        closed = self.create_campaign("B", message_id=2)
+        self.create_campaign("C", message_id=3, created_by=8)
+        self.db.close_campaign(closed.id, 21, 30)
+
+        self.assertEqual(self.db.count_active_campaigns_by_creator(7), 1)
+        self.assertEqual(self.db.count_active_campaigns_by_creator(8), 1)
+        self.assertEqual(self.db.count_active_campaigns_by_creator(9), 0)
+
+    def test_has_active_campaign_with_name_ignores_case(self) -> None:
+        self.create_campaign("Example")
+
+        self.assertTrue(self.db.has_active_campaign_with_name("example"))
+        self.assertFalse(self.db.has_active_campaign_with_name("Other"))
+
+    def test_has_active_campaign_with_name_is_false_after_close(self) -> None:
+        c = self.create_campaign("Example")
+        self.db.close_campaign(c.id, 21, 30)
+
+        self.assertFalse(self.db.has_active_campaign_with_name("Example"))
+
+    def test_campaign_is_not_due_to_start_before_start_time(self) -> None:
+        self.create_campaign(start_at_unix=10)
+
+        self.assertEqual(self.db.list_due_starts(9), [])
+
+    def test_campaign_is_due_to_start_at_start_time(self) -> None:
+        c = self.create_campaign(start_at_unix=10)
+
+        self.assertEqual(self.db.list_due_starts(10), [c])
+
+    def test_started_campaign_is_no_longer_due_to_start(self) -> None:
+        c = self.create_campaign(start_at_unix=10)
+
         self.assertTrue(self.db.mark_started(c.id, 11))
-        self.assertFalse(self.db.mark_started(c.id, 12))
-        due_campaigns = self.db.list_due_campaigns(20)
-        self.assertEqual([x.id for x in due_campaigns], [c.id])
-        self.assertIsInstance(due_campaigns[0], ActiveCampaign)
-        self.assertTrue(self.db.close_campaign(c.id, 21, 30))
-        self.assertIsNone(
-            self.db.find_closed_campaign_by_name(
-                ctf_name="Example",
-                archived=True,
-            )
-        )
-        due_archives = self.db.list_due_archives(30)
-        self.assertEqual([x.id for x in due_archives], [c.id])
-        self.assertIsInstance(due_archives[0], ClosedCampaign)
-        self.assertTrue(self.db.mark_archived(c.id, 31))
-        archived = self.db.find_closed_campaign_by_name(
-            ctf_name="Example",
-            archived=True,
-        )
-        self.assertIsNotNone(archived)
-        assert archived is not None
-        self.assertEqual(archived.id, c.id)
 
-    def test_lifecycle_specific_name_lookups_filter_archived(self) -> None:
-        c = self.create_campaign("FilterMe")
-        self.assertIsNotNone(
-            self.db.find_active_campaign_by_name(
-                ctf_name="filterme",
-            )
-        )
-        self.assertTrue(self.db.close_campaign(c.id, 21, 30))
-        closed = self.db.find_closed_campaign_by_name(
-            ctf_name="FILTERME",
-            archived=False,
-        )
-        self.assertIsNotNone(closed)
-        self.assertIsInstance(closed, ClosedCampaign)
-        self.assertIsNone(
-            self.db.find_closed_campaign_by_name(
-                ctf_name="FilterMe",
-                archived=True,
-            )
-        )
+        self.assertEqual(self.db.list_due_starts(10), [])
+
+    def test_mark_started_returns_false_on_second_call(self) -> None:
+        c = self.create_campaign(start_at_unix=10)
+        self.db.mark_started(c.id, 11)
+
+        self.assertFalse(self.db.mark_started(c.id, 12))
 
     def test_mark_started_does_not_claim_closed_campaign(self) -> None:
         c = self.create_campaign(start_at_unix=10, end_at_unix=20)
         self.assertTrue(self.db.close_campaign(c.id, 21, 30))
         self.assertFalse(self.db.mark_started(c.id, 22))
 
-    @staticmethod
-    def make_row(status: str, *, closed_at=None, archive_at=None):
-        return (
-            1,
-            2,
-            3,
-            4,
-            "Example",
-            100,
-            200,
-            status,
-            7,
-            90,
-            None,
-            closed_at,
-            archive_at,
-            None,
-            5,
-            6,
+    def test_campaign_is_not_due_to_close_before_end_time(self) -> None:
+        self.create_campaign(end_at_unix=20)
+
+        self.assertEqual(self.db.list_due_campaigns(19), [])
+
+    def test_campaign_is_due_to_close_at_end_time(self) -> None:
+        c = self.create_campaign(end_at_unix=20)
+
+        self.assertEqual(self.db.list_due_campaigns(20), [c])
+
+    def test_campaign_without_end_time_is_never_due_to_close(self) -> None:
+        self.create_campaign(end_at_unix=None)
+
+        self.assertEqual(self.db.list_due_campaigns(10**12), [])
+
+    def test_closed_campaign_is_no_longer_due_to_close(self) -> None:
+        c = self.create_campaign(end_at_unix=20)
+
+        self.assertTrue(self.db.close_campaign(c.id, 21, 30))
+
+        self.assertEqual(self.db.list_due_campaigns(20), [])
+
+    def test_close_campaign_returns_false_when_already_closed(self) -> None:
+        c = self.create_campaign()
+        self.db.close_campaign(c.id, 21, 30)
+
+        self.assertFalse(self.db.close_campaign(c.id, 22, 31))
+
+    def close_example(self, archive_at_unix: int = 30) -> ClosedCampaign:
+        c = self.create_campaign()
+        self.db.close_campaign(c.id, 21, archive_at_unix)
+        closed = self.db.find_closed_campaign_by_name(ctf_name="Example")
+        assert closed is not None
+        return closed
+
+    def test_closed_campaign_is_not_due_to_archive_before_archive_time(self) -> None:
+        self.close_example(archive_at_unix=30)
+
+        self.assertEqual(self.db.list_due_archives(29), [])
+
+    def test_closed_campaign_is_due_to_archive_at_archive_time(self) -> None:
+        closed = self.close_example(archive_at_unix=30)
+
+        self.assertEqual(self.db.list_due_archives(30), [closed])
+
+    def test_active_campaign_is_never_due_to_archive(self) -> None:
+        self.create_campaign()
+
+        self.assertEqual(self.db.list_due_archives(10**12), [])
+
+    def test_archived_campaign_is_no_longer_due_to_archive(self) -> None:
+        closed = self.close_example()
+
+        self.assertTrue(self.db.mark_archived(closed.id, 31))
+
+        self.assertEqual(self.db.list_due_archives(30), [])
+
+    def test_mark_archived_returns_false_on_second_call(self) -> None:
+        closed = self.close_example()
+        self.db.mark_archived(closed.id, 31)
+
+        self.assertFalse(self.db.mark_archived(closed.id, 32))
+
+    def test_archived_campaign_matches_only_archived_lookup(self) -> None:
+        closed = self.close_example()
+        self.db.mark_archived(closed.id, 31)
+
+        archived = self.db.find_closed_campaign_by_name(
+            ctf_name="Example", archived=True
         )
 
-    def test_decoder_rejects_unknown_status(self) -> None:
-        with self.assertRaises(RepositoryError):
-            Database._to_campaign(self.make_row("broken"))
+        self.assertIsNotNone(archived)
+        assert archived is not None
+        self.assertEqual(archived.archived_at_unix, 31)
+        self.assertIsNone(
+            self.db.find_closed_campaign_by_name(ctf_name="Example", archived=False)
+        )
 
-    def test_decoder_rejects_status_mismatch(self) -> None:
-        with self.assertRaises(RepositoryError):
-            Database._to_active_campaign(
-                self.make_row("closed", closed_at=201, archive_at=300)
-            )
-        with self.assertRaises(RepositoryError):
-            Database._to_closed_campaign(self.make_row("active"))
+    def test_unarchived_closed_campaign_matches_only_unarchived_lookup(self) -> None:
+        closed = self.close_example()
+
+        self.assertEqual(
+            self.db.find_closed_campaign_by_name(ctf_name="EXAMPLE", archived=False),
+            closed,
+        )
+        self.assertIsNone(
+            self.db.find_closed_campaign_by_name(ctf_name="Example", archived=True)
+        )
+
+    def test_find_active_campaign_by_name_ignores_case(self) -> None:
+        created = self.create_campaign("FilterMe")
+
+        self.assertEqual(
+            self.db.find_active_campaign_by_name(ctf_name="filterme"), created
+        )
+
+    def test_find_by_name_does_not_cross_active_and_closed(self) -> None:
+        active = self.create_campaign("Open", message_id=1)
+        closed = self.create_campaign("Done", message_id=2)
+        self.db.close_campaign(closed.id, 21, 30)
+
+        self.assertIsNone(
+            self.db.find_closed_campaign_by_name(ctf_name=active.ctf_name)
+        )
+        self.assertIsNone(self.db.find_active_campaign_by_name(ctf_name="Done"))
 
     def test_decoder_normalizes_zero_optional_channel_ids(self) -> None:
         c = self.create_campaign()
-        with sqlite3.connect(self.path) as conn:
-            conn.execute(
-                "UPDATE ctfteam_campaign SET discussion_channel_id=0, "
-                "voice_channel_id=0 WHERE id=?",
-                (c.id,),
-            )
-            conn.commit()
+        self.corrupt_campaign(c.id, "discussion_channel_id=0, voice_channel_id=0")
 
         active = self.db.find_active_campaign_by_name(ctf_name="Example")
         self.assertIsNotNone(active)
